@@ -44,8 +44,13 @@ function tileRect(world, tiles) {
 // targets, seed, ui, packageMix }.
 export function createDelivery(env) {
   const { world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetIds, seed, ui, packageMix } = env;
+  const hazards = env.hazards; // M7: anger a bee swarm when a parcel lands on its tree (§2.7)
   const mailboxes = world.mailboxes || [];
   const std = PACKAGES.find((p) => p.id === 'standard');
+  // M7: effects + float text are shared (created once in main.js) so hazards in
+  // free roam can use them too; fall back to own copies if none are provided.
+  const effects = env.effects || createEffects(scene);
+  const floatText = env.floatText || createFloatText(ui, camera, renderer);
   const houseRects = world.def.houses.map((h) => ({
     house: h,
     porch: tileRect(world, world.porches[h.id].tiles),
@@ -68,8 +73,6 @@ export function createDelivery(env) {
   const scoring = createScoring();
   const rng = mulberry32(seed || 1);
   const targeting = createTargeting({ world, camera, renderer, rng });
-  const floatText = createFloatText(ui, camera, renderer);
-  const effects = createEffects(scene);
   const npcs = createNpcs(scene, world.worldMat, world, 4);
   const markers = createMarkers(scene, world, targets);
 
@@ -90,6 +93,8 @@ export function createDelivery(env) {
     s.lastResult = res;
     const wx = parcel.mesh.position.x, wy = parcel.mesh.position.y, wz = parcel.mesh.position.z;
     res.rest = { x: wx, z: wz };
+    // §2.7: a parcel that lands on the beehive or its tree angers the swarm.
+    if (hazards) hazards.angersSwarmAt(wx, wz);
     // §2.6: which outcomes remove the target (delivered) vs. lose the parcel.
     const delivered = { perfect: 1, nice: 1, sloppy: 1, lucky: 1, doorstep: 1, broken: 1 };
     if (res.splat) effects.splat(wx, wy, wz);
@@ -142,6 +147,13 @@ export function createDelivery(env) {
   };
 
   // §2.4 doorstep delivery: hold F on a target's porch for 0.8 s.
+  // §2.6: a knockdown drops one carried parcel (lost, streak resets). A dog
+  // thief (§2.12) can steal that dropped parcel — the courier recovers it by
+  // catching the dog, else it's gone when the dog trots home.
+  s.stolen = false;
+  s.dropParcel = (stolen) => { s.carried = Math.max(0, s.carried - 1); player.setCarried(s.carried); scoring.streak = 0; if (stolen) s.stolen = true; };
+  s.recoverParcel = () => { if (s.stolen) { s.stolen = false; s.carried++; player.setCarried(s.carried); floatText.pop('Got it back!', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } };
+  s.addScore = (n) => { scoring.score += n; };
   s.updateDoorstep = (dt) => {
     if (!input.isHeld('doorstep')) { s.doorstepT = 0; s.doorstepHouse = null; return; }
     let on = null;

@@ -73,3 +73,13 @@ export const FREE_ROAM = {
   goldenParcels: 12,
   minutesPerPhase: 2, // M10 day cycle: each ToD preset held this long (blend 30 s)
 };
+
+// §2.6 / §2.7 / §2.12: knockdown + hazard-flow tuning shared by every hazard.
+// Per-hazard numbers (wake/chase radii, etc.) live in data/hazards.js params.
+export const HAZARD = {
+  knockdownTime: 1.2,   // §2.6: the courier falls 1.2 s
+  invulnTime: 1.5,      // §2.6: … then 1.5 s of blinking invulnerability
+  knockdownShake: 0.3,  // §2.6: camera shake 0.3
+  puffyTime: 5,         // §2.7: the bee-stung puffy face lasts 5 s
+  maxActiveSwarms: 2,   // §2.7: up to 2 bee swarms at once
+};

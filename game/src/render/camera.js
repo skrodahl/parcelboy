@@ -17,6 +17,9 @@ export function createFollowCam(camera, collision) {
   let camYaw = 0;
   let trauma = 0;
   let lastFov = 50;
+  const dist = { h: 13, v: 11 }; // follow-cam offsets (§7.9); overridable for close-up shots
+
+  function setDist(h, v) { if (h !== undefined) dist.h = h; if (v !== undefined) dist.v = v; }
 
   // March from `look` to `dst` in N_STEPS steps; keep the first spot that is
   // not inside a static (cam radius 0.6). Writes into `desired`.
@@ -65,9 +68,9 @@ export function createFollowCam(camera, collision) {
     // Position: ease at 8/s with a speed-based pull-back.
     const pull = 1 + 0.15 * Math.min(1, Math.abs(tgt.speed) / 12);
     desired.set(
-      tgt.pos.x + Math.sin(camYaw) * 13 * pull,
-      tgt.pos.y + 11 * pull,
-      tgt.pos.z + Math.cos(camYaw) * 13 * pull,
+      tgt.pos.x + Math.sin(camYaw) * dist.h * pull,
+      tgt.pos.y + dist.v * pull,
+      tgt.pos.z + Math.cos(camYaw) * dist.h * pull,
     );
     clearPos(desired);
     const k = 1 - Math.exp(-8 * dt);
@@ -101,9 +104,9 @@ export function createFollowCam(camera, collision) {
     camYaw = -tgt.heading;
     setLook(tgt);
     desired.set(
-      tgt.pos.x + Math.sin(camYaw) * 13,
-      tgt.pos.y + 11,
-      tgt.pos.z + Math.cos(camYaw) * 13,
+      tgt.pos.x + Math.sin(camYaw) * dist.h,
+      tgt.pos.y + dist.v,
+      tgt.pos.z + Math.cos(camYaw) * dist.h,
     );
     clearPos(desired);
     camera.position.copy(desired);
@@ -111,5 +114,5 @@ export function createFollowCam(camera, collision) {
     if (camLookOut) camLookOut.copy(look);
   }
 
-  return { update, shake, snap };
+  return { update, shake, snap, setDist };
 }

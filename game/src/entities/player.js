@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER } from '../data/config.js';
+import { PLAYER, HAZARD } from '../data/config.js';
 import { RIDE_HEIGHT } from './vehicleModels.js';
 
 // §2.3: arcade kinematics, no physics engine. The player has a `heading`
@@ -17,8 +17,27 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   let airT = -1; // 0..PLAYER.jumpTime while airborne
   let throwT = -1; // 0..0.06 s throw wind-up (§2.12), -1 = idle
   const THROW_WINDUP = 0.06;
+  // §2.6 / §2.7 knockdown + hazard state. Bea (`unstoppable`) is knockdown-
+  // immune; Marlo's `dogFriendly` perk means dogs never chase. Minimal flags
+  // for M7; the full ability/perk system lands in M8.
+  const knockdownImmune = charDef.ability === 'unstoppable';
+  const dogFriendly = (charDef.perks || []).includes('dogFriendly');
+  let kdT = -1;      // 0..HAZARD.knockdownTime while knocked down / panicking
+  let kdKind = null; // 'car' | 'dog' | 'skater' | 'panic'
+  let puffyT = 0;    // §2.7: remaining puffy-face time (bee sting)
+  let invulnT = 0;   // §2.6: remaining blinking invulnerability
+  let spraySlow = 1; // set by hazards each frame (×0.6 inside a sprinkler spray)
   // One stable anim-scratch object per player (no per-frame allocation).
-  const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1 };
+  const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1, panic: 0, puffy: 0, blink: 0, pancake: 0 };
+
+  function startKnockdown(kind) {
+    if (knockdownImmune) return 'blocked';
+    if (kdT >= 0 || invulnT > 0) return 'invuln';
+    kdKind = kind; kdT = 0;
+    if (kind === 'panic') puffyT = HAZARD.puffyTime;
+    return 'knockdown';
+  }
+  function canBeKnocked() { return !knockdownImmune && kdT < 0 && invulnT <= 0; }
 
   // Final stats = vehicle base × courier speed multiplier (§11.2); static, so
   // computed once — the per-frame paths must not allocate.
@@ -28,9 +47,18 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
 
   // dt = fixed sim step; input = createInput() result; simT = sim time.
   function update(dt, input, simT) {
+    // Hazard timers (§2.6/§2.7): knockdown fall/panic, puffy face, invuln.
+    if (puffyT > 0) puffyT -= dt;
+    if (invulnT > 0) invulnT -= dt;
+    if (kdT >= 0) { kdT += dt; if (kdT >= HAZARD.knockdownTime) { kdT = -1; kdKind = null; invulnT = HAZARD.invulnTime; } }
+    const down = kdT >= 0;
+
     const fwd = input.isHeld('forward');
     const back = input.isHeld('back');
-    const target = fwd ? maxSpeed : back ? -maxSpeed * 0.35 : 0;
+    // §2.7: standing in a sprinkler spray slows movement (×0.6).
+    const spd = maxSpeed * (down ? 0 : spraySlow);
+    const target = down ? 0 : fwd ? spd : back ? -spd * 0.35 : 0;
+    if (down) speed = 0;
     // §2.3: accelerate at `accel`, coast at accel*1.5, brake at accel*3.
     let rate = accel;
     if (target === 0) rate = accel * 1.5;
@@ -82,6 +110,13 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     anim.riding = vehDef.riding;
     anim.air = airT >= 0 ? airT / PLAYER.jumpTime : -1;
     anim.throw = throwT >= 0 ? throwT / THROW_WINDUP : -1;
+    // §2.12 knockdown gags: flop (fall), bee panic hop, puffy face, pancake,
+    // and blinking during the invulnerability window.
+    anim.fall = kdT >= 0 && kdKind !== 'panic' ? 1 : 0;
+    anim.panic = kdT >= 0 && kdKind === 'panic' ? 1 : 0;
+    anim.puffy = puffyT > 0 ? 1 : 0;
+    anim.pancake = kdKind === 'car' && kdT >= 0 ? 1 : 0;
+    anim.blink = invulnT > 0 ? (Math.sin(simT * 22) > 0 ? 1 : 0) : 0;
     const seat = RIDE_HEIGHT[vehDef.id] || 0;
     rig.group.position.set(pos.x, pos.y + seat, pos.z);
     rig.group.rotation.y = Math.atan2(Math.sin(heading), -Math.cos(heading));
@@ -109,6 +144,12 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     pos,
     get heading() { return heading; },
     get speed() { return speed; },
+    get spraySlow() { return spraySlow; },
+    set spraySlow(v) { spraySlow = v; },
+    get dogFriendly() { return dogFriendly; },
+    get knockdownImmune() { return knockdownImmune; },
+    startKnockdown,
+    canBeKnocked,
     rig,
     update,
     syncVisuals,

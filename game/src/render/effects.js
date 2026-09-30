@@ -73,6 +73,16 @@ export function createEffects(scene) {
     dust(x, y, z) { burst('dust', x, y, z, 6, { speed: 1.6, up: 0.4, life: 0.5, colors: ['#cfc4b8', '#b8ad9e'], scale: 1.4 }); },
     splash(x, y, z) { burst('splash', x, y, z, 12, { speed: 2.4, up: 1.8, life: 0.7, colors: ['#4cc9f0', '#90e0ef', '#bde0fe'], scale: 1.0 }); },
     splat(x, y, z) { burst('splat', x, y, z, 12, { speed: 2.0, up: 0.8, life: 0.6, colors: ['#ff8fab', '#fffaf0', '#f4acb7'], scale: 1.3 }); },
+    // §2.7: a sprinkler's rotating spray — a few light-blue droplets arcing
+    // outward from the head each frame (called while the sprinkler is on).
+    spray(x, z, angle) {
+      const n = 3;
+      for (let i = 0; i < n; i++) {
+        const a = angle + (i - 1) * 0.6; // spread over ~±0.6 rad of the head
+        const sp = 3.5 + Math.random() * 2;
+        spawnOne('splash', x + Math.sin(a) * 0.4, 1.05, z + -Math.cos(a) * 0.4, Math.sin(a) * sp, 2.5 + Math.random(), -Math.cos(a) * sp, 0.6, '#90e0ef', 0.9);
+      }
+    },
     step(dt) {
       let any = false;
       for (let i = 0; i < MAX; i++) {

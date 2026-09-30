@@ -132,16 +132,26 @@ export function buildCourier(charDef, material) {
         this.armR.rotation.x = -1.3 * th;
         this.group.rotation.x = -0.16 * Math.sin(th * Math.PI);
       }
-      // Idle breathing (subtle whole-rig y scale).
-      this.headTorso.scale.y = s.moving ? 1 : 1 + 0.02 * Math.sin(s.t * 2.1);
+      // Idle breathing (subtle head scale).
+      const breathe = s.moving ? 1 : 1 + 0.02 * Math.sin(s.t * 2.1);
       // Jump squash/stretch (0.9 takeoff/landing, 1.1 apex).
-      this.group.scale.y = s.air >= 0 ? 0.9 + 0.2 * Math.sin(Math.PI * s.air) : 1;
-      if (s.air >= 0) {
-        this.legL.rotation.x = 0.7;
-        this.legR.rotation.x = 0.7;
+      let scaleY = s.air >= 0 ? 0.9 + 0.2 * Math.sin(Math.PI * s.air) : 1;
+      if (s.air >= 0) { this.legL.rotation.x = 0.7; this.legR.rotation.x = 0.7; }
+
+      // §2.12 knockdown gags (M7): flop / bee-panic hop / puffy face / pancake.
+      if (s.panic) {
+        this.group.position.y = Math.abs(Math.sin(s.t * 9)) * 0.4;
+        this.armL.rotation.z = -2.0 + 0.3 * Math.sin(s.t * 12);
+        this.armR.rotation.z = 2.0 + 0.3 * Math.sin(s.t * 12);
+        this.group.rotation.x = 0.12;
+      } else {
+        this.group.position.y = 0;
+        this.group.rotation.x = s.pancake ? -Math.PI * 0.5 : -Math.PI * 0.5 * s.fall;
+        if (s.pancake) scaleY *= 0.45; // flattened on a car hit
       }
-      // Knockdown (M7 triggers fall 0..1): flop onto the back.
-      this.group.rotation.x = -Math.PI * 0.5 * s.fall;
+      // Puffy face: swell the head 1.35× (bee sting, §2.7).
+      this.headTorso.scale.set(s.puffy ? 1.35 : 1, s.puffy ? 1.35 * breathe : breathe, s.puffy ? 1.35 : 1);
+      this.group.scale.y = scaleY * (s.blink ? 0.92 : 1); // blinking invuln pulse
     },
   };
   return rig;

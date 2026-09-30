@@ -19,10 +19,13 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
-import { PARCEL, FREE_ROAM } from './data/config.js';
+import { PARCEL, FREE_ROAM, HAZARD, CARTOON } from './data/config.js';
 import { SHIFTS, MAIN_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
 import { createMission } from './gameplay/mission.js';
+import { createHazards } from './gameplay/hazards.js';
+import { createEffects } from './render/effects.js';
+import { createFloatText } from './render/floatText.js';
 
 const params = parseParams();
 
@@ -43,6 +46,7 @@ window.addEventListener('resize', () => resizeRenderer(renderer, camera));
 const worldMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 
 let sky = null;
+let lighting = null;
 let cube = null;
 let world = null;
 let simTime = 0;
@@ -57,6 +61,9 @@ let hud = null; // M6 HUD (free-roam chip + mission timer/score)
 let activeChar = null, activeVeh = null; // the spawned courier/vehicle
 let resultsEl = null; // the results-screen DOM (M6)
 let shiftCardEl = null; // the dispatch mission-card DOM (M6)
+let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
+let sharedEffects = null, sharedFloatText = null; // M7: created once, shared by hazards + delivery
+let hitStopUntil = 0; // M7: §2.12 hit-stop (sim-time the sim freezes on a knockdown)
 // M5 interim: 5 fixed houses are delivery targets until M6 adds shifts.
 const M5_TARGETS = ['h01', 'h06', 'h09', 'h17', 'h22'];
 const lineup = [];
@@ -152,7 +159,7 @@ if (params.scene === 'test') {
   world = buildWorld(NEIGHBORHOODS[0], 1, preset);
   scene.add(world.group);
   for (const ch of world.chunks) { ch.mesh.castShadow = true; ch.mesh.receiveShadow = true; }
-  const lighting = createLighting(scene, preset);
+  lighting = createLighting(scene, preset);
   if (quality.shadowSize > 0) {
     lighting.sun.castShadow = true;
     lighting.sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
@@ -217,6 +224,34 @@ function spawnCourier(charDef, vehDef) {
   blobs.flush();
   followCam.snap(camTgt, camLook);
   gameState.name = 'freeRoam';
+  // M7: shared effects/float-text (used by hazards + delivery) + free-roam hazards.
+  if (!sharedEffects) { sharedEffects = createEffects(scene); sharedFloatText = createFloatText(document.getElementById('ui'), camera, renderer); }
+  setHazards(FREE_ROAM.hazards);
+}
+
+// M7: (re)create the hazard manager for a set of counts. Free roam uses the
+// FREE_ROAM levels; a shift uses its own (`hazards: null` → free-roam levels).
+function setHazards(counts) {
+  if (!player || !sharedEffects) return;
+  if (hazards) { hazards.dispose(); hazards = null; }
+  hazards = createHazards({
+    scene, world, def: world.def, charDef: activeChar, counts: counts || FREE_ROAM.hazards,
+    effects: sharedEffects, floatText: sharedFloatText, player,
+    onKnockdown, parcels: delivery ? delivery.parcels : null,
+    onDogSteal: () => { if (delivery) delivery.dropParcel(true); },
+    onDogRecover: () => { if (delivery) delivery.recoverParcel(); },
+    onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } },
+  });
+}
+
+// §2.6 knockdown: camera shake + hit-stop + drop a parcel (in a mission) + dust.
+function onKnockdown(kind) {
+  if (!player) return;
+  if (followCam) followCam.shake(HAZARD.knockdownShake);
+  hitStopUntil = simTime + (CARTOON.enabled ? CARTOON.hitStopMs : 0) / 1000;
+  if (delivery) delivery.dropParcel(false);
+  sharedEffects.dust(player.pos.x, 0.6, player.pos.z);
+  void kind;
 }
 
 // §2.10: start a shift by id. Builds the mission (targets + timer) and a
@@ -226,10 +261,13 @@ function startShift(shiftId) {
   const shift = SHIFTS.find((s) => s.id === shiftId);
   if (!shift) return;
   const seed = params.seed || 1;
+  setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
   mission = createMission({ def: world.def, shift, seed, onResults: (r) => showResults(r) });
-  delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed);
+  delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed, sharedEffects, sharedFloatText);
   mission.start(delivery);
   player.setCarried(delivery.carried);
+  // §2.13: snap to the shift's time of day (a 2 s blend lands in M10's day cycle).
+  if (shift.timeOfDay) { const p = todRegistry.get(shift.timeOfDay); if (p && lighting) { lighting.apply(p); if (sky) sky.apply(p); } }
   gameState.name = 'mission';
   if (hud) hud.missionStart(delivery, shift);
 }
@@ -242,6 +280,7 @@ function endShift(retry) {
   if (mission) mission = null;
   gameState.name = 'freeRoam';
   if (hud) hud.missionEnd();
+  setHazards(FREE_ROAM.hazards);
   if (retry) startShift(retry);
 }
 
@@ -321,8 +360,8 @@ function showShiftCard() {
 // Setup a delivery session for an explicit target list + package mix (M6 shifts
 // and the M5 interim both go through this). `charDef`/`vehDef` come from the
 // currently-spawned courier.
-function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix });
+function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText) {
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards });
 }
 resizeRenderer(renderer, camera);
 
@@ -376,6 +415,9 @@ let simPaused = params.paused;
 // follow cam, and the blob shadow. Called by update() each fixed step, or
 // manually by __pb.step() while paused.
 function simStep(dt) {
+  // §2.12 hit-stop: on a knockdown the world freezes ~70 ms (dramatic beat).
+  if (simTime < hitStopUntil) return;
+  if (hazards) hazards.step(dt);
   if (player) {
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
@@ -395,11 +437,12 @@ function simStep(dt) {
     delivery.handleInput();
     delivery.updateDoorstep(dt);
     delivery.parcels.step(dt);
-    delivery.effects.step(dt);
     delivery.npcs.step(dt);
-    delivery.floatText.step(dt);
     delivery.markers.update(dt, simTime, player ? player.pos.x : 0, player ? player.pos.z : 0);
   }
+  // M7: shared effects + float text (the delivery session uses these same ones).
+  if (sharedEffects) sharedEffects.step(dt);
+  if (sharedFloatText) sharedFloatText.step(dt);
   if (mission && hud) {
     mission.update(dt); // may fire end() → showResults()
     hud.tick(mission, delivery);
@@ -524,7 +567,49 @@ window.__pb = {
       simStep(step);
     }
   },
+  debugHazards() {
+    if (!hazards) return null;
+    return {
+      cars: hazards.cars.length, dogs: hazards.dogs, skaters: hazards.skaters, hives: hazards.hives, bins: hazards.bins, cones: hazards.cones,
+      hiveStates: hazards.hiveSt ? hazards.hiveSt.map((h) => h.state) : [],
+      dogStates: hazards.dogSt ? hazards.dogSt.map((d) => d.state) : [],
+      dogSteal: hazards.dogSt ? hazards.dogSt.map((d) => d.stealT) : [],
+    };
+  },
+  debugPlayer() {
+    if (!player) return null;
+    return {
+      x: +player.pos.x.toFixed(1), z: +player.pos.z.toFixed(1), y: +player.pos.y.toFixed(2),
+      immune: player.knockdownImmune, dogFriendly: player.dogFriendly,
+    };
+  },
+  debugBees() {
+    if (!hazards) return null;
+    return {
+      swarms: hazards.hiveSt.map((h) => ({ cx: +h.cx.toFixed(1), cz: +h.cz.toFixed(1), state: h.state })),
+    };
+  },
   startShift(id) { startShift(id); },
+  angerBees() { if (hazards) hazards.angersSwarmAt(hazards.hiveSt[0].x, hazards.hiveSt[0].z); },
+  setCamDist(h, v) {
+    if (!followCam || !player) return;
+    camTgt.pos = player.pos; camTgt.heading = player.heading;
+    followCam.setDist(h, v);
+    followCam.snap(camTgt, camLook);
+  },
+  // §12.1: point the camera at a world spot (a "porch-style close camera").
+  // The cam position is given explicitly (camX, camZ, up) so a shot can approach
+  // a target from whichever side is clear. Set after the last step in a paused
+  // shot so the follow-cam doesn't override it.
+  aimAt(wx, wz, camX, camZ, up) {
+    camera.position.set(camX, up, camZ);
+    camLook.set(wx, 1.5, wz);
+    camera.lookAt(camLook.x, camLook.y, camLook.z);
+    const d = camera.position.distanceTo(camLook);
+    if (scene.fog) { scene.fog.near = d + 45; scene.fog.far = d + 150; }
+    camera.far = Math.max(220, d + 260);
+    camera.updateProjectionMatrix();
+  },
   freeRoam() { if (mission) endShift(false); },
   setWaypoint() {},
   abandonMission() { if (mission) endShift(false); },
