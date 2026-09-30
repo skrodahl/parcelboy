@@ -13,10 +13,10 @@ You are building **Parcelboy**, a friendly, colorful arcade game in the browser,
    - run the screenshot tool (`PLAN.md` §12),
    - **open and look at every PNG it produced**, and write one or two sentences in `PROGRESS.md` on what each one actually shows,
    - fix anything that doesn't match the expected description and re-shoot,
-   - update `PROGRESS.md`, then `git commit -am "M<n>: <title>"`.
+   - update `PROGRESS.md`, then `git commit -am "M<n>: <title>"` and **`git push origin main`** (the user runs overnight and expects work to land on GitHub each milestone).
 4. Never mark something done without evidence: a screenshot you looked at, stats JSON, or zero console errors.
 5. If the plan is ambiguous, pick the **simplest** option that satisfies it and record it under *Decisions* in `PROGRESS.md`. Don't ask unless you're blocked.
-6. Stop and ask the user if the screenshot tool can't render WebGL after two attempts to fix it, if a *User check* gate is reached, or if you'd need to break a hard rule below.
+6. **Autonomous overnight run (user directive 2026-10-01):** do NOT stop at each milestone or at a *User check* gate. A user-check gate (M4 / M7 / M12, etc.) is not a stop: record it under the milestone's `User check:` line in `PROGRESS.md` as "pending — user to verify later" and **continue to the next milestone** so work keeps progressing unattended. Only stop and report if (a) the screenshot tool can't render WebGL after two attempts to fix it, or (b) continuing would require breaking a hard rule below. In both cases, state exactly what you found and where you stopped.
 
 ## Hard rules
 

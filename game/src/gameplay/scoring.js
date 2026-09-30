@@ -100,11 +100,14 @@ export function createScoring() {
   }
 
   function reset() { score = 0; streak = 0; }
+  // A lost parcel (a knockdown drop or a dog steal) breaks the streak (§2.6/§2.12).
+  function breakStreak() { streak = 0; }
 
   return {
     judge,
     doorstep,
     reset,
+    breakStreak,
     get score() { return score; },
     get streak() { return streak; },
     multiplier,

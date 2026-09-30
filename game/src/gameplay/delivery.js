@@ -151,7 +151,7 @@ export function createDelivery(env) {
   // thief (§2.12) can steal that dropped parcel — the courier recovers it by
   // catching the dog, else it's gone when the dog trots home.
   s.stolen = false;
-  s.dropParcel = (stolen) => { s.carried = Math.max(0, s.carried - 1); player.setCarried(s.carried); scoring.streak = 0; if (stolen) s.stolen = true; };
+  s.dropParcel = (stolen) => { s.carried = Math.max(0, s.carried - 1); player.setCarried(s.carried); scoring.breakStreak(); if (stolen) s.stolen = true; };
   s.recoverParcel = () => { if (s.stolen) { s.stolen = false; s.carried++; player.setCarried(s.carried); floatText.pop('Got it back!', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } };
   s.addScore = (n) => { scoring.score += n; };
   s.updateDoorstep = (dt) => {

@@ -26,6 +26,8 @@ import { createMission } from './gameplay/mission.js';
 import { createHazards } from './gameplay/hazards.js';
 import { createEffects } from './render/effects.js';
 import { createFloatText } from './render/floatText.js';
+import { createRadar } from './ui/radar.js';
+import { createFullMap } from './ui/fullmap.js';
 
 const params = parseParams();
 
@@ -73,6 +75,10 @@ const gameState = { name: 'boot' };
 // The camera's current look-at target (allocation-free; updated by presets).
 // Fog + far clip scale with the distance from the camera to this point (§7.3).
 const camLook = new THREE.Vector3(0, 0, 0);
+let simPaused = params.paused; // M6b: also toggled while the full-screen map is open
+let radar = null, fullMap = null; // M6b: the corner radar + full-screen map
+// M6b: live refs the radar/full-map read each tick (kept current in main).
+const radarState = { player: null, delivery: null, hazards: null, world: null, waypoint: null };
 
 if (params.scene === 'test') {
   // M1 test scene: a sample cottage on a grass plate, lit by time of day.
@@ -204,6 +210,7 @@ if (params.scene === 'test') {
     if (params.screen === 'results') showResults({ shift: 'morning', success: true, score: 3420, stars: 2, coins: 340, timeBonus: 120, delivered: 10, total: 10 });
     else if (params.showCard) showShiftCard();
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
+    if (params.screen === 'fullMap') fullMap.open(); // M6b: open the full-screen map (pauses the sim)
   }
 }
 
@@ -227,6 +234,15 @@ function spawnCourier(charDef, vehDef) {
   // M7: shared effects/float-text (used by hazards + delivery) + free-roam hazards.
   if (!sharedEffects) { sharedEffects = createEffects(scene); sharedFloatText = createFloatText(document.getElementById('ui'), camera, renderer); }
   setHazards(FREE_ROAM.hazards);
+  // M6b: the corner radar + full-screen map (created once; they read radarState).
+  radarState.player = player; radarState.world = world;
+  if (!radar) {
+    radar = createRadar({ tm: world.tilemap, state: radarState, ui: document.getElementById('ui') });
+    fullMap = createFullMap({
+      tm: world.tilemap, state: radarState, radar,
+      onPause: (p) => { if (p) simPaused = true; else if (!params.paused) simPaused = false; },
+    });
+  }
 }
 
 // M7: (re)create the hazard manager for a set of counts. Free roam uses the
@@ -242,6 +258,7 @@ function setHazards(counts) {
     onDogRecover: () => { if (delivery) delivery.recoverParcel(); },
     onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } },
   });
+  radarState.hazards = hazards;
 }
 
 // §2.6 knockdown: camera shake + hit-stop + drop a parcel (in a mission) + dust.
@@ -264,6 +281,7 @@ function startShift(shiftId) {
   setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
   mission = createMission({ def: world.def, shift, seed, onResults: (r) => showResults(r) });
   delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed, sharedEffects, sharedFloatText);
+  radarState.delivery = delivery;
   mission.start(delivery);
   player.setCarried(delivery.carried);
   // §2.13: snap to the shift's time of day (a 2 s blend lands in M10's day cycle).
@@ -277,6 +295,7 @@ function startShift(shiftId) {
 function endShift(retry) {
   if (delivery) delivery.floatText.clear();
   delivery = null;
+  radarState.delivery = null;
   if (mission) mission = null;
   gameState.name = 'freeRoam';
   if (hud) hud.missionEnd();
@@ -409,8 +428,6 @@ function applyCamPreset(cam, name) {
   camLook.set(0, 2, 0);
 }
 
-let simPaused = params.paused;
-
 // One fixed sim step for the playing core: player kinematics + visuals, the
 // follow cam, and the blob shadow. Called by update() each fixed step, or
 // manually by __pb.step() while paused.
@@ -462,6 +479,8 @@ function update(dt) {
   const far = Math.max(220, d + 260);
   if (far !== camera.far) { camera.far = far; camera.updateProjectionMatrix(); }
   if (delivery) delivery.floatText.sync(); // project live text (also while paused)
+  if (radar) radar.tick(dt); // M6b: the corner radar stays live (also while paused)
+  if (fullMap) fullMap.tick(dt);
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
@@ -611,7 +630,7 @@ window.__pb = {
     camera.updateProjectionMatrix();
   },
   freeRoam() { if (mission) endShift(false); },
-  setWaypoint() {},
+  setWaypoint(tileX, tileZ) { if (radar) radar.setWaypoint(tileX, tileZ); },
   abandonMission() { if (mission) endShift(false); },
   setHeat() {},
   goto() {},
