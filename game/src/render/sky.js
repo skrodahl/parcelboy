@@ -6,7 +6,9 @@ import { mulberry32 } from '../core/rng.js';
 // drawn first), scene fog, and 6 drifting flat voxel clouds in one
 // InstancedMesh (§7.3). update(dt, time) is allocation-free.
 export function createSky(scene, preset) {
-  const R = 180;
+  // The dome follows the camera and must stay inside its far clip plane (220),
+  // so a fixed 200-radius dome centered on the camera reads as "infinity".
+  const R = 200;
   const geo = new THREE.SphereGeometry(R, 24, 12);
   const posAttr = geo.attributes.position;
   const count = posAttr.count;
@@ -68,6 +70,11 @@ export function createSky(scene, preset) {
     clouds.instanceMatrix.needsUpdate = true;
   }
 
+  // Keep the dome centered on the camera so it is always enclosed (allocation-free).
+  function follow(cam) {
+    skyMesh.position.copy(cam.position);
+  }
+
   applyColors(preset);
   return {
     apply(p) {
@@ -75,5 +82,6 @@ export function createSky(scene, preset) {
       scene.fog.color.set(p.skyHorizon);
     },
     update,
+    follow,
   };
 }

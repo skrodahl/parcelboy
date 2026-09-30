@@ -9,6 +9,8 @@ import { createSky } from './render/sky.js';
 import { Registry } from './core/registry.js';
 import { PALETTE } from './data/palette.js';
 import { TIMES_OF_DAY } from './data/timeOfDay.js';
+import { buildWorld } from './world/worldBuilder.js';
+import { NEIGHBORHOODS } from './data/neighborhoods/index.js';
 
 const params = parseParams();
 
@@ -30,6 +32,7 @@ const worldMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 
 let sky = null;
 let cube = null;
+let world = null;
 let simTime = 0;
 
 if (params.scene === 'test') {
@@ -95,8 +98,8 @@ if (params.scene === 'test') {
   }
   sky = createSky(scene, preset);
   sky.update(0, 0); // place the clouds even if the sim starts paused
-} else {
-  // M0 placeholder: a spinning cube, replaced by the real world in M2.
+} else if (params.scene === 'cube') {
+  // M0 placeholder: a spinning cube (kept as a regression scene).
   camera.position.set(0, 5, 9);
   camera.lookAt(0, 1, 0);
   scene.background = new THREE.Color('#8ecae6');
@@ -109,14 +112,49 @@ if (params.scene === 'test') {
   scene.add(cube);
   const gb = new VoxelBuilder(11);
   gb.box(0, -0.5, 0, 60, 0.5, 60, PALETTE.grass[0], { skipFaces: ['bottom'] });
-  const ground = new THREE.Mesh(gb.toGeometry(), worldMat);
-  scene.add(ground);
+  scene.add(new THREE.Mesh(gb.toGeometry(), worldMat));
+} else {
+  // M2+: the neighborhood world, built once and reused by every state (§5.3).
+  world = buildWorld(NEIGHBORHOODS[0]);
+  scene.add(world.group);
+  for (const ch of world.chunks) { ch.mesh.castShadow = true; ch.mesh.receiveShadow = true; }
+  const lighting = createLighting(scene, preset);
+  if (quality.shadowSize > 0) {
+    lighting.sun.castShadow = true;
+    lighting.sun.shadow.mapSize.set(quality.shadowSize, quality.shadowSize);
+    lighting.sun.shadow.bias = -0.0006;
+    const sc = lighting.sun.shadow.camera;
+    sc.left = -110; sc.right = 110; sc.top = 110; sc.bottom = -110;
+    sc.near = 5; sc.far = 400;
+    sc.updateProjectionMatrix();
+  }
+  sky = createSky(scene, preset);
+  sky.update(0, 0);
+  applyCamPreset(camera, params.cam || 'overview');
 }
 resizeRenderer(renderer, camera);
+
+// Menu / screenshot camera presets (§7.9). Full follow-cam lands in M4.
+function applyCamPreset(cam, name) {
+  const t = world ? world.tilemap : null;
+  if (t) {
+    const cx = (t.width / 2) * t.tileSize, cz = (t.height / 2) * t.tileSize;
+    const p = {
+      overview: { pos: [cx, 104, cz + 78], look: [cx, 0, cz] },
+      street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
+      park:     { pos: [40, 16, 118], look: [40, 0, 142] },
+      depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
+    };
+    if (p[name]) { cam.position.set(...p[name].pos); cam.lookAt(...p[name].look); return; }
+  }
+  cam.position.set(0, 8, 14);
+  cam.lookAt(0, 2, 0);
+}
 
 let simPaused = params.paused;
 function update(dt) {
   simTime += dt;
+  if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
