@@ -63,3 +63,13 @@ export const PARCEL = {
   doorwayCancel: 0.3, // moving more than this (units) cancels the doorstep hold
   throwHeight: 1.8, // y the parcel leaves the hand at (a lobbied cartoon throw)
 };
+
+// §2.13: free roam is the hub state (no timer/score). Hazard counts run at
+// these levels; missions override per-shift (§2.6). Day cycle + golden parcels
+// land in M10/M8; this block seeds the free-roam hazard manager (M7).
+export const FREE_ROAM = {
+  hazards: { car: 5, dog: 3, sprinkler: 3, skater: 2, bees: 2, bin: 8, cone: 0 },
+  grumps: 4,
+  goldenParcels: 12,
+  minutesPerPhase: 2, // M10 day cycle: each ToD preset held this long (blend 30 s)
+};

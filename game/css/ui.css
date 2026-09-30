@@ -26,3 +26,59 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
   -webkit-text-stroke: 0;
   clip-path: polygon(0% 45%, 8% 25%, 3% 8%, 20% 12%, 30% 0%, 40% 14%, 55% 4%, 62% 18%, 78% 8%, 84% 24%, 100% 20%, 92% 42%, 100% 58%, 86% 60%, 92% 80%, 74% 74%, 66% 92%, 54% 78%, 40% 90%, 34% 74%, 18% 82%, 22% 62%, 6% 66%);
 }
+/* §2.13 + §10: the free-roam HUD chip + coins, and the mission HUD panel. */
+.hud-chip {
+  position: fixed; top: 12px; left: 12px;
+  font: 800 15px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  letter-spacing: 1px; color: #22223b;
+  background: #ffbe0b; padding: 5px 12px; border-radius: 8px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+.hud-coins {
+  position: fixed; top: 46px; left: 12px;
+  font: 800 14px ui-rounded, system-ui, sans-serif; color: #fff;
+  background: rgba(0, 0, 0, 0.55); padding: 4px 10px; border-radius: 8px;
+}
+.hud-mission {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; align-items: stretch;
+  background: rgba(34, 34, 59, 0.82); border-radius: 12px;
+  padding: 8px 14px; color: #fff;
+  font: 700 14px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+.hud-mission > div { display: flex; flex-direction: column; justify-content: center; min-width: 64px; }
+.hud-mission-name { color: #ffbe0b; font-size: 15px; }
+.hud-mission-timer { color: #fff; font-size: 22px; font-weight: 800; }
+.hud-mission-targets { color: #a7c957; }
+.hud-mission-next { color: #90e0ef; }
+.hud-mission-score { color: #ff7b9c; }
+/* §2.1: the results screen. */
+.results {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  background: rgba(24, 24, 38, 0.72); pointer-events: auto;
+  font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; color: #fff;
+  text-align: center;
+}
+.results-title { font: 800 34px/1.1 inherit; margin: 0; color: #ffbe0b; -webkit-text-stroke: 3px #22223b; paint-order: stroke fill; }
+.results-stars { font: 800 34px/1 inherit; color: #ffbe0b; letter-spacing: 6px; }
+.results-score { font: 800 26px/1 inherit; }
+.results-detail { font: 600 15px/1.4 inherit; color: #ff7b9c; }
+.results-btn {
+  margin-top: 10px; font: 800 16px/1 inherit; color: #22223b;
+  background: #ffbe0b; border: 0; border-radius: 10px; padding: 10px 22px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+/* §2.10: the dispatch mission card (paged through the main shifts). */
+.shift-card {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 300px; background: #fff; border-radius: 14px; padding: 16px 18px;
+  color: #22223b; pointer-events: auto;
+  font: 600 14px/1.5 ui-rounded, system-ui, sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+.shift-card h3 { margin: 0 0 4px; font: 800 20px/1.2 inherit; color: #2194d6; }
+.shift-card .sc-meta { color: #666; font-size: 13px; }
+.shift-card .sc-locked { color: #c0392b; font-weight: 800; }
+.shift-card .sc-cta { margin-top: 10px; font-weight: 800; color: #2a9d8f; }

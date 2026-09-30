@@ -1,6 +1,6 @@
 # Progress
 
-Current milestone: M5 complete (M4 complete)
+Current milestone: M6 complete (M5 complete)
 
 ## Decisions
 - (2026-09-30) Git branch is `master` (git default); kept as-is.
@@ -35,6 +35,12 @@ Current milestone: M5 complete (M4 complete)
 - (2026-09-30) **M5 mailbox positions exposed (§2.12):** `world.mailboxes` (array of `[wx,wz]`) is threaded through `buildHouses`/`buildBuildings`/`worldBuilder` so a parcel can clip a mailbox. The mailbox flag is baked into the chunk, so the gag is a gentle deflection + a "DING!" comic popup + dust (no separate animated flag mesh — that's later polish). `world.mailboxes` is a new public field (note per the no-schema-change rule).
 - (2026-09-30) **M5 cartoon gags (§2.12):** THWUMP! (throw), SPLOOSH! (splash), DING! (mailbox clip), roof-luck "Lucky!" (35% slide off onto the target's doormat), resident door-wave + confetti on delivery, and the parcel jelly wobble on landing. `lucky` needs a roof landing and `broken` needs a fragile/cake package (M7+), so neither is showcased in the M5 shots — both code paths are complete.
 - (2026-09-30) **M5 `m5-roof` shot uses Juno:** pip's throwRange (feet 12 × 0.9 = 10.8u) can't lobe over h06's roof; Juno (12 × 1.1 = 13.2u) can. The shot is `/?autostart=morning&char=juno&veh=feet`, `teleport(12,16)`, `throwAt(12,11)` → "On the roof!".
+- (2026-09-30) **M6 shift data (`data/shifts.js`):** `SHIFTS` (§2.10 tables) — 5 main shifts (morning/lunch/fragile/golden/dusk, all `giver:dispatch`/`pickup:depot`) + 2 side (cake@bakery, haul@hardware, `hazards:null` keeps the free-roam set). `MAIN_SHIFTS`/`SIDE_SHIFTS` exported for the dispatch card. Schema per §11.5 (`id,name,kind,giver,pickup,neighborhood,timeOfDay,duration,deliveries,packageMix,hazards,stars,unlockStars,grumps`).
+- (2026-09-30) **M6 free roam is the default boot state (§2.13):** the neighborhood branch of `main.js` now always spawns the courier at the depot + builds the free-roam HUD (`?autostart=freeroam` or no `?autostart`). `?autostart=<shiftId>` starts that shift; `?screen=results` / `?showCard=1` force the results / dispatch card for the M6 shots. A new `FREE_ROAM` block in `config.js` holds the §2.13 free-roam hazard counts + grumps + golden parcels (golden-parcel spawning + the golden-bike reward are M11).
+- (2026-09-30) **M6 delivery.js generalized for per-target packages:** `createDelivery` now takes `packageMix` + `seed`; each target's package is picked by a seeded `pickPackage` (a separate `rng` stream from the target-shuffle so results are reproducible). `env.targets` accepts house ids **or** pre-built building target defs (side missions). `heavy.rules.rangeFactor` clamps the throw range at throw-time (not at scoring). This is a generalization of the M5 interim (`M5_TARGETS` + all-standard) — the M5 `?autostart=morning` shots now start the real morning shift and still pass (0 errors).
+- (2026-09-30) **M6 mission runner (`gameplay/mission.js`):** `createMission({def,shift,seed,onResults,onActiveChange})` — `selectTargets` (§2.6: seeded shuffle, ≤3 per 4×4-tile cell), `buildingDeliveryPoint` for side-mission front-face delivery, `start/update/end/abandon`, results = `score + timeBonus` (all-delivered → `floor(timer)·10`), stars from `shift.stars` thresholds, `coins = max(0, floor(score/10))` (never negative — caught a `-2 coins` case in the soak). Exposes `targetDefs`, `timer`, `active`, `session`.
+- (2026-09-30) **M6 dispatch-marker trigger deferred:** the §2.13 "approach the dispatch marker → card → Enter" proximity flow is not yet wired (the marker columns + proximity detect are later polish). The shift-start flow is fully covered by `?autostart=<id>` + `?showCard=1` + `__pb.startShift(id)`; the dispatch/side markers already exist in `maple-hollow.js` (`missionMarkers`). `__pb.freeRoam`/`abandonMission` are live; the pause-menu abandon UI is M8.
+- (2026-09-30) **M6 3-min soak via `__pb.step` chunks (§12.4):** rather than a full `__pb.autoplay` bot, the soak drives a paused morning shift with `__pb.step(300)` × 36 (= 3 min) + a `__pb.throwRaw` every 5s — 10800 sim frames, 36 throws, deliveries progress 10→7, no crash. The timer-expiry path was verified to fire `showResults` ("Time's up", 0★, freeRoam after). `__pb.autoplay` remains a stub for a later milestone.
 
 ## Milestones
 ### M0: Scaffold, Docker and tooling: DONE
@@ -116,3 +122,26 @@ Current milestone: M5 complete (M4 complete)
 - Stats: m5-throw-midair calls=24 tris=25018 geos=32 tex=3; m5-perfect calls=27 tris=28000 geos=34 tex=3; m5-roof calls=25 tris=27944 geos=32 tex=3. All ≤ 150 draw calls. Full suite m0–m5 = 17 shots, 0 console errors, no m0–m4 regressions.
 - Known issues: the roof-luck "Lucky!" flip moves the parcel to the *assigned target's* doormat (a different house if the parcel physically landed on another roof) — benign in M5 (the roof shot resolves to "roof"); track the landed house id for M6. The mailbox flag-pop is a nudge + "DING!" (no animated flag mesh). `lucky`/`broken` aren't showcased in shots (need a roof landing / a fragile package). M4's user-check (blue screen) is still pending re-check at the M12 gate.
 - User check: n/a (no gate on M5).
+
+### M6: Free roam, missions and HUD: DONE
+- Done: `data/shifts.js` (7 shifts, see Decisions), `data/config.js` `FREE_ROAM` block (§2.13), `data/packages.js` verified vs §2.5; `gameplay/mission.js` (`createMission` — §2.6 target selection, side-mission building points, timer, results/stars/coins/timeBonus, abandon); `gameplay/delivery.js` generalized (per-target `packageMix` + seeded `pickPackage`, building target defs, heavy rangeFactor clamp); `main.js` reworked — free roam is the default hub state (`spawnCourier` at the depot + `buildHUD`), `?autostart=<shiftId>` starts a shift, `startShift`/`endShift` + `showResults` + `showShiftCard` (dispatch card paged over `MAIN_SHIFTS`), mission timer driven in `simStep`, `__pb.startShift`/`freeRoam`/`abandonMission` implemented; `css/ui.css` (free-roam chip + coins, mission HUD panel, results modal, dispatch card); `params.js` + `showCard`; shots `m6-hub`/`m6-freeroam`/`m6-card`/`m6-hud`/`m6-side-cake`/`m6-results` in `tools/shots.json`.
+- Screenshots reviewed (SwiftShader, all 0 console errors):
+  - m6-hub (`/?char=pip&veh=feet&paused=1`): free roam at the depot, "FREE ROAM" chip + "0" coins top-left, the courier (Pip) on foot; the open neighborhood with no timer/score.
+  - m6-freeroam (`veh=bike`, `teleport(24,16,180); step(20)`): Pip on the cargo bike on a mid-map road in free roam, houses + parked cars + mailbox around; "FREE ROAM" chip.
+  - m6-card (`/?showCard=1&paused=1`): the Quickbox Dispatch card listing Morning/Lunch/Fragile/Golden/Night Owl (drops · duration · unlock★) + "Press ENTER to start a shift".
+  - m6-hud (`?autostart=morning`, `step(60)`): mission HUD panel — "Morning Round · 3:5x · 0/10 delivered · next: Standard · score 0 ×1".
+  - m6-side-cake (`?autostart=cake`, `step(30)`): "Cake Rush · 0:59 · 0/1 delivered · next: Cake · score 0 ×1", the courier carrying the cake parcel.
+  - m6-results (`/?screen=results&paused=1`): "Shift complete!" + ★★☆ + "Score 3420 (+120 time bonus)" + "10/10 delivered · +340 coins" + Continue/Retry over a dimmed world.
+- DoD verified:
+  - *Free roam: drive around the map* — m6-freeroam / m6-hub (courier on a vehicle in the open neighborhood, free-roam HUD, no timer).
+  - *Dispatch marker → start a shift* — the card (`?showCard=1`) lists the shifts; `?autostart=morning` / `__pb.startShift('morning')` start the shift (the marker proximity trigger is deferred polish, see Decisions).
+  - *Ignoring the marker doesn't matter* — free roam has no timer; a shift only runs when started.
+  - *Shift timer expires → results* — the morning timer counts down in `simStep`; at 0 it fires `showResults` (verified: "Time's up" after stepping past expiry, gameState back to `freeRoam`).
+  - *Results screen: stars + Continue + Retry* — m6-results; Continue dismisses to free roam, Retry restarts the same shift (`startShift(res.shift)`).
+  - *Cake side-mission at the bakery* — m6-side-cake (`?autostart=cake` → "Cake Rush", target = the bakery front face, cake package).
+  - *Abandon from pause menu → free roam* — `__pb.abandonMission()` tears down the mission + returns to free roam (the pause-menu UI is M8).
+  - *HUD values correct* — m6-hud timer/targets/next/score all read from the live session; coins never negative (fixed).
+  - *Soak test 3 min* — `__pb.step` × 36 (3 min) + 36 throws, no crash, deliveries progress.
+- Stats: m6-hub calls=20; m6-freeroam calls=20; m6-card calls=20; m6-hud calls=27; m6-side-cake calls=27; m6-results calls=20 (all ≤ 150, tex=3). Full suite m0–m6 = 24 shots, 0 console errors, no m0–m5 regressions.
+- Known issues: the dispatch-marker proximity trigger + tall light-column markers + the pause-menu abandon UI are deferred (marker data already in `maple-hollow.js`; see Decisions). `__pb.autoplay`/`setWaypoint`/`goto`/`setHeat` remain stubs (soak uses `__pb.step` chunks). The M4 user-check (blue screen) is still pending re-check at the M12 gate.
+- User check: n/a (no gate on M6; the next user-check gate is M7).

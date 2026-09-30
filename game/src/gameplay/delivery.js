@@ -9,6 +9,19 @@ import { createNpcs } from '../entities/npcs.js';
 import { createEffects } from '../render/effects.js';
 import { createFloatText } from '../render/floatText.js';
 
+// §2.5: a weighted package pick from a `packageMix` ({ standard: 0.85, ... })
+// using the caller's rng. No mix → the fallback (standard).
+function pickPackage(mix, rng, fallback) {
+  if (!mix) return fallback;
+  let r = rng(), acc = 0;
+  const keys = Object.keys(mix);
+  for (let i = 0; i < keys.length; i++) {
+    acc += mix[keys[i]];
+    if (r < acc) return PACKAGES.find((p) => p.id === keys[i]) || fallback;
+  }
+  return fallback;
+}
+
 // §6.3: a tile rect is the axis-aligned world box enclosing its tiles.
 function tileRect(world, tiles) {
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -23,13 +36,14 @@ function tileRect(world, tiles) {
   return { minX, maxX, minZ, maxZ };
 }
 
-// M5 interim delivery session (§2.4): N target houses, each with one parcel to
-// deliver. Throws are judged by where the parcel rests; points feed the
-// running score/streak. M6 replaces this with timed shifts + packages.
+// §2.4 / §2.5 delivery session: N targets, each with one parcel to deliver.
+// M6 runs it per shift (a `packageMix` picks each target's package); the M5
+// interim used all-standard. Throws are judged by where the parcel rests;
+// points feed the running score/streak.
 // env = { world, camera, renderer, scene, player, input, charDef, vehDef,
-// targets, seed, ui }.
+// targets, seed, ui, packageMix }.
 export function createDelivery(env) {
-  const { world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetIds, seed, ui } = env;
+  const { world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetIds, seed, ui, packageMix } = env;
   const mailboxes = world.mailboxes || [];
   const std = PACKAGES.find((p) => p.id === 'standard');
   const houseRects = world.def.houses.map((h) => ({
@@ -37,10 +51,19 @@ export function createDelivery(env) {
     porch: tileRect(world, world.porches[h.id].tiles),
     lot: tileRect(world, world.lots[h.id]),
   }));
-  const targets = targetIds.map((id) => {
-    const h = world.def.houses.find((x) => x.id === id);
-    return { house: h, doormat: world.doormatPoints[id], porch: tileRect(world, world.porches[id].tiles), lot: tileRect(world, world.lots[id]), pkg: std, delivered: false };
+  // §2.5: each target's package is picked from the shift's packageMix (seeded,
+  // a separate stream from the scoring rng). No mix → all standard (M5).
+  const pkgRng = mulberry32(((seed || 1) * 101 + 7) | 0);
+  // `targetIds` is either house ids (main shifts / M5) or pre-built target
+  // defs for a side mission's building target (doormat/porch/lot/pkg given).
+  const targetDefs = targetIds.map((t) => {
+    if (typeof t === 'string') {
+      const h = world.def.houses.find((x) => x.id === t);
+      return { house: h, doormat: world.doormatPoints[t], porch: tileRect(world, world.porches[t].tiles), lot: tileRect(world, world.lots[t]), pkg: pickPackage(packageMix, pkgRng, std) };
+    }
+    return { house: t.house, doormat: t.doormat, porch: t.porch, lot: t.lot, pkg: t.pkg };
   });
+  const targets = targetDefs.map((t) => ({ ...t, delivered: false }));
 
   const scoring = createScoring();
   const rng = mulberry32(seed || 1);
@@ -96,7 +119,13 @@ export function createDelivery(env) {
     if (s.parcels.cooldownGet() > 0) return;
     const target = aim.target || s.nextUndelivered();
     if (!target) return; // everything delivered: nothing to throw
-    s.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: aim.x, z: aim.z }, { pkg: target.pkg, target, airMail: player.pos.y > 0.05 });
+    // §2.5: a heavy parcel halves the throw range.
+    let ax = aim.x, az = aim.z;
+    const maxDist = s.throwRange * (target.pkg.rules.rangeFactor || 1);
+    const dx = ax - player.pos.x, dz = az - player.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > maxDist) { const f = maxDist / d; ax = player.pos.x + dx * f; az = player.pos.z + dz * f; }
+    s.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: ax, z: az }, { pkg: target.pkg, target, airMail: player.pos.y > 0.05 });
   }
   s.doThrow = doThrow;
 

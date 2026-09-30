@@ -18,5 +18,6 @@ export function parseParams() {
     cam: q.get('cam'),
     tod: q.get('tod'),
     paused: q.has('paused'),
+    showCard: q.get('showCard'),
   };
 }

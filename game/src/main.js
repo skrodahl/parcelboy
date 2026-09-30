@@ -19,8 +19,10 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
-import { PARCEL } from './data/config.js';
+import { PARCEL, FREE_ROAM } from './data/config.js';
+import { SHIFTS, MAIN_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
+import { createMission } from './gameplay/mission.js';
 
 const params = parseParams();
 
@@ -50,6 +52,11 @@ let vehicleMesh = null;
 let blobs = null;
 let followCam = null;
 let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
+let mission = null; // M6 active shift runner (null in free roam)
+let hud = null; // M6 HUD (free-roam chip + mission timer/score)
+let activeChar = null, activeVeh = null; // the spawned courier/vehicle
+let resultsEl = null; // the results-screen DOM (M6)
+let shiftCardEl = null; // the dispatch mission-card DOM (M6)
 // M5 interim: 5 fixed houses are delivery targets until M6 adds shifts.
 const M5_TARGETS = ['h01', 'h06', 'h09', 'h17', 'h22'];
 const lineup = [];
@@ -180,32 +187,142 @@ if (params.scene === 'test') {
       scene.add(rig.group);
     });
     applyCamPreset(camera, 'showroom');
-  } else if (params.autostart || params.char) {
+  } else {
+    // M6: free roam is the hub state (§2.13). `?autostart=<shiftId>` starts that
+    // shift; `?autostart=freeroam` or no autostart = plain free roam at the depot.
     const charDef = charRegistry.get(params.char || 'pip');
     const vehDef = vehRegistry.get(params.veh || 'feet');
-    const rig = buildCourier(charDef, world.worldMat);
-    scene.add(rig.group);
-    const vehicleMesh = buildModel(vehDef.model, world.worldMat);
-    if (vehicleMesh) scene.add(vehicleMesh);
-    blobs = createBlobShadows(16, world.poolTexture);
-    scene.add(blobs.mesh);
-    player = createPlayer({
-      charDef, vehDef, rig, vehicleMesh, world,
-      onBonk: (amount) => { if (followCam) followCam.shake(amount); },
-    });
-    followCam = createFollowCam(camera, world.collision);
-    camTgt.pos = player.pos;
-    camTgt.heading = player.heading;
-    player.syncVisuals(0, simTime); // place rig/vehicle for paused=1 shots
-    blobs.set(0, player.pos.x, player.pos.z, 1.4);
-    blobs.flush();
-    followCam.snap(camTgt, camLook); // no swoop-in on the first frame / paused shots
-    gameState.name = 'freeRoam';
-    if (params.autostart) delivery = setupDelivery(charDef, vehDef);
-    if (delivery) player.setCarried(delivery.carried);
-  } else {
-    applyCamPreset(camera, params.cam || 'overview');
+    spawnCourier(charDef, vehDef);
+    buildHUD();
+    if (params.screen === 'results') showResults({ shift: 'morning', success: true, score: 3420, stars: 2, coins: 340, timeBonus: 120, delivered: 10, total: 10 });
+    else if (params.showCard) showShiftCard();
+    if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
   }
+}
+
+// M6: spawn the courier + vehicle + follow cam at the depot, free roam.
+function spawnCourier(charDef, vehDef) {
+  activeChar = charDef; activeVeh = vehDef;
+  const rig = buildCourier(charDef, world.worldMat);
+  scene.add(rig.group);
+  const vehicleMesh = buildModel(vehDef.model, world.worldMat);
+  if (vehicleMesh) scene.add(vehicleMesh);
+  blobs = createBlobShadows(16, world.poolTexture);
+  scene.add(blobs.mesh);
+  player = createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk: (amount) => { if (followCam) followCam.shake(amount); } });
+  followCam = createFollowCam(camera, world.collision);
+  camTgt.pos = player.pos; camTgt.heading = player.heading;
+  player.syncVisuals(0, simTime);
+  blobs.set(0, player.pos.x, player.pos.z, 1.4);
+  blobs.flush();
+  followCam.snap(camTgt, camLook);
+  gameState.name = 'freeRoam';
+}
+
+// §2.10: start a shift by id. Builds the mission (targets + timer) and a
+// delivery session with per-target packages.
+function startShift(shiftId) {
+  if (!player || (mission && mission.active)) return;
+  const shift = SHIFTS.find((s) => s.id === shiftId);
+  if (!shift) return;
+  const seed = params.seed || 1;
+  mission = createMission({ def: world.def, shift, seed, onResults: (r) => showResults(r) });
+  delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed);
+  mission.start(delivery);
+  player.setCarried(delivery.carried);
+  gameState.name = 'mission';
+  if (hud) hud.missionStart(delivery, shift);
+}
+
+// §2.11: end the shift (timer / all-delivered / abandon). `retry` re-starts the
+// same shift from the pickup; otherwise continue back into free roam.
+function endShift(retry) {
+  if (delivery) delivery.floatText.clear();
+  delivery = null;
+  if (mission) mission = null;
+  gameState.name = 'freeRoam';
+  if (hud) hud.missionEnd();
+  if (retry) startShift(retry);
+}
+
+function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.className = cls; if (txt) n.textContent = txt; return n; }
+
+// §2.13 + §10: the free-roam chip + the mission HUD (timer / targets / next /
+// score). Built once; `tick` refreshes the live values each sim step.
+function buildHUD() {
+  if (hud) return;
+  const ui = document.getElementById('ui');
+  const chip = el('div', 'hud-chip', 'FREE ROAM');
+  const coins = el('div', 'hud-coins', '0');
+  const panel = el('div', 'hud-mission');
+  const pName = el('div', 'hud-mission-name');
+  const pTimer = el('div', 'hud-mission-timer');
+  const pTargets = el('div', 'hud-mission-targets');
+  const pNext = el('div', 'hud-mission-next');
+  const pScore = el('div', 'hud-mission-score');
+  panel.append(pName, pTimer, pTargets, pNext, pScore);
+  panel.style.display = 'none';
+  ui.append(chip, coins, panel);
+  hud = {
+    chip, coins, panel, pName, pTimer, pTargets, pNext, pScore,
+    missionStart(session, shift) {
+      this.panel.style.display = ''; this.chip.style.display = 'none';
+      this.pName.textContent = shift.name; this.pNext.textContent = 'next: ' + (session.targets[0] ? session.targets[0].pkg.name : '—');
+    },
+    missionEnd() { this.panel.style.display = 'none'; this.chip.style.display = ''; },
+    tick(mission2, session) {
+      if (!session) return;
+      const m = Math.max(0, mission2.timer);
+      this.pTimer.textContent = Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0');
+      this.pTargets.textContent = (session.targets.length - session.remaining()) + '/' + session.targets.length + ' delivered';
+      this.pScore.textContent = 'score ' + session.scoring.score + '  ×' + session.scoring.multiplier();
+      const nx = session.nextUndelivered();
+      this.pNext.textContent = nx ? 'next: ' + nx.pkg.name : 'all delivered';
+    },
+  };
+}
+
+// §2.1 / §10: the results screen (functional; polished in M8).
+function showResults(res) {
+  endShift(false);
+  if (resultsEl) { resultsEl.remove(); resultsEl = null; }
+  resultsEl = el('div', 'results');
+  const stars = '★'.repeat(res.stars) + '☆'.repeat(Math.max(0, 3 - res.stars));
+  resultsEl.append(
+    el('h2', 'results-title', res.success ? 'Shift complete!' : "Time's up"),
+    el('div', 'results-stars', stars),
+    el('div', 'results-score', 'Score ' + res.score + (res.timeBonus ? ' (+' + res.timeBonus + ' time bonus)' : '')),
+    el('div', 'results-detail', res.delivered + '/' + res.total + ' delivered · +' + res.coins + ' coins'),
+  );
+  const btnC = el('button', 'results-btn', 'Continue');
+  const btnR = el('button', 'results-btn', 'Retry');
+  btnC.onclick = () => { resultsEl.remove(); resultsEl = null; };
+  btnR.onclick = () => { const id = res.shift; resultsEl.remove(); resultsEl = null; startShift(id); };
+  resultsEl.append(btnC, btnR);
+  document.getElementById('ui').append(resultsEl);
+}
+
+// §2.10: the dispatch card, paged through the main shifts. Shown at the
+// dispatch marker in free roam; `?showCard=1` forces it for the m6-card shot.
+function showShiftCard() {
+  if (shiftCardEl) { shiftCardEl.remove(); shiftCardEl = null; return; }
+  shiftCardEl = el('div', 'shift-card');
+  shiftCardEl.append(el('h3', null, 'Quickbox Dispatch'));
+  const list = el('div');
+  for (const s of MAIN_SHIFTS) {
+    const row = el('div');
+    row.textContent = s.name + ' — ' + s.deliveries + ' drops · ' + s.duration + 's' + (s.unlockStars ? ' · ' + s.unlockStars + '★' : '');
+    list.append(row);
+  }
+  shiftCardEl.append(list, el('div', 'sc-cta', 'Press ENTER to start a shift'));
+  document.getElementById('ui').append(shiftCardEl);
+}
+
+// Setup a delivery session for an explicit target list + package mix (M6 shifts
+// and the M5 interim both go through this). `charDef`/`vehDef` come from the
+// currently-spawned courier.
+function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed) {
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix });
 }
 resizeRenderer(renderer, camera);
 
@@ -255,12 +372,6 @@ function applyCamPreset(cam, name) {
 
 let simPaused = params.paused;
 
-// M5 interim delivery session (gameplay/delivery.js): 5 fixed houses are
-// targets, all standard parcels. M6 replaces this with shifts + a queue.
-function setupDelivery(charDef, vehDef) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: M5_TARGETS, seed: params.seed, ui: document.getElementById('ui') });
-}
-
 // One fixed sim step for the playing core: player kinematics + visuals, the
 // follow cam, and the blob shadow. Called by update() each fixed step, or
 // manually by __pb.step() while paused.
@@ -288,6 +399,10 @@ function simStep(dt) {
     delivery.npcs.step(dt);
     delivery.floatText.step(dt);
     delivery.markers.update(dt, simTime, player ? player.pos.x : 0, player ? player.pos.z : 0);
+  }
+  if (mission && hud) {
+    mission.update(dt); // may fire end() → showResults()
+    hud.tick(mission, delivery);
   }
   for (let i = 0; i < lineup.length; i++) lineup[i].update(dt, lineup[i]._anim);
 }
@@ -409,10 +524,10 @@ window.__pb = {
       simStep(step);
     }
   },
-  startShift() {},
-  freeRoam() {},
+  startShift(id) { startShift(id); },
+  freeRoam() { if (mission) endShift(false); },
   setWaypoint() {},
-  abandonMission() {},
+  abandonMission() { if (mission) endShift(false); },
   setHeat() {},
   goto() {},
   autoplay() {},

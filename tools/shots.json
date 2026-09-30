@@ -15,5 +15,11 @@
   { "name": "m4-cast", "url": "/?lineup=1&mute=1&paused=1" },
   { "name": "m5-throw-midair", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,15); __pb.step(12);"] },
   { "name": "m5-perfect", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,15,0); __pb.throwAt(12,15); __pb.step(70);"] },
-  { "name": "m5-roof", "url": "/?autostart=morning&char=juno&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,11); __pb.step(70);"] }
+  { "name": "m5-roof", "url": "/?autostart=morning&char=juno&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,11); __pb.step(70);"] },
+  { "name": "m6-hub", "url": "/?char=pip&veh=feet&mute=1&paused=1" },
+  { "name": "m6-freeroam", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(24,16,180); __pb.step(20);"] },
+  { "name": "m6-card", "url": "/?showCard=1&mute=1&paused=1" },
+  { "name": "m6-hud", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(60);"] },
+  { "name": "m6-side-cake", "url": "/?autostart=cake&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(30);"] },
+  { "name": "m6-results", "url": "/?screen=results&mute=1&paused=1" }
 ]
