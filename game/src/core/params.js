@@ -14,6 +14,7 @@ export function parseParams() {
     autostart: q.get('autostart'),
     char: q.get('char'),
     veh: q.get('veh'),
+    lineup: q.has('lineup'),
     cam: q.get('cam'),
     tod: q.get('tod'),
     paused: q.has('paused'),

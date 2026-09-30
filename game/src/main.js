@@ -11,6 +11,14 @@ import { PALETTE } from './data/palette.js';
 import { TIMES_OF_DAY } from './data/timeOfDay.js';
 import { buildWorld } from './world/worldBuilder.js';
 import { NEIGHBORHOODS } from './data/neighborhoods/index.js';
+import { CHARACTERS } from './data/characters.js';
+import { VEHICLES } from './data/vehicles.js';
+import { createInput } from './core/input.js';
+import { createPlayer } from './entities/player.js';
+import { buildCourier } from './entities/courierModel.js';
+import { buildModel } from './entities/vehicleModels.js';
+import { createBlobShadows } from './entities/blobShadows.js';
+import { createFollowCam } from './render/camera.js';
 
 const params = parseParams();
 
@@ -34,6 +42,15 @@ let sky = null;
 let cube = null;
 let world = null;
 let simTime = 0;
+// M4 dynamic actors (assigned in the world branch; null in menus/test scenes).
+let player = null;
+let vehicleMesh = null;
+let blobs = null;
+let followCam = null;
+const lineup = [];
+const input = createInput();
+const camTgt = { pos: null, heading: 0, speed: 0, speedFrac: 0 }; // follow-cam scratch
+const gameState = { name: 'boot' };
 // The camera's current look-at target (allocation-free; updated by presets).
 // Fog + far clip scale with the distance from the camera to this point (§7.3).
 const camLook = new THREE.Vector3(0, 0, 0);
@@ -135,7 +152,53 @@ if (params.scene === 'test') {
   }
   sky = createSky(scene, preset);
   sky.update(0, 0);
-  applyCamPreset(camera, params.cam || 'overview');
+
+  // M4: dynamic actors (courier + vehicle) on top of the static world.
+  const charRegistry = new Registry('character', ['id', 'name', 'build', 'colors', 'stats', 'ability']);
+  for (const c of CHARACTERS) charRegistry.add(c);
+  const vehRegistry = new Registry('vehicle', ['id', 'name', 'model', 'riding', 'stats', 'canJump']);
+  for (const v of VEHICLES) vehRegistry.add(v);
+  followCam = null;
+  if (params.lineup) {
+    // M4 temporary debug: all 5 couriers side by side in the showroom
+    // (in front of the Distribution Center), facing the cam.
+    const xs = [148, 153, 158, 163, 168];
+    CHARACTERS.forEach((c, i) => {
+      const rig = buildCourier(c, world.worldMat);
+      // Spawn row (z=138), one row in front of the parked vans (z≈142) so all
+      // 5 stay visible against the depot facade.
+      rig.group.position.set(xs[i], 0, 138);
+      rig.group.rotation.y = Math.PI;
+      rig._anim = { speedFrac: 0, moving: 0, wave: i % 2, riding: 'walk', air: -1, fall: 0, t: i * 0.37 };
+      rig.update(0, rig._anim);
+      lineup.push(rig);
+      scene.add(rig.group);
+    });
+    applyCamPreset(camera, 'showroom');
+  } else if (params.autostart || params.char) {
+    const charDef = charRegistry.get(params.char || 'pip');
+    const vehDef = vehRegistry.get(params.veh || 'feet');
+    const rig = buildCourier(charDef, world.worldMat);
+    scene.add(rig.group);
+    const vehicleMesh = buildModel(vehDef.model, world.worldMat);
+    if (vehicleMesh) scene.add(vehicleMesh);
+    blobs = createBlobShadows(16, world.poolTexture);
+    scene.add(blobs.mesh);
+    player = createPlayer({
+      charDef, vehDef, rig, vehicleMesh, world,
+      onBonk: (amount) => { if (followCam) followCam.shake(amount); },
+    });
+    followCam = createFollowCam(camera, world.collision);
+    camTgt.pos = player.pos;
+    camTgt.heading = player.heading;
+    player.syncVisuals(0, simTime); // place rig/vehicle for paused=1 shots
+    blobs.set(0, player.pos.x, player.pos.z, 1.4);
+    blobs.flush();
+    followCam.snap(camTgt, camLook); // no swoop-in on the first frame / paused shots
+    gameState.name = 'freeRoam';
+  } else {
+    applyCamPreset(camera, params.cam || 'overview');
+  }
 }
 resizeRenderer(renderer, camera);
 
@@ -150,10 +213,14 @@ function applyCamPreset(cam, name) {
       // High, south of the map: frames the entire 48x40 grid, including the
       // south strip (park + Distribution Center). Look target sits just north
       // of center so the map is vertically centered.
-      overview: { pos: [cx, 170, cz + 130], look: [cx, 0, cz - 4] },
-      street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
-      park:     { pos: [40, 16, 118], look: [40, 0, 142] },
-      depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
+       overview: { pos: [cx, 170, cz + 130], look: [cx, 0, cz - 4] },
+       street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
+       park:     { pos: [40, 16, 118], look: [40, 0, 142] },
+       depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
+       // M4 lineup: elevated look at the courier row; high enough to see
+       // over the parked vans (2.8u tall), far enough for all 5, with the
+       // depot + lit QUICKBOX sign as backdrop.
+       showroom: { pos: [158, 6, 124], look: [158, 1.4, 140] },
     };
     if (name.startsWith('porch:')) {
       const id = name.slice(6);
@@ -180,6 +247,29 @@ function applyCamPreset(cam, name) {
 }
 
 let simPaused = params.paused;
+
+// One fixed sim step for the playing core: player kinematics + visuals, the
+// follow cam, and the blob shadow. Called by update() each fixed step, or
+// manually by __pb.step() while paused.
+function simStep(dt) {
+  if (player) {
+    player.update(dt, input, simTime);
+    player.syncVisuals(dt, simTime);
+    if (blobs) {
+      blobs.set(0, player.pos.x, player.pos.z, 1.4 + Math.min(1, Math.abs(player.speed) / 12) * 0.4);
+      blobs.flush();
+    }
+    if (followCam) {
+      camTgt.pos = player.pos;
+      camTgt.heading = player.heading;
+      camTgt.speed = player.speed;
+      camTgt.speedFrac = Math.min(1, Math.abs(player.speed) / 12);
+      followCam.update(dt, simTime, camTgt, camLook);
+    }
+  }
+  for (let i = 0; i < lineup.length; i++) lineup[i].update(dt, lineup[i]._anim);
+}
+
 function update(dt) {
   simTime += dt;
   if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
@@ -194,6 +284,7 @@ function update(dt) {
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
+  simStep(dt);
 }
 
 let ready = false;
@@ -206,8 +297,6 @@ function render() {
 }
 
 const loop = createLoop({ update, render, targetFps });
-
-const gameState = { name: 'boot' };
 
 function stats() {
   return {
@@ -236,16 +325,29 @@ window.__pb = {
       carried: 0,
       remaining: 0,
       time: 0,
-      player: { x: 0, z: 0, heading: 0, speed: 0 },
+      player: player
+        ? { x: player.pos.x, z: player.pos.z, heading: (player.heading * 180) / Math.PI, speed: player.speed }
+        : { x: 0, z: 0, heading: 0, speed: 0 },
     };
   },
-  // Stubs: implemented in later milestones.
-  setCam() {},
+  setCam(name) {
+    applyCamPreset(camera, name);
+  },
   setTimeOfDay() {},
-  teleport() {},
-  press() {},
+  teleport(tileX, tileZ, headingDeg) {
+    if (player) player.teleport(tileX, tileZ, headingDeg === undefined ? 0 : headingDeg);
+  },
+  press(action, ms) {
+    input.press(action, ms);
+  },
   throwAt() {},
-  step() {},
+  step(frames) {
+    const step = 1 / 60;
+    for (let i = 0; i < (frames | 0); i++) {
+      simTime += step;
+      simStep(step);
+    }
+  },
   startShift() {},
   freeRoam() {},
   setWaypoint() {},

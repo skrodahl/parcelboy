@@ -9,5 +9,8 @@
   { "name": "m3-overview", "url": "/?cam=overview&mute=1&paused=1" },
   { "name": "m3-porch", "url": "/?cam=porch:h06&mute=1&paused=1" },
   { "name": "m3-depot", "url": "/?cam=depot&mute=1&paused=1" },
-  { "name": "m3-dusk-street", "url": "/?cam=street&tod=dusk&mute=1&paused=1" }
+  { "name": "m3-dusk-street", "url": "/?cam=street&tod=dusk&mute=1&paused=1" },
+  { "name": "m4-follow", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1" },
+  { "name": "m4-bike", "url": "/?autostart=morning&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(12,16,90); __pb.step(30);"] },
+  { "name": "m4-cast", "url": "/?lineup=1&mute=1&paused=1" }
 ]

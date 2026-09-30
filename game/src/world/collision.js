@@ -34,7 +34,13 @@ export function buildCollision(tm, colliders) {
     }
   }
 
-  function* near(x, z, r) {
+  // No per-call allocation: near colliders are collected into a fixed
+  // scratch array (duplicates across cells are harmless — pushOut is
+  // idempotent), and push-out reuses one module-scope result object.
+  const NEAR_CAP = 256;
+  const nearScratch = new Array(NEAR_CAP);
+  function nearFill(x, z, r) {
+    let n = 0;
     const c0 = Math.max(0, Math.floor((x - r) / cell));
     const c1 = Math.min(cols - 1, Math.floor((x + r) / cell));
     const r0 = Math.max(0, Math.floor((z - r) / cell));
@@ -42,31 +48,19 @@ export function buildCollision(tm, colliders) {
     for (let cz = r0; cz <= r1; cz++) {
       for (let cx = c0; cx <= c1; cx++) {
         const list = buckets.get(key(cx, cz));
-        if (list) for (let i = 0; i < list.length; i++) yield colliders[list[i]];
+        if (!list) continue;
+        for (let i = 0; i < list.length && n < NEAR_CAP; i++) nearScratch[n++] = colliders[list[i]];
       }
     }
+    return n;
   }
 
-  // Push a circle of `radius` at (pos.x, pos.z) out of all overlaps. X then Z.
-  // Returns { hit, nx, nz } where (nx,nz) is the averaged hit normal.
-  function resolveCircle(pos, radius) {
-    let hit = false, nx = 0, nz = 0;
-    // X axis
-    for (const c of near(pos.x, pos.z, radius + 0.5)) {
-      const p = pushOut(c, pos.x, pos.z, radius);
-      if (p.hit) { pos.x += p.dx; nx = p.nx; hit = true; }
-    }
-    // Z axis
-    for (const c of near(pos.x, pos.z, radius + 0.5)) {
-      const p = pushOut(c, pos.x, pos.z, radius);
-      if (p.hit) { pos.z += p.dz; nz = p.nz; hit = true; }
-    }
-    return { hit, nx, nz };
-  }
+  const pushScratch = { hit: false, dx: 0, dz: 0, nx: 0, nz: 0 };
 
-  // Returns the push-out along a single axis.
+  // Writes the push-out along a single axis into pushScratch and returns it.
   function pushOut(c, x, z, radius) {
-    const out = { hit: false, dx: 0, dz: 0, nx: 0, nz: 0 };
+    const out = pushScratch;
+    out.hit = false; out.dx = 0; out.dz = 0; out.nx = 0; out.nz = 0;
     if (c.type === 'box') {
       const ex = Math.max(c.minX, Math.min(x, c.maxX));
       const ez = Math.max(c.minZ, Math.min(z, c.maxZ));
@@ -89,6 +83,26 @@ export function buildCollision(tm, colliders) {
     return out;
   }
 
+  // Push a circle of `radius` at (pos.x, pos.z) out of all overlaps. X then Z.
+  // Writes into `out` (a stable object the caller reuses) and returns it:
+  // { hit, nx, nz } where (nx,nz) is the averaged hit normal.
+  const resScratch = { hit: false, nx: 0, nz: 0 };
+  function resolveCircle(pos, radius, out) {
+    const res = out || resScratch;
+    res.hit = false; res.nx = 0; res.nz = 0;
+    // X axis
+    for (let i = 0, n = nearFill(pos.x, pos.z, radius + 0.5); i < n; i++) {
+      const p = pushOut(nearScratch[i], pos.x, pos.z, radius);
+      if (p.hit) { pos.x += p.dx; res.nx = p.nx; res.hit = true; }
+    }
+    // Z axis
+    for (let i = 0, n = nearFill(pos.x, pos.z, radius + 0.5); i < n; i++) {
+      const p = pushOut(nearScratch[i], pos.x, pos.z, radius);
+      if (p.hit) { pos.z += p.dz; res.nz = p.nz; res.hit = true; }
+    }
+    return res;
+  }
+
   // First AABB hit along a segment (for parcels). Returns { hit, x, z, h }.
   function raySegment(from, to) {
     const res = { hit: false, x: 0, z: 0, h: 0 };
@@ -98,7 +112,8 @@ export function buildCollision(tm, colliders) {
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const x = from.x + dx * t, z = from.z + dz * t;
-      for (const c of near(x, z, 0.4)) {
+      for (let j = 0, m = nearFill(x, z, 0.4); j < m; j++) {
+        const c = nearScratch[j];
         if (c.type !== 'box') continue;
         if (x > c.minX && x < c.maxX && z > c.minZ && z < c.maxZ) {
           res.hit = true; res.x = x; res.z = z; res.h = c.h || 0;

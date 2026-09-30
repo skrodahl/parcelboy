@@ -7,7 +7,7 @@ import { buildCollision } from './collision.js';
 import { buildSignMesh, addStreetSigns } from './signs.js';
 import { buildBuildings } from './buildings.js';
 import { GlowBuilder, createGlowMaterial } from './glow.js';
-import { createLampPools } from './lightPools.js';
+import { createLampPools, createPoolTexture } from './lightPools.js';
 import { PALETTE } from '../data/palette.js';
 
 // Builds the static world once at boot (§5.3): ground + props + buildings
@@ -85,7 +85,9 @@ export function buildWorld(def, seed = 1, preset) {
     ...lampPoolPts.map((p) => [p[0], p[1], 0.12]),
     ...sidewalkLampPositions(tm).map((p) => [p.wx, p.wz, 0.12]),
   ];
-  const pools = createLampPools(poolPts);
+  // One shared radial disc texture (§7.8): lamp pools here, blob shadows in M4.
+  const poolTexture = createPoolTexture();
+  const pools = createLampPools(poolPts, poolTexture);
   pools.mesh.visible = !!preset && preset.glow > 0;
   group.add(pools.mesh);
 
@@ -108,6 +110,7 @@ export function buildWorld(def, seed = 1, preset) {
     glowMesh,
     flag,
     pools,
+    poolTexture,
     windowRects,
     worldMat,
     waterMat,

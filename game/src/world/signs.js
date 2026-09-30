@@ -97,7 +97,8 @@ export function buildSignAtlas({ plates, numbers }) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.magFilter = THREE.LinearFilter;
-  texture.minFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.anisotropy = 4; // sign quads are often viewed at grazing angles
   return { texture, rectFor: (k) => rects[k] };
 }
 
