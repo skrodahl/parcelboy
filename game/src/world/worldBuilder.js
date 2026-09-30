@@ -2,25 +2,42 @@ import * as THREE from 'three';
 import { loadTilemap } from './tilemap.js';
 import { createChunkGrid } from './chunkGrid.js';
 import { buildGround } from './ground.js';
-import { buildProps } from './props.js';
+import { buildProps, sidewalkLampPositions } from './props.js';
 import { buildCollision } from './collision.js';
-import { buildStreetSigns } from './signs.js';
+import { buildSignMesh, addStreetSigns } from './signs.js';
+import { buildBuildings } from './buildings.js';
+import { GlowBuilder, createGlowMaterial } from './glow.js';
+import { createLampPools } from './lightPools.js';
+import { PALETTE } from '../data/palette.js';
 
-// Builds the static world once at boot (§5.3): ground + props merged into 16
-// chunks (<= 3 meshes each), the static-collider spatial hash, and the derived
-// porch / doormat / lot data (§6.3). Returns a reusable `world` object.
-export function buildWorld(def, seed = 1) {
+// Builds the static world once at boot (§5.3): ground + props + buildings
+// merged into 16 chunks, the shared glow + sign-atlas meshes, the lamp pools,
+// the animated school flag, the static-collider hash, and the derived
+// porch / doormat / lot data (§6.3). `preset` = the active time-of-day preset
+// (its `glow` value bakes the initial window/lamp colors).
+export function buildWorld(def, seed = 1, preset) {
   const tm = loadTilemap(def);
   const grid = createChunkGrid(tm.width, tm.height, seed);
   const colliders = [];
+  const signQuads = [];
+  const lampPoolPts = [];
   buildGround(grid, tm, colliders);
   buildProps(grid, tm, colliders);
-  const signs = buildStreetSigns(tm, grid); // posts go into chunk builders
+  addStreetSigns(grid, tm, signQuads); // sign posts go into chunk builders
 
-  // One shared opaque material for all world geometry (§7.3), plus a translucent
-  // water material. FrontSide: VoxelBuilder emits CCW-wound triangles.
+  // Glow geometry (windows, lamp heads, lit sign trims) in one shared mesh.
+  const glowB = new GlowBuilder();
+  for (const p of sidewalkLampPositions(tm)) {
+    glowB.box(p.wx, 2.69, p.wz, 0.42, 0.24, 0.42, '#8a8f9e', PALETTE.windowNight);
+  }
+  const windowRects = {};
+  const { flagGeo, flagPos } = buildBuildings(grid, tm, glowB, signQuads, colliders, windowRects, lampPoolPts);
+
+  // One shared opaque material for all world geometry (§7.3), plus a
+  // translucent water material. FrontSide: builders emit CCW triangles.
   const worldMat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const waterMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.85 });
+  const glowMat = createGlowMaterial();
 
   const group = new THREE.Group();
   const chunks = [];
@@ -35,8 +52,42 @@ export function buildWorld(def, seed = 1) {
     }
   }
 
+  // Glow mesh, colors blended for the active time of day.
+  const glowGeo = glowB.toGeometry();
+  glowGeo.__setGlowBlend(preset ? preset.glow : 0);
+  const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+  group.add(glowMesh);
+
+  // Sign-atlas mesh (all sign quads share one texture + one material).
+  const shops = def.buildings.filter((b) => b.kind === 'shop');
+  const plates = [
+    ...def.roads.map((r) => ({ text: r.name })),
+    ...shops.map((s) => ({ text: s.name, bg: s.accent, fg: '#fffaf0' })),
+    { text: 'QUICKBOX', bg: PALETTE.brand, fg: '#fffaf0' },
+    { text: 'HOLLOW ELEMENTARY', bg: '#c8553d', fg: '#fffaf0' },
+  ];
+  const numbers = [...new Set(def.houses.map((h) => h.num))].sort((a, b) => a - b);
+  const signs = buildSignMesh(signQuads, { plates, numbers });
   signs.mesh.castShadow = true;
   group.add(signs.mesh);
+
+  // School flag: one animated mesh, waved in main.js update().
+  let flag = null;
+  if (flagGeo) {
+    flag = new THREE.Mesh(flagGeo, worldMat);
+    flag.position.set(flagPos.x, 0, flagPos.z);
+    flag.castShadow = true;
+    group.add(flag);
+  }
+
+  // Lamp light pools: under every sidewalk + porch lamp, visible at glow.
+  const poolPts = [
+    ...lampPoolPts.map((p) => [p[0], p[1], 0.12]),
+    ...sidewalkLampPositions(tm).map((p) => [p.wx, p.wz, 0.12]),
+  ];
+  const pools = createLampPools(poolPts);
+  pools.mesh.visible = !!preset && preset.glow > 0;
+  group.add(pools.mesh);
 
   const collision = buildCollision(tm, colliders);
   const porches = buildPorches(tm);
@@ -54,6 +105,10 @@ export function buildWorld(def, seed = 1) {
     doormatPoints,
     lots,
     signs,
+    glowMesh,
+    flag,
+    pools,
+    windowRects,
     worldMat,
     waterMat,
   };

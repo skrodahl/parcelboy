@@ -34,8 +34,10 @@ function reeds(b, wx, wz, rng) {
 }
 
 // Every 5th sidewalk tile around a loop gets a lamp, alternating side.
-function sidewalkLamps(grid, tm, colliders) {
+// Positions are returned so lamp light pools (§7.3) can sit under the same lamps.
+export function sidewalkLampPositions(tm) {
   const rng = mulberry32(777);
+  const out = [];
   for (const key of Object.keys(tm.def.sidewalkLoops)) {
     const L = tm.def.sidewalkLoops[key];
     const pts = [];
@@ -48,11 +50,16 @@ function sidewalkLamps(grid, tm, colliders) {
       const [x, z] = pts[i];
       if (tm.keyAt(x, z) !== 'sidewalk') continue;
       const side = (flip++ % 2 === 0) ? 1 : -1;
-      const wx = tm.cx(x) + side * 0.7 + (rng() - 0.5) * 0.2;
-      const wz = tm.cz(z) + side * 0.7 + (rng() - 0.5) * 0.2;
-      lamp(grid.chunkAt(x, z).opaque, wx, wz, 0.12);
-      if (colliders) colliders.push({ type: 'circle', x: wx, z: wz, r: 0.25 });
+      out.push({ tx: x, tz: z, wx: tm.cx(x) + side * 0.7 + (rng() - 0.5) * 0.2, wz: tm.cz(z) + side * 0.7 + (rng() - 0.5) * 0.2 });
     }
+  }
+  return out;
+}
+
+function sidewalkLamps(grid, tm, colliders) {
+  for (const p of sidewalkLampPositions(tm)) {
+    lamp(grid.chunkAt(p.tx, p.tz).opaque, p.wx, p.wz, 0.12);
+    if (colliders) colliders.push({ type: 'circle', x: p.wx, z: p.wz, r: 0.25 });
   }
 }
 

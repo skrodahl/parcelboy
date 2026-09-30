@@ -3,6 +3,14 @@
 > Audience: the coding agent building this game (see `AGENTS.md`). Read this whole document once, then work milestone by milestone (§13).
 > Where the plan gives a value (a speed, a color, a size), use it as the starting value. Tune only in the milestones that say so, and record the changes in `PROGRESS.md`.
 
+## Plan changes (read first; apply before starting the next milestone)
+
+**2026-09-30: fog, tone mapping, overview framing** (you raised fog concerns in PROGRESS.md; they were right, and the original spec was tuned only for the close follow cam):
+1. `render/renderer.js`: `toneMapping = THREE.NeutralToneMapping` (ACES washes out the pastel palette). See §7.3.
+2. Fog and the camera's far plane scale with the camera's distance `d` to its look-at target, updated every frame with no allocation: `fog.near = d + 45`, `fog.far = d + 150`, `camera.far = max(220, d + 260)` (call `updateProjectionMatrix()` only when the value changes). The sky dome keeps `depthWrite: false` and gets `renderOrder = -1`. See §7.3.
+3. The `overview` camera preset must frame the **entire** map, including the south strip (park + Distribution Center). See §7.9.
+4. Re-shoot `m2-*` and `m3-*`, compare them with the previous shots, and log this under *Decisions* in PROGRESS.md.
+
 ---
 
 ## 1. Vision
@@ -675,11 +683,11 @@ export const PALETTE = {
 ### 7.3 Materials and lighting
 - **One shared `MeshLambertMaterial({ vertexColors: true })` for all opaque world geometry.** Colors live in vertex colors. Plus: one `MeshBasicMaterial({ vertexColors: true })` for "glow" geometry (windows, lamp heads, signs), whose color multiplier changes with time of day; one water material (Lambert, 0.85 opacity); and one material for the sign texture atlas.
 - **Fake ambient occlusion in vertex colors:** vertices at y ≤ 0.3 are darkened by 12%, and box faces pointing down by 25%. Add ±4% random brightness per box for a handmade look.
-- `renderer.outputColorSpace = SRGBColorSpace`, `toneMapping = ACESFilmicToneMapping`, exposure 1.0.
+- `renderer.outputColorSpace = SRGBColorSpace`, `toneMapping = NeutralToneMapping`, exposure 1.0. (Not ACES: ACES desaturates and flattens the pastel palette.)
 - Lights: one `HemisphereLight` (sky color and ground color from the time of day) plus one `DirectionalLight` sun. Nothing else. There are no point lights; lamps at dusk are emissive glow geometry plus a flat, soft, additive-blended ground "light pool" disc.
 - **Shadows (static-only trick):** the sun's shadow map renders **only static world chunks**, with `renderer.shadowMap.autoUpdate = false`. Set `needsUpdate = true` only when (a) the time of day changes or (b) the player has moved more than 16 units from the last shadow-camera center (the shadow camera covers 96×96 units around the player, snapped to the texel grid). Dynamic actors (player, cars, dogs, NPCs, parcels) get **blob shadows**: a pooled dark, soft circular quad with an alpha gradient from one small canvas texture.
 - Water: a flat plane that moves up and down by ±0.03 units with a sine, lighter edge tiles, and 3 ducks (tiny voxel models) swimming slow circles.
-- **Sky:** a large inverted sphere with vertex colors running from horizon to zenith (colors from the time of day), `fog: false`, drawn first. `scene.fog = Fog(horizonColor, 70, 160)`. Add 6 flat voxel clouds (one InstancedMesh) drifting slowly at y = 45.
+- **Sky:** a large inverted sphere with vertex colors running from horizon to zenith (colors from the time of day), `fog: false`, drawn first. `scene.fog = Fog(horizonColor, near, far)`, where near and far **scale with the camera's distance `d` to its look-at target**: `near = d + 45`, `far = d + 150`, updated every frame (no allocation). With the follow cam (d ≈ 17) that gives about 62/167; far-away preset cameras (overview) get almost no fog. The camera's `far` plane follows the same rule, `max(220, d + 260)`. The sky dome must use `depthWrite: false` and `renderOrder = -1`, so geometry beyond its radius still draws. Add 6 flat voxel clouds (one InstancedMesh) drifting slowly at y = 45.
 
 ### 7.4 Time-of-day presets (`data/timeOfDay.js`)
 ```js
@@ -727,7 +735,7 @@ These are starting values. Tune them in M11 by looking at screenshots: the scene
 - `camYaw` eases toward the player heading at 2.5/s (exponential smoothing: `1 − exp(−k·dt)`). While the player moves slower than 0.5, the yaw holds.
 - Position eases at 8/s. Add a speed-based pull-back: distance × (1 + 0.15 × speed / maxSpeed). The FOV widens by up to 4° at top speed.
 - **Shake:** trauma-based. `shake(amount)` adds to trauma (max 1). The offset is trauma² × 0.35 × noise, and trauma decays at 1.5/s.
-- **Presets** for menus and screenshots: `overview` (high, looking at the whole map center), `depot`, `street` (low shot down Maple Ave), `porch:<houseId>` (close on that porch), `showroom` (in front of the depot, framing the player for the select screens).
+- **Presets** for menus and screenshots: `overview` (high, framing the **entire** 48×40-tile map including the south strip with the park and Distribution Center), `depot`, `street` (low shot down Maple Ave), `porch:<houseId>` (close on that porch), `showroom` (in front of the depot, framing the player for the select screens).
 - **Intro flyover:** 3 s ease from `overview` to the follow position.
 
 ---

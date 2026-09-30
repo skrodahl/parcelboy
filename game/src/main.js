@@ -34,11 +34,15 @@ let sky = null;
 let cube = null;
 let world = null;
 let simTime = 0;
+// The camera's current look-at target (allocation-free; updated by presets).
+// Fog + far clip scale with the distance from the camera to this point (§7.3).
+const camLook = new THREE.Vector3(0, 0, 0);
 
 if (params.scene === 'test') {
   // M1 test scene: a sample cottage on a grass plate, lit by time of day.
   camera.position.set(11, 8, 14);
   camera.lookAt(0, 2, 0);
+  camLook.set(0, 2, 0);
 
   const gb = new VoxelBuilder(11);
   gb.box(0, -0.5, 0, 60, 0.5, 60, PALETTE.grass[0], { skipFaces: ['bottom'] });
@@ -102,6 +106,7 @@ if (params.scene === 'test') {
   // M0 placeholder: a spinning cube (kept as a regression scene).
   camera.position.set(0, 5, 9);
   camera.lookAt(0, 1, 0);
+  camLook.set(0, 1, 0);
   scene.background = new THREE.Color('#8ecae6');
   scene.add(new THREE.HemisphereLight(0xbde0fe, 0xb7e4a0, 1.1));
   const sun = new THREE.DirectionalLight(0xffe3c2, 2.4);
@@ -115,7 +120,7 @@ if (params.scene === 'test') {
   scene.add(new THREE.Mesh(gb.toGeometry(), worldMat));
 } else {
   // M2+: the neighborhood world, built once and reused by every state (§5.3).
-  world = buildWorld(NEIGHBORHOODS[0]);
+  world = buildWorld(NEIGHBORHOODS[0], 1, preset);
   scene.add(world.group);
   for (const ch of world.chunks) { ch.mesh.castShadow = true; ch.mesh.receiveShadow = true; }
   const lighting = createLighting(scene, preset);
@@ -135,26 +140,57 @@ if (params.scene === 'test') {
 resizeRenderer(renderer, camera);
 
 // Menu / screenshot camera presets (§7.9). Full follow-cam lands in M4.
+// Every path records the look target in camLook so the distance-scaled fog
+// (§7.3 plan change) can run each frame.
 function applyCamPreset(cam, name) {
   const t = world ? world.tilemap : null;
   if (t) {
     const cx = (t.width / 2) * t.tileSize, cz = (t.height / 2) * t.tileSize;
     const p = {
-      overview: { pos: [cx, 104, cz + 78], look: [cx, 0, cz] },
+      // High, south of the map: frames the entire 48x40 grid, including the
+      // south strip (park + Distribution Center). Look target sits just north
+      // of center so the map is vertically centered.
+      overview: { pos: [cx, 170, cz + 130], look: [cx, 0, cz - 4] },
       street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
       park:     { pos: [40, 16, 118], look: [40, 0, 142] },
       depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
     };
-    if (p[name]) { cam.position.set(...p[name].pos); cam.lookAt(...p[name].look); return; }
+    if (name.startsWith('porch:')) {
+      const id = name.slice(6);
+      const h = t.def.houses.find((x) => x.id === id);
+      const mat = world.doormatPoints[id];
+      if (h && mat) {
+        const f = { N: [0, 0, -1], S: [0, 0, 1], E: [1, 0, 0], W: [-1, 0, 0] }[h.facing];
+        cam.position.set(mat.x + f[0] * 6.5, 2.8, mat.z + f[2] * 6.5);
+        cam.lookAt(mat.x, 1.4, mat.z);
+        camLook.set(mat.x, 1.4, mat.z);
+        return;
+      }
+    }
+    if (p[name]) {
+      cam.position.set(...p[name].pos);
+      cam.lookAt(...p[name].look);
+      camLook.set(...p[name].look);
+      return;
+    }
   }
   cam.position.set(0, 8, 14);
   cam.lookAt(0, 2, 0);
+  camLook.set(0, 2, 0);
 }
 
 let simPaused = params.paused;
 function update(dt) {
   simTime += dt;
   if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
+  if (world && world.flag) world.flag.rotation.y = Math.sin(simTime * 2.0) * 0.3;
+  // Distance-scaled fog + far clip (§7.3 plan change): near/far track the
+  // camera's distance d to its look target, updated every frame with no
+  // allocation. updateProjectionMatrix only when far actually changes.
+  const d = camera.position.distanceTo(camLook);
+  if (scene.fog) { scene.fog.near = d + 45; scene.fog.far = d + 150; }
+  const far = Math.max(220, d + 260);
+  if (far !== camera.far) { camera.far = far; camera.updateProjectionMatrix(); }
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);

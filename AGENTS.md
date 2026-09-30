@@ -6,6 +6,7 @@ You are building **Parcelboy**, a friendly, colorful arcade game in the browser,
 
 ## How to work
 
+0. At the start of every session and before every milestone, check the **Plan changes** section at the top of `PLAN.md`, and apply anything not yet logged in `PROGRESS.md`.
 1. Work **one milestone at a time**, in order. Don't start the next milestone until the current one meets every item in its *Definition of done*.
 2. Before writing code for a milestone, reread that milestone's section in `PLAN.md`, plus any section it references.
 3. After each milestone:

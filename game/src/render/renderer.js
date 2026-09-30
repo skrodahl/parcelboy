@@ -12,7 +12,8 @@ export function createRenderer(canvas, qualityName = 'high') {
   const quality = QUALITIES[qualityName] || QUALITIES.high;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality.antialias });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // Neutral (not ACES): ACES desaturates and flattens the pastel palette (§7.3).
+  renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.pixelRatioCap));
   renderer.shadowMap.enabled = quality.shadowSize > 0;
