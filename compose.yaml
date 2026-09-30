@@ -1,0 +1,20 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./game:/usr/share/nginx/html:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  shots:
+    build: ./tools/shots
+    profiles: ["tools"]
+    depends_on: [web]
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      BASE_URL: http://web
+      HOME: /tmp
+    volumes:
+      - ./tools:/tools:ro
+      - ./shots:/shots
+    entrypoint: ["node", "/tools/shoot.cjs"]

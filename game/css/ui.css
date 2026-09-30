@@ -1,0 +1,9 @@
+html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
+#game { display: block; width: 100vw; height: 100vh; }
+#ui { position: fixed; inset: 0; pointer-events: none; }
+#debug {
+  position: fixed; top: 8px; right: 8px;
+  font: 12px/1.5 ui-monospace, "SF Mono", monospace;
+  color: #fff; background: rgba(0, 0, 0, 0.65);
+  padding: 6px 10px; border-radius: 6px; white-space: pre;
+}
