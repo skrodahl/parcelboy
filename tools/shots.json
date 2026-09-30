@@ -1,3 +1,6 @@
 [
-  { "name": "m0-cube", "url": "/?debug=1&mute=1" }
+  { "name": "m0-cube", "url": "/?debug=1&mute=1" },
+  { "name": "m1-test-morning", "url": "/?scene=test&tod=morning&mute=1" },
+  { "name": "m1-test-dusk", "url": "/?scene=test&tod=dusk&mute=1" },
+  { "name": "m1-test-battery", "url": "/?scene=test&tod=morning&quality=battery&mute=1" }
 ]
