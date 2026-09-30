@@ -12,5 +12,8 @@
   { "name": "m3-dusk-street", "url": "/?cam=street&tod=dusk&mute=1&paused=1" },
   { "name": "m4-follow", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1" },
   { "name": "m4-bike", "url": "/?autostart=morning&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(12,16,90); __pb.step(30);"] },
-  { "name": "m4-cast", "url": "/?lineup=1&mute=1&paused=1" }
+  { "name": "m4-cast", "url": "/?lineup=1&mute=1&paused=1" },
+  { "name": "m5-throw-midair", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,15); __pb.step(12);"] },
+  { "name": "m5-perfect", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,15,0); __pb.throwAt(12,15); __pb.step(70);"] },
+  { "name": "m5-roof", "url": "/?autostart=morning&char=juno&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,11); __pb.step(70);"] }
 ]

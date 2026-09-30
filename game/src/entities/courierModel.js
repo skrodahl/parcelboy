@@ -125,6 +125,13 @@ export function buildCourier(charDef, material) {
       }
       // Wave: raise the right arm and flutter it.
       this.armR.rotation.z = s.wave ? 2.1 + 0.4 * Math.sin(s.t * 7) : 0;
+      // Throw wind-up (§2.12 anticipation): cock the right arm and lean back.
+      if (s.throw >= 0) {
+        const th = s.throw; // 0..1 over the 0.06 s wind-up
+        this.armR.rotation.z = 2.5 * th;
+        this.armR.rotation.x = -1.3 * th;
+        this.group.rotation.x = -0.16 * Math.sin(th * Math.PI);
+      }
       // Idle breathing (subtle whole-rig y scale).
       this.headTorso.scale.y = s.moving ? 1 : 1 + 0.02 * Math.sin(s.t * 2.1);
       // Jump squash/stretch (0.9 takeoff/landing, 1.1 apex).

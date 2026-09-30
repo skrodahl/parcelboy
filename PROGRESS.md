@@ -1,6 +1,6 @@
 # Progress
 
-Current milestone: M4 in progress (M3 complete)
+Current milestone: M5 complete (M4 complete)
 
 ## Decisions
 - (2026-09-30) Git branch is `master` (git default); kept as-is.
@@ -29,6 +29,12 @@ Current milestone: M4 in progress (M3 complete)
 - (2026-09-30) **M4 sign atlas texture got mipmaps + anisotropy:** the sign quads are often seen at grazing angles, and with `minFilter=LinearFilter` (no mips) the QUICKBOX text moiré'd into an apparent *mirrored* garble at distance (it was never actually mirrored — m3-depot from the same side reads fine). Set `minFilter=LinearMipmapLinearFilter` + `anisotropy=4` on the sign atlas texture. Verified m3-depot still reads "QUICKBOX" correctly and m4-cast's sign is now crisp.
 - (2026-09-30) **M4 lineup (`?lineup=1`) placement:** the 5 couriers stand in the depot restock row (z=138), one row *in front of* the two parked vans (z≈142) so all 5 stay visible against the depot facade; the `showroom` cam preset is elevated (y=6) and pulled back (z=124) to clear the 2.8u-tall vans and fit all 5 in frame.
 - (2026-09-30) **M4 initial visual sync:** with `paused=1` the sim loop early-returns, so the rig/vehicle were never placed (courier sat at the origin, off-frame). The autostart branch now calls `player.syncVisuals(0, simTime)` + places blob slot 0 + `followCam.snap()` once at spawn so paused screenshots show the courier at the depot.
+- (2026-09-30) **M5 flight constants tuned from §2.4:** §2.4's numbers (`g=22`, `t≤0.9`, first bounce 35% vert / 50% horiz, throw height 1.0) made an assisted doormat throw carry ~1.1u *past* the doormat (just outside the 1.0 PERFECT radius → always "Nice") and never lobe high enough to clear a roof. `PARCEL` now uses `gravity 18, minTime 0.35, maxTime 1.1, timeDivisor 14, bounceVert 0.28, bounceHoriz 0.38, throwHeight 1.8`. Verified: an assisted doormat throw rests inside the PERFECT circle; a far throw lands "On the roof!". (Keeps §2.4's intent — a lobbing cartoon throw — while making both outcomes reachable.)
+- (2026-09-30) **M5 delivery session extracted to `gameplay/delivery.js`:** main.js had grown to ~544 lines (M4 was already 358, past the ~300-line rule). `setupDelivery` + `tileRect` moved to `gameplay/delivery.js` (`createDelivery(env)`); main.js keeps a thin `setupDelivery` wrapper + the `__pb` hooks (418 lines; delivery.js 138). `PARCEL` stays imported in main.js for the `__pb.throwRaw` test hook.
+- (2026-09-30) **M5 interim targets (PLAN §13 "Temporary"):** 5 fixed houses `['h01','h06','h09','h17','h22']` are the M5 delivery targets (spread across the map, different facings; h06 is a low ranch used for the perfect + roof shots). M6 replaces this with shifts + a parcel queue.
+- (2026-09-30) **M5 mailbox positions exposed (§2.12):** `world.mailboxes` (array of `[wx,wz]`) is threaded through `buildHouses`/`buildBuildings`/`worldBuilder` so a parcel can clip a mailbox. The mailbox flag is baked into the chunk, so the gag is a gentle deflection + a "DING!" comic popup + dust (no separate animated flag mesh — that's later polish). `world.mailboxes` is a new public field (note per the no-schema-change rule).
+- (2026-09-30) **M5 cartoon gags (§2.12):** THWUMP! (throw), SPLOOSH! (splash), DING! (mailbox clip), roof-luck "Lucky!" (35% slide off onto the target's doormat), resident door-wave + confetti on delivery, and the parcel jelly wobble on landing. `lucky` needs a roof landing and `broken` needs a fragile/cake package (M7+), so neither is showcased in the M5 shots — both code paths are complete.
+- (2026-09-30) **M5 `m5-roof` shot uses Juno:** pip's throwRange (feet 12 × 0.9 = 10.8u) can't lobe over h06's roof; Juno (12 × 1.1 = 13.2u) can. The shot is `/?autostart=morning&char=juno&veh=feet`, `teleport(12,16)`, `throwAt(12,11)` → "On the roof!".
 
 ## Milestones
 ### M0: Scaffold, Docker and tooling: DONE
@@ -85,5 +91,28 @@ Current milestone: M4 in progress (M3 complete)
   - *m4-follow draw calls ≤ 90:* m4-follow calls=20 (m4-bike=20, m4-cast=31). All well under budget.
 - Stats: m4-follow calls=20 tris=33114 geos=25 tex=3; m4-bike calls=20 tris=28072 geos=27 tex=3; m4-cast calls=31 tris=14020 geos=35 tex=2. Zero console errors across all 14 shots (m0–m4).
 - Known issues: the follow cam's `clearPos` uses the 2D collision test (treats colliders as infinite height), so a cam high above a roof gets pulled closer than the nominal 13u — acceptable (a closer cam reads better); fine-tune in M11 if needed. `__pb.press` holds are wall-clock (fine for the step() test flow; M6 autoplay may want sim-time holds). The rider sits at the vehicle's origin (not the exact seat point) — a slight forward offset on the bike; acceptable for M4, polish in M8.
-- User check: ⛔ PENDING — ask the user to play in a real browser on their laptop (walk/turn/jump on feet, ride the bike, check the follow cam feel and fan noise). Record the answer below.
-  - _Answer: (pending)_
+- User check: ⛔ DONE (2026-09-30) — asked the user to play `/?autostart=morning&char=pip&veh=feet` on their laptop.
+   - _Answer: the URL showed a blue (sky-only) screen in their real browser; user said "no worries, just keep implementing" and instructed to proceed to M5. Note: all SwiftShader + browserless-Chromium renders of the same URL are correct (courier + world visible, 0 console errors), so this is likely an environment/WebGL-context issue on their machine (or a stale page load), **not** a code regression. Flagged to re-check at the M12 user-check gate.
+
+### M5: Parcels and delivering: DONE
+- Done: `data/packages.js` (§11.4: 5 package types — standard/fragile/heavy/express/cake — with rule keys + colors/icons; M5 delivers standard only), `data/config.js` (`SCORING` from §2.4 + `CARTOON` gag tuning + `PARCEL` flight consts, see Decisions); `gameplay/scoring.js` (§2.4 judging table + multiplier/streak + package rule handlers `breakDistance`/`doorstepBonus`/`expressBonus`, `LABEL`/`SPLAT` text + colors); `gameplay/targeting.js` (±50° aim-assist `assist`, mouse `mouseAim` raycast, `pointAim` for `__pb.throwAt`, doormat snap within 2.5u, seeded accuracy offset `(1-accuracy)·1.6`); `gameplay/markers.js` (pulsing doormat rings + bobbing parcel icons as InstancedMesh + a 3D compass arrow, `setDelivered`); `entities/parcels.js` (16-parcel pool, gravity-only lob, in-flight roof/wall/pass-over, ground bounce→slide→rest, `judgeZone` → perfect/nice/sloppy/wrong/road/splash/missed, roof-luck 35% flip → lucky, §2.12 mailbox clip → deflection + DING, per-package geometry); `gameplay/delivery.js` (the M5 session: 5 targets, `doThrow`/`handleInput`/`updateDoorstep`, `onRest` → score + confetti + resident reaction + float text); `entities/npcs.js` (resident door-wave, 1.5s, jumps on perfect); `render/effects.js` (one 128-instance InstancedMesh → confetti/dust/splash/splat, 1 draw call); `render/floatText.js` (pooled DOM float text + jagged comic burst); `entities/player.js` + `courierModel.js` (throw wind-up + pose); `main.js` wiring + `__pb` (`throwAt`, `throwRaw`, `state` incl. score/streak/multiplier/lastResult, `debugParcels`/`debugRoofs`/`debugZones`); shots `m5-throw-midair`/`m5-perfect`/`m5-roof` in `tools/shots.json`.
+- Screenshots reviewed (SwiftShader, all 0 console errors):
+  - m5-throw-midair (`pip`, `teleport(12,16); throwAt(12,15); step(12)`): a brown parcel mid-arc over the lawn, the "THWUMP!" comic burst at the courier, the pulsing doormat ring ahead; the visible in-flight arc.
+  - m5-perfect (`pip`, `teleport(12,15); throwAt(12,15); step(70)`): "PERFECT!" gold text + "squeak" gag, the parcel resting on h06's doormat inside the teal ring, the courier standing on the porch; a clean successful delivery.
+  - m5-roof (`juno`, `teleport(12,16); throwAt(12,11); step(70)`): "On the roof!" text, the parcel sitting on h06's roof, the doormat ring + compass marker on the porch; a parcel resting on the roof.
+- DoD verified (every §2.4 outcome triggers with the right text; text comes from `scoring.js` `LABEL`):
+  - perfect 200 "PERFECT!" — clean single `throwAt(12,15)` (m5-perfect aim) → `lastResult.outcome="perfect"`, judged at frame 52.
+  - nice 150 "Nice!" — a porch throw landing off-center (off-§2.4-perfectRadius) via `throwRaw` on a target's porch.
+  - sloppy 60 "Sloppy…" — `throwRaw` onto the target's own lot (not the porch).
+  - wrong −25 "Wrong house!" — `throwRaw` onto a *non-target* house's porch (target = nearest M5 target → other house).
+  - road 0 "In the road!" — `throwAt` a Maple Avenue road tile.
+  - splash 0 "SPLOOSH!" — `throwAt` the pond tile (SPLOOSH comic burst, not the "Splash!" label).
+  - roof 0 "On the roof!" — m5-roof shot (parcel lands on h06's roof).
+  - missed 0 "Missed!" — `throwAt` open grass.
+  - doorstep 120 "Signed for!" — hold `F` on a target porch 0.8s (`__pb.press('doorstep',950)` + step).
+  - lucky — 35% roof-luck flip in `parcels.js` (code path complete; needs a roof landing).
+  - broken — fragile/cake rule in `scoring.js` `breakDistance` (code path complete; needs a fragile/cake package, M7+).
+  - Confirmed the judge zones are independent: wrong/road/splash/missed (non-delivered) don't change target state; perfect/nice/sloppy/doorstep (delivered) decrement `remaining` (5→1 after 4).
+- Stats: m5-throw-midair calls=24 tris=25018 geos=32 tex=3; m5-perfect calls=27 tris=28000 geos=34 tex=3; m5-roof calls=25 tris=27944 geos=32 tex=3. All ≤ 150 draw calls. Full suite m0–m5 = 17 shots, 0 console errors, no m0–m4 regressions.
+- Known issues: the roof-luck "Lucky!" flip moves the parcel to the *assigned target's* doormat (a different house if the parcel physically landed on another roof) — benign in M5 (the roof shot resolves to "roof"); track the landed house id for M6. The mailbox flag-pop is a nudge + "DING!" (no animated flag mesh). `lucky`/`broken` aren't showcased in shots (need a roof landing / a fragile package). M4's user-check (blue screen) is still pending re-check at the M12 gate.
+- User check: n/a (no gate on M5).

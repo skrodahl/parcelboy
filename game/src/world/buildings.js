@@ -26,8 +26,8 @@ function buildingColliders(def, colliders, id, x, z, w, d, h) {
 
 // Returns { flagGeo, flagPos }: the school flag's geometry + pole-top position
 // (worldBuilder makes one Mesh with the shared world material; main.js waves it).
-export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects, lampPools) {
-  buildHouses(grid, tm, glow, signQuads, colliders, windowRects, lampPools);
+export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects, lampPools, mailboxes) {
+  buildHouses(grid, tm, glow, signQuads, colliders, windowRects, lampPools, mailboxes);
   const flag = buildSchool(grid, tm, glow, signQuads);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'shop')) buildShop(grid, tm, glow, signQuads, colliders, b);
   buildDepot(grid, tm, glow, signQuads, colliders);

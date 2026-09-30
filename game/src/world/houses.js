@@ -184,7 +184,7 @@ function mailbox(op, gl) {
 const _v = new THREE.Vector3();
 
 // lampPools (optional): gets [wx, wz] of every porch lamp, for the light pools.
-export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects, lampPools) {
+export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects, lampPools, mailboxes) {
   const names = Object.keys(STYLES);
   for (const h of tm.def.houses) {
     const rng = mulberry32(idSeed(h.id));
@@ -216,6 +216,11 @@ export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects
       windowRects[h.id].push({ x: _v.x, y: _v.y, z: _v.z, w: r.w, h: r.h, face: faceLetter(m, r.nx, r.nz) });
     }
 
+    // Mailbox center in world space (for the M5 parcel-mailbox gag, §2.12).
+    if (mailboxes) {
+      _v.set(3.0, 1.12, 7.4).applyMatrix4(m);
+      mailboxes.push([_v.x, _v.z]);
+    }
     // Mailbox number quad (atlas) on the mailbox front, facing the street.
     const q = _v.set(3.0, 0.97, 7.64).applyMatrix4(m);
     signQuads.push({ rectKey: 'num:' + h.num, x: q.x, y: q.y, z: q.z, w: 0.34, h: 0.3, face: FACES[h.facing] });

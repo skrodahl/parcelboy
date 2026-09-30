@@ -15,8 +15,10 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   let heading = SPAWN_HEADING[spawn.facing] || 0;
   let speed = 0;
   let airT = -1; // 0..PLAYER.jumpTime while airborne
+  let throwT = -1; // 0..0.06 s throw wind-up (§2.12), -1 = idle
+  const THROW_WINDUP = 0.06;
   // One stable anim-scratch object per player (no per-frame allocation).
-  const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0 };
+  const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1 };
 
   // Final stats = vehicle base × courier speed multiplier (§11.2); static, so
   // computed once — the per-frame paths must not allocate.
@@ -47,6 +49,8 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     pos.x += Math.sin(heading) * speed * dt;
     pos.z += -Math.cos(heading) * speed * dt;
 
+    // Throw wind-up timer (§2.12 anticipation): starts on startThrow(), runs 0.06 s.
+    if (throwT >= 0) { throwT += dt; if (throwT >= THROW_WINDUP) throwT = -1; }
     // Jump / hop (§2.2): 1.2 units high in 0.5 s, a parabola.
     if (input.consume('jump') && airT < 0 && vehDef.canJump) airT = 0;
     if (airT >= 0) {
@@ -77,6 +81,7 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     anim.moving = Math.abs(speed) > 0.2 ? 1 : 0;
     anim.riding = vehDef.riding;
     anim.air = airT >= 0 ? airT / PLAYER.jumpTime : -1;
+    anim.throw = throwT >= 0 ? throwT / THROW_WINDUP : -1;
     const seat = RIDE_HEIGHT[vehDef.id] || 0;
     rig.group.position.set(pos.x, pos.y + seat, pos.z);
     rig.group.rotation.y = Math.atan2(Math.sin(heading), -Math.cos(heading));
@@ -109,5 +114,6 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     syncVisuals,
     setCarried,
     teleport,
+    startThrow() { throwT = 0; },
   };
 }

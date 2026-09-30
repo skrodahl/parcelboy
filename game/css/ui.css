@@ -7,3 +7,22 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
   color: #fff; background: rgba(0, 0, 0, 0.65);
   padding: 6px 10px; border-radius: 6px; white-space: pre;
 }
+/* §10 floating texts: pooled DOM elements, positioned by transform only. */
+.pb-float {
+  position: absolute; left: 0; top: 0;
+  transform: translate(-50%, -50%);
+  font: 800 22px ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  color: #fff;
+  -webkit-text-stroke: 3px #22223b;
+  paint-order: stroke fill;
+  letter-spacing: 0.5px;
+  pointer-events: none; white-space: nowrap; opacity: 0;
+  will-change: transform, opacity;
+}
+.pb-float.pb-text { color: inherit; }
+.pb-float.pb-burst {
+  color: #22223b; background: #ffbe0b;
+  padding: 4px 12px;
+  -webkit-text-stroke: 0;
+  clip-path: polygon(0% 45%, 8% 25%, 3% 8%, 20% 12%, 30% 0%, 40% 14%, 55% 4%, 62% 18%, 78% 8%, 84% 24%, 100% 20%, 92% 42%, 100% 58%, 86% 60%, 92% 80%, 74% 74%, 66% 92%, 54% 78%, 40% 90%, 34% 74%, 18% 82%, 22% 62%, 6% 66%);
+}

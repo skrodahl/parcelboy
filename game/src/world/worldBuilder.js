@@ -31,7 +31,8 @@ export function buildWorld(def, seed = 1, preset) {
     glowB.box(p.wx, 2.69, p.wz, 0.42, 0.24, 0.42, '#8a8f9e', PALETTE.windowNight);
   }
   const windowRects = {};
-  const { flagGeo, flagPos } = buildBuildings(grid, tm, glowB, signQuads, colliders, windowRects, lampPoolPts);
+  const mailboxes = [];
+  const { flagGeo, flagPos } = buildBuildings(grid, tm, glowB, signQuads, colliders, windowRects, lampPoolPts, mailboxes);
 
   // One shared opaque material for all world geometry (§7.3), plus a
   // translucent water material. FrontSide: builders emit CCW triangles.
@@ -112,6 +113,7 @@ export function buildWorld(def, seed = 1, preset) {
     pools,
     poolTexture,
     windowRects,
+    mailboxes,
     worldMat,
     waterMat,
   };

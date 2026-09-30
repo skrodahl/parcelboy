@@ -19,6 +19,8 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
+import { PARCEL } from './data/config.js';
+import { createDelivery } from './gameplay/delivery.js';
 
 const params = parseParams();
 
@@ -47,6 +49,9 @@ let player = null;
 let vehicleMesh = null;
 let blobs = null;
 let followCam = null;
+let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
+// M5 interim: 5 fixed houses are delivery targets until M6 adds shifts.
+const M5_TARGETS = ['h01', 'h06', 'h09', 'h17', 'h22'];
 const lineup = [];
 const input = createInput();
 const camTgt = { pos: null, heading: 0, speed: 0, speedFrac: 0 }; // follow-cam scratch
@@ -196,6 +201,8 @@ if (params.scene === 'test') {
     blobs.flush();
     followCam.snap(camTgt, camLook); // no swoop-in on the first frame / paused shots
     gameState.name = 'freeRoam';
+    if (params.autostart) delivery = setupDelivery(charDef, vehDef);
+    if (delivery) player.setCarried(delivery.carried);
   } else {
     applyCamPreset(camera, params.cam || 'overview');
   }
@@ -248,6 +255,12 @@ function applyCamPreset(cam, name) {
 
 let simPaused = params.paused;
 
+// M5 interim delivery session (gameplay/delivery.js): 5 fixed houses are
+// targets, all standard parcels. M6 replaces this with shifts + a queue.
+function setupDelivery(charDef, vehDef) {
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: M5_TARGETS, seed: params.seed, ui: document.getElementById('ui') });
+}
+
 // One fixed sim step for the playing core: player kinematics + visuals, the
 // follow cam, and the blob shadow. Called by update() each fixed step, or
 // manually by __pb.step() while paused.
@@ -267,6 +280,15 @@ function simStep(dt) {
       followCam.update(dt, simTime, camTgt, camLook);
     }
   }
+  if (delivery) {
+    delivery.handleInput();
+    delivery.updateDoorstep(dt);
+    delivery.parcels.step(dt);
+    delivery.effects.step(dt);
+    delivery.npcs.step(dt);
+    delivery.floatText.step(dt);
+    delivery.markers.update(dt, simTime, player ? player.pos.x : 0, player ? player.pos.z : 0);
+  }
   for (let i = 0; i < lineup.length; i++) lineup[i].update(dt, lineup[i]._anim);
 }
 
@@ -281,6 +303,7 @@ function update(dt) {
   if (scene.fog) { scene.fog.near = d + 45; scene.fog.far = d + 150; }
   const far = Math.max(220, d + 260);
   if (far !== camera.far) { camera.far = far; camera.updateProjectionMatrix(); }
+  if (delivery) delivery.floatText.sync(); // project live text (also while paused)
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
@@ -320,11 +343,13 @@ window.__pb = {
   state() {
     return {
       gameState: gameState.name,
-      score: 0,
-      streak: 0,
-      carried: 0,
-      remaining: 0,
-      time: 0,
+      score: delivery ? delivery.scoring.score : 0,
+      streak: delivery ? delivery.scoring.streak : 0,
+      multiplier: delivery ? delivery.scoring.multiplier() : 1,
+      carried: delivery ? delivery.carried : 0,
+      remaining: delivery ? delivery.remaining() : 0,
+      lastResult: delivery ? delivery.lastResult : null,
+      time: simTime,
       player: player
         ? { x: player.pos.x, z: player.pos.z, heading: (player.heading * 180) / Math.PI, speed: player.speed }
         : { x: 0, z: 0, heading: 0, speed: 0 },
@@ -340,7 +365,43 @@ window.__pb = {
   press(action, ms) {
     input.press(action, ms);
   },
-  throwAt() {},
+  throwAt(tileX, tileZ) {
+    if (!delivery || !player) return;
+    const aim = delivery.targeting.pointAim(tileX, tileZ, player, delivery.targets, delivery.throwRange, delivery.accuracy);
+    delivery.doThrow(aim);
+  },
+  throwRaw(wx, wz) {
+    if (!delivery || !player) return;
+    let best = null, bd = Infinity;
+    for (let i = 0; i < delivery.targets.length; i++) {
+      const t = delivery.targets[i];
+      if (t.delivered) continue;
+      const dx = t.doormat.x - wx, dz = t.doormat.z - wz;
+      const d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; best = t; }
+    }
+    const target = best || delivery.nextUndelivered();
+    delivery.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: wx, z: wz }, { pkg: target ? target.pkg : null, target, airMail: player.pos.y > 0.05 });
+  },
+  debugParcels() {
+    if (!delivery) return [];
+    return delivery.parcels.parcels.map((p) => ({ s: p.state, x: +p.mesh.position.x.toFixed(1), z: +p.mesh.position.z.toFixed(1), y: +p.mesh.position.y.toFixed(1), vis: p.mesh.visible, target: p.target ? p.target.house.id : null, mh: p.mailHit || false }));
+  },
+  debugRoofs() {
+    if (!world) return [];
+    return world.colliders.filter((c) => c.type === 'box' && c.h && c.h < 8).map((c) => ({ minZ: c.minZ, maxZ: c.maxZ, minX: c.minX, maxX: c.maxX, h: +c.h.toFixed(2) }));
+  },
+  debugZones() {
+    if (!world) return null;
+    const T = world.tilemap.tileSize;
+    const tile = (w) => [Math.floor(w.x / T), Math.floor(w.z / T)];
+    return {
+      doormats: M5_TARGETS.map((id) => ({ id, x: world.doormatPoints[id].x, z: world.doormatPoints[id].z, tile: tile(world.doormatPoints[id]) })),
+      pond: world.def.pond,
+      mailboxes: (world.mailboxes || []).slice(0, 3).map((m) => [ +m[0].toFixed(1), +m[1].toFixed(1) ]),
+      roadTiles: world.def.roads.map((r) => ({ name: r.name, axis: r.axis, at: r.at, tile: [r.at, r.axis === 'z' ? r.at : 0] })),
+    };
+  },
   step(frames) {
     const step = 1 / 60;
     for (let i = 0; i < (frames | 0); i++) {
