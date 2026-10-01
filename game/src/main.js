@@ -1084,6 +1084,7 @@ window.__pb = {
   speedLines() { if (!player || !sharedEffects) return false; sharedEffects.speedLines(player.pos.x, player.pos.z, Math.sin(player.heading) * 9, -Math.cos(player.heading) * 9); return true; },
   celebrate() { if (!player || !sharedEffects) return false; sharedEffects.celebrate(player.pos.x, 1, player.pos.z); return true; },
   autoplay() { return autoplayRun(); },
+  debugCars() { return hazards ? hazards.carDebug() : []; },
   playerPos() { return player ? [ +player.pos.x.toFixed(2), +player.pos.z.toFixed(2) ] : null; },
   holdF(on) { input.forceHeld('doorstep', !!on); return !!on; },
   playerTeleportWorld(x, z) {

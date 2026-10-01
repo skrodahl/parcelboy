@@ -124,7 +124,9 @@ export function createHazards(env) {
       c.dist = (c.dist + c.speed * dt) % traffic.loops[c.loop].total;
       if (braking && c.honkT < 0) c.honkT = 0;
       if (c.honkT >= 0) { c.honkT += dt; if (c.honkT > 0.5) c.honkT = -1; }
-      place(carM, i, px, pz, hd + Math.PI, 1);
+      // The car model's front is local +Z; to face the travel dir (sin hd, -cos hd)
+      // the Y rotation is PI - hd (hd + PI mirrors E/W cars backwards).
+      place(carM, i, px, pz, Math.PI - hd, 1);
       carX[i] = px; carZ[i] = pz;
     }
     carM.instanceMatrix.needsUpdate = true;
@@ -305,7 +307,17 @@ export function createHazards(env) {
     for (let h = 0; h < hives; h++) if (dist2d(x, z, hiveSt[h].x, hiveSt[h].z) < 3) { hiveSt[h].state = 'angry'; hiveSt[h].t = 0; hiveSt[h].shakeT = 0; floatText.pop('BZZZ!', x, 2.4, z, { color: '#ffd166', burst: true }); return; }
   }
   function tipBin(x, z) {
-    for (let i = 0; i < bins; i++) if (binSt[i].tip < 0 && dist2d(binSt[i].x, binSt[i].z, x, z) < 1.2) { binSt[i].tip = 0; effects.dust(binSt[i].x, 0.6, binSt[i].z); return; }
+    for (let i = 0; i < bins; i++) if (binSt[i].tip < 0 && dist2d(x, z, binSt[i].x, binSt[i].z) < 1.2) { binSt[i].tip = 0; effects.dust(x, 0.6, z); return; }
+  }
+  // QA: each car's world point + travel heading (for the __pb.debugCars hook).
+  function carDebug() {
+    const out = [];
+    for (let i = 0; i < cars.length; i++) {
+      const c = cars[i];
+      traffic.pointAt(c.loop, c.dist, scratch);
+      out.push({ x: +scratch.x.toFixed(2), z: +scratch.z.toFixed(2), hd: +scratch.heading.toFixed(3), loop: c.loop });
+    }
+    return out;
   }
 
   // Static matrices uploaded once.
@@ -313,7 +325,7 @@ export function createHazards(env) {
   hiveM.instanceMatrix.needsUpdate = true; spM.instanceMatrix.needsUpdate = true;
 
   return {
-    step, angersSwarmAt, tipBin,
+    step, angersSwarmAt, tipBin, carDebug,
     cars, dogs, skaters, hives, bins, cones,
     dogSt, hiveSt, spSt, skSt, binSt, // internal state (for __pb hooks + tests)
     dispose() { for (const m of [carM, dogM, spM, skM, hiveM, beeM, binM, coneM]) { scene.remove(m); m.dispose && m.dispose(); } },
