@@ -1,6 +1,6 @@
 # Progress
 
-Current milestone: M11 complete (ambient life + cartoon juice pass: birds/butterflies/ducks/kids, trampolines, over-the-handlebars, speed lines, streak + results celebration, busy depot, battery scaling); M0–M10 + M6b + M7b done
+Current milestone: M12 complete (performance audit, autoplayer soak + tuned star thresholds, README, production check, final clean shots); M0–M11 + M6b + M7b done
 
 ## Decisions
 - (2026-09-30) Git branch is `master` (git default); kept as-is.
@@ -72,6 +72,10 @@ Current milestone: M11 complete (ambient life + cartoon juice pass: birds/butter
     - (2026-10-01) **M11 the busy Distribution Center is a small dynamic module, not part of the static chunks.** `world/depot.js` builds a conveyor belt + a forklift NPC + pallet stacks near the open dock; the sliding boxes are one InstancedMesh (colored once) and the forklift one merged mesh, stepped in `simStep`. Battery halves the box count. (A first draft passed a `VoxelBuilder` to `THREE.Mesh` instead of its `.toGeometry()` and crashed the boot — caught by the 0-console-errors shot gate and fixed.)
     - (2026-10-01) **M11 the streak/results celebrations reuse the one particle pool.** `effects.js` adds `celebrate()` (a quick 18-particle rainbow ring for a ×3+ streak, with a jingle) and `speedLines()` (a short white comet trail while Sprint/Turbo push the top speed, throttled to ~6/s in `simStep`). The results screen fires a `celebrate()` on a finished shift. All share the existing 128-particle InstancedMesh (1 draw call).
     - (2026-10-01) **M11 ToD tuning (before/after): the golden hour is warmed for longer shadows.** `timeOfDay.js` golden preset: sun lowered `[0.75,0.3,0.2]→[0.8,0.24,0.28]`, sun color `#ffb86b→#ffab52`, intensity `2.6→2.3`, sky zenith `#f4a261→#f79a55`, glow `0.3→0.4`. The before/after pair is `m10-tod-golden-overview` (before) vs `m11-golden-overview` (after).
+    - (2026-10-01) **M12 the headless autopplayer is a teleport+doorstep run, not a physics-throw walk.** Throwing from 4u short clips the house roof (the parcel's arc lands on the roof → "roof"/"wrong"), so the autoplayer instead `player.teleport`s to each target's doormat tile + holds `F` (`input.forceHeld('doorstep')`, a new hook) for the guaranteed doorstep delivery. It burns ~45% of the shift clock spread across the deliveries ("look for the next target" pauses) so the time bonus stays at a real-courier level. Because the shift auto-ends (`showResults`→`endShift`) null the module `delivery`/`mission` vars mid-loop, `autoplayRun` keeps object refs + reads `mission.lastResult` (a new getter) before the vars die.
+    - (2026-10-01) **M12 the star thresholds are tuned to the autoplayer's measured scores (3 deterministic runs each).** The `stars` in `shifts.js` are now the floor the autoplayer clears for 1 star: morning 2540→`[2400,3000,3450]`, lunch 2970→`[2850,3400,3900]`, fragile 2650→`[2500,3050,3550]`, golden 3150→`[3000,3550,4050]`, dusk 3440→`[3300,3850,4350]`, cake 810→`[600,900,1250]`, haul 1310→`[1100,1400,1750]`. All 7 verify to exactly 1 star (`__pb.soak`); a better human (perfect throws + faster) is expected to reach 2–3.
+    - (2026-10-01) **M12 allocation audit: the per-frame hot paths are clean; one `.filter` fixed.** `simStep`/`update` + the entity/hazard `step`/`update`/`tick` all use pre-allocated scratch (`M`/`P`/`Q`/`S`/`E`/`tmp`), no per-frame `new`/`.map`/`.filter`/spreads. The one finding: `watch.js` `get active()` used `state.filter(Boolean).length` (allocates an array each call) — replaced with a count loop. `audio.lastSounds().join()` only runs under `?debug` (the SFX overlay), so it's out of the hot path.
+    - (2026-10-01) **M12 production check: the Dockerfile image serves the game + a shot renders against it.** `docker build -t parcelboy .` + `docker run -p 8090:80` → `GET /` + `GET /src/main.js` = 200 + the title; a `m0-cube` shot ran against `BASE_URL=http://192.168.10.211:8090` → `ok calls=2 geos=2 tex=0`. (Port 8081 was taken on this host, so 8090 was used.) The container was stopped after the check.
 
 
 
@@ -305,4 +309,17 @@ Current milestone: M11 complete (ambient life + cartoon juice pass: birds/butter
 - Stats: 8 M11 shots, all ≤150 draw calls. Full suite m0–m11 + m6b + m7b = **71 shots, 0 console errors**, no m0–m10 regressions.
 - Known issues: the "life-street" shot reads the ambient life best on the lawns (the street cam is a long shot, so walkers/birds are small in the distance). The over-the-handlebars arc is a sim parabola (no separate bike-tumble mesh) — it reads as the courier coming off the bike, not a full tumble. These are polish for M12.
 - User check: **GATE — watch a trampoline bounce + an over-the-handlebars knockdown in a live browser and report on the cartoon feel; confirm Battery saver visibly reduces the ambient life.** (Pending — user to verify later.)
+
+### M12: Performance, QA, tuning and release: DONE
+- Done: a headless **autoplayer** (`__pb.autoplay`/`__pb.soak` — teleport + guaranteed doorstep, a new `input.forceHeld('doorstep')` hook + `mission.lastResult`/`duration` getters) that runs a shift start-to-finish headlessly; the **star thresholds** in `shifts.js` retuned to the measured autoplayer scores (3 deterministic runs per shift); the **allocation audit** of the per-frame hot paths (`watch.js` `active` getter de-allocated; the rest already clean); a new **`README.md`** (run dev/prod, controls, quality presets, the §14 content-extension guide, project layout); and the **production check** (the Dockerfile image builds, serves the game, and a shot renders against it).
+- Autoplayer soak (3 runs each, deterministic → every run identical; all deliver 100%):
+  - morning **2540**, lunch **2970**, fragile **2650**, golden **3150**, dusk **3440** (main shifts); cake **810**, haul **1310** (side missions). All 7 → **exactly 1 star** under the retuned thresholds.
+- DoD verified:
+  - *Every shot clean + budgets met* — the full suite (**71 shots**, m0–m11 + m6b + m7b) renders with **0 console errors** and **max 63 draw calls** (≤150 budget); no shot over budget.
+  - *Geometry + texture counts stable* — across all 71 shots, geometries 2–62 + textures 0–3 (the few allowed canvas textures). No growth.
+  - *README complete* — dev (`docker compose up -d --build web`), production (`docker build -t parcelboy .` + `docker run`), the control table, the 3 quality presets, + the §14 extension guide.
+  - *Production check* — `docker build` + `docker run -p 8090:80` serve the game (200 + title + `/src/main.js`), and `m0-cube` ran against the prod image (`ok calls=2 geos=2 tex=0`); container stopped afterward.
+- Stats: 71 shots, 0 console errors, max 63 draw calls. Geos 2–62, tex 0–3, stable.
+- Known issues: the autoplayer's "look for next target" pauses burn a fixed ~45% of the clock, so its time bonus is a designed constant per shift (fine for a deterministic 1-star floor). The side-mission (cake/haul) 3-star thresholds sit near the practical single/few-delivery ceiling, so 3 stars there is aspirational for a human (the "humans reach 2–3" target). These are noted, not blockers.
+- User check: **GATE — a final play session on the laptop in all 3 quality presets (High / Balanced / Battery).** (Pending — user to verify later.)
 

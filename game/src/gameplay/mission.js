@@ -62,6 +62,7 @@ export function createMission(env) {
   let active = false;
   let timer = shift.duration;
   let ended = false;
+  let lastRes = null;
 
   function start(s) { session = s; active = true; ended = false; timer = shift.duration; if (env.onActiveChange) env.onActiveChange(true); }
 
@@ -74,7 +75,7 @@ export function createMission(env) {
   }
 
   function end() {
-    if (!active || ended) return;
+    if (ended || !active) return lastRes;
     active = false; ended = true;
     const delivered = session ? session.targets.length - session.remaining() : 0;
     const total = session ? session.targets.length : 0;
@@ -85,6 +86,7 @@ export function createMission(env) {
     for (let i = th.length - 1; i >= 0; i--) if (score >= th[i]) { stars = i + 1; break; }
     const coins = Math.max(0, Math.floor(score / 10)); // §2.6 (never negative)
     const res = { shift: shift.id, score, timeBonus, stars, coins, delivered, total, success: delivered === total };
+    lastRes = res;
     if (env.onResults) env.onResults(res);
     if (env.onActiveChange) env.onActiveChange(false);
     return res;
@@ -98,5 +100,7 @@ export function createMission(env) {
     get timer() { return Math.max(0, timer); },
     get active() { return active; },
     get session() { return session; },
+    get lastResult() { return lastRes; },
+    get duration() { return shift.duration; },
   };
 }

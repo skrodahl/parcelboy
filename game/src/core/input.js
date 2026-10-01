@@ -80,5 +80,7 @@ export function createInput() {
     },
     clearEdge() { edge.clear(); },
     press,
+    // M12: the headless autoplayer holds an action (e.g. the F doorstep) for a run.
+    forceHeld(action, on) { if (on) held.add(action); else held.delete(action); },
   };
 }

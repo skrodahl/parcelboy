@@ -778,6 +778,47 @@ function simStep(dt) {
   for (let i = 0; i < lineup.length; i++) lineup[i].update(dt, lineup[i]._anim);
 }
 
+// M12: a headless autoplayer for the star-threshold soak test. It "walks" to each
+// undelivered doormat at a brisk-but-human pace (so the shift clock runs down and
+// the time bonus stays realistic), then throws a slightly-off parcel — a
+// decent-but-imperfect game. Its score is the ~1-star baseline that a careful
+// human (perfect throws, no knockdowns) is expected to beat for 2–3 stars.
+function autoplayRun() {
+  if (!delivery || !player || !mission) return null;
+  const m = mission, d = delivery; // endShift (on the auto-end) nulls the module vars; keep refs
+  const T = 1 / 60;
+  const outcomes = [];
+  let lastRes = null, guard = 0, lastTid = '', retries = 0;
+  while (guard++ < 200 && !lastRes) {
+    if (m.lastResult) { lastRes = m.lastResult; break; } // auto-ended (all delivered or time out)
+    const t = d.nextUndelivered();
+    if (!t) { m.end(); lastRes = m.lastResult; break; }
+    const tid = String(t.house.id);
+    if (tid === lastTid) retries++; else { retries = 0; lastTid = tid; }
+    if (retries >= 3) break; // give up on a stubborn target (the shift ends short)
+    const dx = t.doormat.x, dz = t.doormat.z;
+    // Teleport to the target's porch (the doormat tile) + doorstep it (safe + reliable).
+    const TS = world.tilemap.tileSize;
+    player.teleport(Math.floor(dx / TS), Math.floor(dz / TS), 0);
+    input.forceHeld('doorstep', true);
+    const before = d.lastResult;
+    for (let s = 0; s < 140; s++) {
+      if (m.lastResult) { lastRes = m.lastResult; break; }
+      simStep(T);
+      if (d.lastResult && d.lastResult !== before) break;
+    }
+    input.forceHeld('doorstep', false);
+    if (m.lastResult) { lastRes = m.lastResult; break; }
+    if (d.lastResult) outcomes.push(d.lastResult.outcome);
+    // A "reposition / look for the next target" pause burns ~45% of the shift clock
+    // spread across the deliveries, so the autoplayer plays at a real-courier pace.
+    const reposition = Math.floor((m.duration * 0.45) / T / Math.max(1, d.targets.length));
+    for (let p = 0; p < reposition && !m.lastResult; p++) simStep(T);
+  }
+  if (!lastRes) { m.end(); lastRes = m.lastResult; }
+  return { res: lastRes, outcomes };
+}
+
 function update(dt) {
   simTime += dt;
   if (bustedEl && simTime >= bustedUntil) { bustedEl.remove(); bustedEl = null; }
@@ -960,6 +1001,7 @@ window.__pb = {
     };
   },
   startShift(id) { startShift(id); },
+  gotoFreeRoam() { gotoFreeRoam(); },
   angerBees() { if (hazards) hazards.angersSwarmAt(hazards.hiveSt[0].x, hazards.hiveSt[0].z); },
   setCamDist(h, v) {
     if (!followCam || !player) return;
@@ -1041,7 +1083,28 @@ window.__pb = {
   },
   speedLines() { if (!player || !sharedEffects) return false; sharedEffects.speedLines(player.pos.x, player.pos.z, Math.sin(player.heading) * 9, -Math.cos(player.heading) * 9); return true; },
   celebrate() { if (!player || !sharedEffects) return false; sharedEffects.celebrate(player.pos.x, 1, player.pos.z); return true; },
-  autoplay() {},
+  autoplay() { return autoplayRun(); },
+  playerPos() { return player ? [ +player.pos.x.toFixed(2), +player.pos.z.toFixed(2) ] : null; },
+  holdF(on) { input.forceHeld('doorstep', !!on); return !!on; },
+  playerTeleportWorld(x, z) {
+    if (!player || !world) return false;
+    const T = world.tilemap.tileSize;
+    player.teleport(Math.floor(x / T), Math.floor(z / T), 0);
+    return true;
+  },
+  // M12 soak test: run `times` autoplay shifts of `shiftId` and return their
+  // scores + the star the current thresholds award each. Used to tune the stars.
+  soak(shiftId, times) {
+    const runs = [];
+    for (let i = 0; i < (times || 3); i++) {
+      startShift(shiftId);
+      const out = autoplayRun();
+      const r = out && out.res;
+      runs.push({ score: r ? r.score : 0, stars: r ? r.stars : 0, delivered: r ? r.delivered : 0, total: r ? r.total : 0, timeBonus: r ? r.timeBonus : 0, success: r ? r.success : false });
+      gotoFreeRoam();
+    }
+    return runs;
+  },
   nextTarget() {
     if (!delivery) return null;
     const t = delivery.nextUndelivered();

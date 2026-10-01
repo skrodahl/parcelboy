@@ -71,7 +71,7 @@ export function createWatch(env) {
   return {
     spawn, remove, reset,
     step: (dt) => { tickClock(dt); step(dt); },
-    get active() { return state.filter(Boolean).length; },
+    get active() { let n = 0; for (let i = 0; i < 2; i++) if (state[i]) n++; return n; },
     get positions() { const out = []; for (let i = 0; i < 2; i++) if (state[i]) out.push({ x: state[i].x, z: state[i].z }); return out; },
   };
 }
