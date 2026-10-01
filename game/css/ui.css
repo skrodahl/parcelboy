@@ -170,6 +170,44 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
   border-radius: 50%; background: transparent; pointer-events: none;
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.9), 0 6px 18px rgba(0, 0, 0, 0.4);
 }
+/* §2.15 / M12a.9: the heat-whistle row just above the radar disc. Three ~24px
+   whistles (CSS-drawn, no files) with a dark outline so they read on any
+   background; the first `level` fill red. Hidden while heat is 0. */
+.heat-row {
+  position: fixed; left: 12px; bottom: 216px;
+  display: flex; gap: 5px; z-index: 5; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+.heat-whistle {
+  position: relative; width: 24px; height: 24px; box-sizing: border-box;
+  border: 2px solid #22223b; border-radius: 9px 9px 9px 3px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.heat-whistle::after {
+  content: ''; position: absolute; right: -7px; top: 4px;
+  width: 9px; height: 9px; box-sizing: border-box;
+  border: 2px solid #22223b; border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+}
+.heat-whistle.on { background: #ff3b3b; }
+.heat-whistle.on::after { background: #ff3b3b; }
+.heat-row.wobble { animation: heatWobble 0.5s ease-in-out; }
+@keyframes heatWobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 60% { transform: rotate(9deg); } }
+.heat-row.flash .heat-whistle.on { animation: heatFlash 0.4s steps(2, jump-none) infinite; }
+@keyframes heatFlash { 0% { opacity: 1; } 50% { opacity: 0.25; } }
+/* §2.15 / M12a.9: the "Neighborhood Watch is on to you!" popup (first time
+   level 2 is reached). A short top-center callout, reused element. */
+.watch-popup {
+  position: fixed; top: 44px; left: 50%; transform: translateX(-50%);
+  z-index: 6; display: none; text-align: center;
+  background: rgba(230, 57, 70, 0.94); color: #fff; padding: 10px 26px; border-radius: 14px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3); pointer-events: none;
+  font: 700 15px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+}
+.watch-popup .watch-popup-title { font-size: 17px; font-weight: 800; }
+.watch-popup .watch-popup-sub { font-size: 13px; opacity: 0.92; }
+.watch-popup.show { animation: pbBannerPop 0.3s ease-out; }
+.watch-popup.fade { opacity: 0; transition: opacity 0.4s; }
 /* §10: the full-screen map (Tab). Dark letterbox, the map centered, legend top-left. */
 .fullmap {
   position: fixed; inset: 0; display: none; pointer-events: auto;

@@ -69,5 +69,8 @@ export function createHeat(env) {
     get heat() { return heat; },
     get level() { return level(); },
     get units() { return units; },
+    // §2.15 / M12a.9: true while a Watch unit was just shaken off (its "losing"
+    // window) — the whistle row flashes during this.
+    get losing() { for (let i = 0; i < 2; i++) if (lostAt[i] >= 0 && t - lostAt[i] < MISCHIEF.watch.loseAfterSec) return true; return false; },
   };
 }

@@ -81,5 +81,6 @@
   { "name": "m12a-birds", "url": "/?cam=overview&mute=1&paused=1", "eval": ["__pb.scatterBirds(); __pb.step(18); __pb.setCam('overview');"] },
   { "name": "m12a-restock", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning", "eval": ["__pb.setCam('follow'); for(var i=0;i<5;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.teleport(39,35,90); __pb.step(42); __pb.setCam('follow');"] },
   { "name": "m12a-parcels", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning", "eval": ["for(var i=0;i<2;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.setCam('follow');"] },
-  { "name": "m12a-fullmap", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab' })); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' })); __pb.step(3);"] }
+  { "name": "m12a-fullmap", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab' })); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' })); __pb.step(3);"] },
+  { "name": "m12a-heat", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setHeat(7); __pb.setCam('follow');"] }
 ]

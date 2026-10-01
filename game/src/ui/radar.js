@@ -185,22 +185,8 @@ export function createRadar({ tm, state, ui }) {
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#22223b'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(C, C - 8); ctx.lineTo(C - 5, C + 6); ctx.lineTo(C + 5, C + 6); ctx.closePath();
     ctx.fill(); ctx.stroke();
-
-    // §2.15: the 3-whistle heat meter just above the disc (fills with the level).
-    const level = state.heat ? state.heat.level : 0;
-    ctx.save();
-    for (let i = 0; i < 3; i++) {
-      const wx = C - 18 + i * 18, wy = 12;
-      const on = i < level;
-      ctx.fillStyle = on ? '#ff3b3b' : 'rgba(255,255,255,0.25)';
-      ctx.strokeStyle = on ? '#fff' : 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 1;
-      // a little whistle: a body + a short mouthpiece.
-      ctx.beginPath(); ctx.arc(wx, wy, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillRect(wx + 3, wy - 1.5, 5, 3);
-      if (on) { ctx.fillStyle = '#22223b'; ctx.fillRect(wx + 4, wy - 0.6, 3, 1.2); } // the "note"
-    }
-    ctx.restore();
+    // M12a.9: the heat whistles moved to a DOM row above the radar (main.js) —
+    // the old in-canvas 4px dots on the white rim were effectively invisible.
   }
 
   let acc = 0, rt = 0;

@@ -126,6 +126,39 @@ function showGoldenBanner(total, count) {
 function pulseGolden() { if (hud && hud.golden) { const g = hud.golden; g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse'); } }
 events.on('golden', (d) => { pulseGolden(); showGoldenBanner(d.total, d.count); });
 
+// §2.15 / M12a.9: the heat whistles — a DOM row of 3 whistle icons above the
+// radar (the old in-canvas 4px dots were invisible). Filled red per level,
+// wobbling + a tick when heat rises, flashing while the Watch is losing you,
+// hidden at level 0. Built in buildHUD; this just drives it.
+let heatRowEl = null, heatWhistles = null, watchPopupEl = null, watchT1 = 0, watchT2 = 0;
+let prevHeatLevel = 0, heatLvl2Shown = false;
+function showWatchPopup() {
+  if (!watchPopupEl) return;
+  watchPopupEl.style.display = 'block';
+  watchPopupEl.classList.remove('fade');
+  watchPopupEl.classList.add('show');
+  clearTimeout(watchT1); clearTimeout(watchT2);
+  watchT1 = setTimeout(() => watchPopupEl.classList.add('fade'), 2500);
+  watchT2 = setTimeout(() => { watchPopupEl.style.display = 'none'; watchPopupEl.classList.remove('show', 'fade'); }, 2900);
+}
+function updateHeatRow() {
+  if (!heatRowEl) return;
+  const lvl = heat ? heat.level : 0;
+  if (lvl <= 0) {
+    heatRowEl.style.display = 'none'; heatRowEl.classList.remove('flash', 'wobble');
+    prevHeatLevel = 0; return;
+  }
+  heatRowEl.style.display = '';
+  for (let i = 0; i < 3; i++) heatWhistles[i].classList.toggle('on', i < lvl);
+  if (lvl > prevHeatLevel) {
+    heatRowEl.classList.remove('wobble'); void heatRowEl.offsetWidth; heatRowEl.classList.add('wobble');
+    if (events) events.emit('whistle'); // the short tick
+    if (lvl >= 2 && !heatLvl2Shown) { heatLvl2Shown = true; showWatchPopup(); }
+  }
+  prevHeatLevel = lvl;
+  heatRowEl.classList.toggle('flash', !!(heat && heat.losing));
+}
+
 const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
@@ -589,9 +622,19 @@ function buildHUD() {
   const bannerTitle = el('div', 'pb-banner-title');
   const bannerSub = el('div', 'pb-banner-sub');
   banner.append(bannerTitle, bannerSub);
-  ui.append(chip, coins, golden, panel, ab, banner);
+  // §2.15 / M12a.9: the heat-whistle row (above the radar) + the "Watch is on to
+  // you" popup. Created once; updateHeatRow() drives them each frame.
+  const heatRow = el('div', 'heat-row');
+  const heatWh = [el('div', 'heat-whistle'), el('div', 'heat-whistle'), el('div', 'heat-whistle')];
+  heatRow.append(heatWh[0], heatWh[1], heatWh[2]);
+  heatRow.style.display = 'none';
+  const watchPopup = el('div', 'watch-popup');
+  watchPopup.append(el('div', 'watch-popup-title', 'Neighborhood Watch'), el('div', 'watch-popup-sub', 'is on to you!'));
+  watchPopup.style.display = 'none';
+  ui.append(chip, coins, golden, panel, ab, banner, heatRow, watchPopup);
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
+  heatRowEl = heatRow; heatWhistles = heatWh; watchPopupEl = watchPopup;
     hud = {
       chip, coins, golden, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
     missionStart(session, shift) {
@@ -836,6 +879,7 @@ function update(dt) {
   if (radar) radar.tick(dt); // M6b: the corner radar stays live (also while paused)
   if (fullMap) fullMap.tick(dt);
   updateAbilityBtn(); // §10: the ability button's ring reflects the live cooldown
+  updateHeatRow(); // §2.15 / M12a.9: the heat-whistle row above the radar
   if (simPaused !== musicPaused) { musicPaused = simPaused; if (musicPaused) audio.stopMusic(); else audio.startMusic(false); }
   if (input.consume('mute')) audio.setMuted(!audio.muted);
   // M12a.8: Tab opens / closes the full map (in free roam + missions, not menus).
