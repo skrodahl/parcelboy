@@ -32,6 +32,7 @@ import { createHeat } from './gameplay/heat.js';
 import { createMischief } from './gameplay/mischief.js';
 import { createAmbient } from './entities/ambient.js';
 import { createWatch } from './gameplay/watch.js';
+import { createAbilitySystem } from './gameplay/abilities.js';
 import { mulberry32 } from './core/rng.js';
 
 const params = parseParams();
@@ -66,6 +67,8 @@ let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
 let mission = null; // M6 active shift runner (null in free roam)
 let hud = null; // M6 HUD (free-roam chip + mission timer/score)
 let activeChar = null, activeVeh = null; // the spawned courier/vehicle
+let abilities = null; // §11.6: the active courier's ability system (Modifier stack)
+let abilityBtn = null, abilityRing = null, abilityName = null; // the HUD ability button (§10)
 let resultsEl = null; // the results-screen DOM (M6)
 let shiftCardEl = null; // the dispatch mission-card DOM (M6)
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
@@ -233,6 +236,9 @@ function spawnCourier(charDef, vehDef) {
   blobs = createBlobShadows(16, world.poolTexture);
   scene.add(blobs.mesh);
   player = createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk: (amount) => { if (followCam) followCam.shake(amount); } });
+  // §11.6: the courier's ability (writes the modifier stack the player reads).
+  abilities = createAbilitySystem(player.stack, charDef, vehDef);
+  player.setAbilities(abilities);
   followCam = createFollowCam(camera, world.collision);
   camTgt.pos = player.pos; camTgt.heading = player.heading;
   player.syncVisuals(0, simTime);
@@ -262,7 +268,7 @@ function setupMischief() {
   const mat = world.worldMat;
   const unitOps = { spawn: () => null, remove: () => {} };
   heat = createHeat({
-    charm: activeChar.ability === 'charm',
+    stack: () => (player ? player.stack : null), // M8: Marlo's Charm reads the live stack
     spawnWatch: (i) => unitOps.spawn(i), removeWatch: (i) => unitOps.remove(i),
     onBusted: (level) => onBusted(level),
   });
@@ -401,7 +407,15 @@ function buildHUD() {
   const pScore = el('div', 'hud-mission-score');
   panel.append(pName, pTimer, pTargets, pNext, pScore);
   panel.style.display = 'none';
-  ui.append(chip, coins, panel);
+  // §10: the ability button (bottom-right) + its cooldown ring.
+  const ab = el('div', 'ability-btn');
+  const abRing = el('div', 'ability-ring');
+  const abName = el('div', 'ability-name', '—');
+  const abKey = el('div', 'ability-key', 'Shift');
+  ab.append(abRing, abName, abKey);
+  ab.style.display = 'none';
+  ui.append(chip, coins, panel, ab);
+  abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   hud = {
     chip, coins, panel, pName, pTimer, pTargets, pNext, pScore,
     missionStart(session, shift) {
@@ -419,6 +433,24 @@ function buildHUD() {
       this.pNext.textContent = nx ? 'next: ' + nx.pkg.name : 'all delivered';
     },
   };
+}
+
+// §10: refresh the ability button's cooldown ring + state each frame.
+function updateAbilityBtn() {
+  if (!abilityBtn) return;
+  if (!abilities || !abilities.hasAbility) { abilityBtn.style.display = 'none'; return; }
+  abilityBtn.style.display = '';
+  abilityName.textContent = abilities.name;
+  let deg, color;
+  if (abilities.active) { deg = 360; color = '#ff7b9c'; }         // running: full, pulsing
+  else {
+    const cdFrac = abilities.coolFrac(); // 0 = ready .. 1 = just used
+    deg = Math.round((1 - cdFrac) * 360);
+    color = cdFrac <= 0 ? '#ffd166' : '#90e0ef';
+  }
+  abilityBtn.classList.toggle('active', !!abilities.active);
+  abilityBtn.classList.toggle('ready', abilities.ready);
+  abilityRing.style.background = 'conic-gradient(' + color + ' ' + deg + 'deg, rgba(255,255,255,0.16) 0deg)';
 }
 
 // §2.1 / §10: the results screen (functional; polished in M8).
@@ -522,6 +554,9 @@ function simStep(dt) {
   // §2.15 BUSTED!: a ~2 s freeze on a ticket (the sim halts, not just the player).
   if (simTime < bustedUntil) return;
   if (hazards) hazards.step(dt);
+  // M8: the courier's ability (counts down its duration + cooldown; the stack
+  // the player/hazards/targeting read is mutated live by its start/update/end).
+  if (abilities) abilities.tick(dt);
   // M7b: the mischief layer (heat + Grump chase + Watch pursuit + bowling).
   if (heat) heat.tick(dt);
   if (mischief) mischief.tick(dt);
@@ -577,6 +612,7 @@ function update(dt) {
   if (delivery) delivery.floatText.sync(); // project live text (also while paused)
   if (radar) radar.tick(dt); // M6b: the corner radar stays live (also while paused)
   if (fullMap) fullMap.tick(dt);
+  updateAbilityBtn(); // §10: the ability button's ring reflects the live cooldown
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
@@ -740,6 +776,20 @@ window.__pb = {
     if (!delivery) return null;
     const t = delivery.nextUndelivered();
     return t ? [t.doormat.x, t.doormat.z] : null;
+  },
+  useAbility() { return abilities ? abilities.use() : false; },
+  debugAbility() {
+    if (!player) return null;
+    const st = player.stack;
+    return {
+      name: abilities ? abilities.name : null,
+      active: abilities ? abilities.active : null,
+      ready: abilities ? abilities.ready : false,
+      coolFrac: abilities ? +abilities.coolFrac().toFixed(2) : 0,
+      speedMul: st.speedMul, turnWobble: st.turnWobble,
+      knockdownImmune: st.knockdownImmune, perfectThrows: st.perfectThrows, charmActive: st.charmActive,
+      dogFriendly: player.dogFriendly,
+    };
   },
   debugMischief() {
     return {

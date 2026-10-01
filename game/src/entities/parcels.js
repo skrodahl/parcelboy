@@ -73,7 +73,7 @@ export function createParcels({ scene, material, world, packages, targets, house
       mesh, state: 'idle', pkg: null, target: null,
       vel: new THREE.Vector3(), spin: 0,
       contact: 0, slideT: 0, roofT: 0, jellyT: 0,
-      impact: 0, dist: 0, airMail: false, rest: 0, mailHit: false,
+      impact: 0, dist: 0, airMail: false, rest: 0, mailHit: false, trick: false,
     });
   }
   let cooldown = 0;
@@ -90,6 +90,7 @@ export function createParcels({ scene, material, world, packages, targets, house
     p.pkg = info.pkg;
     p.target = info.target;
     p.airMail = !!info.airMail;
+    p.trick = !!info.trick; // §2.8 Trick Shot: a banked throw scores PERFECT on the target
     p.mesh.geometry = geos[info.pkg.id] || defaultGeo;
     p.mesh.position.set(from.x, from.y, from.z);
     p.mesh.visible = true;

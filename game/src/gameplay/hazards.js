@@ -110,6 +110,7 @@ export function createHazards(env) {
       const px = scratch.x, pz = scratch.z, hd = scratch.heading;
       let target = 7.5;
       if (scratch.toCorner < 4) target *= 0.55; // ease into corners
+      if (player.stack.charmActive) target = 0;   // §2.8 Charm: cars stop
       // Brake for the player / a car ahead.
       const dxp = player.pos.x - px, dzp = player.pos.z - pz;
       let braking = false;
@@ -185,7 +186,8 @@ export function createHazards(env) {
       const loop = def.sidewalkLoops ? Object.values(def.sidewalkLoops)[k.loop % 4] : null;
       if (loop) {
         const per = loopPerim(loop);
-        k.dist = (k.dist + 5 * dt) % per;
+        // §2.8 Charm: skaters swerve away — during Charm they stop and give space.
+        k.dist = (k.dist + (player.stack.charmActive ? 0 : 5) * dt) % per;
         const pt = pointOnRect(loop, k.dist);
         k.x = pt.x + Math.sin(k.weave + k.dist * 0.5) * 0.3;
         k.z = pt.z;

@@ -7,7 +7,8 @@ import { MISCHIEF } from '../data/config.js';
 // unit you shake off respawns after a short cooldown while heat stays up.
 //
 // env = {
-//   charm: boolean,              // Marlo's Charm active
+//   stack: () => stack|null,     // the current player's modifier stack (live;
+//                                // Marlo's Charm ability sets charmActive on it)
 //   spawnWatch(i): unit|null,    // i: 0 = Segway, 1 = golf cart
 //   removeWatch(i),
 //   onBusted(level),             // freeze + ticket + penalty (wired by main)
@@ -27,7 +28,12 @@ export function createHeat(env) {
     for (let i = 0; i < TH.length; i++) if (heat >= TH[i]) l = i + 1;
     return l;
   }
-  function level() { return Math.max(0, rawLevel() - (env.charm ? MISCHIEF.charmDrops : 0)); }
+  // Marlo's Charm (an ability) drops one level for its 6 s; the stack carries
+  // the live charmActive flag so a mid-run courier swap stays correct.
+  function level() {
+    const st = env.stack ? env.stack() : null;
+    return Math.max(0, rawLevel() - (st && st.charmActive ? MISCHIEF.charmDrops : 0));
+  }
 
   function reconcile() {
     const lv = level();

@@ -53,6 +53,29 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .hud-mission-targets { color: #a7c957; }
 .hud-mission-next { color: #90e0ef; }
 .hud-mission-score { color: #ff7b9c; }
+/* §10: the ability button (bottom-right) + its conic-gradient cooldown ring. */
+.ability-btn {
+  position: fixed; right: 14px; bottom: 14px;
+  width: 74px; height: 74px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(34, 34, 59, 0.85); color: #fff;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.3);
+  font: 700 12px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  pointer-events: none;
+}
+.ability-ring {
+  position: absolute; inset: -4px; border-radius: 50%;
+  background: conic-gradient(#ffd166 360deg, rgba(255, 255, 255, 0.16) 0deg);
+  -webkit-mask: radial-gradient(circle, transparent 57%, #000 59%);
+  mask: radial-gradient(circle, transparent 57%, #000 59%);
+  transition: background 0.05s linear;
+}
+.ability-name { font-size: 11px; letter-spacing: 0.5px; z-index: 1; }
+.ability-key { font-size: 10px; color: #90e0ef; z-index: 1; }
+.ability-btn.ready .ability-name { color: #ffd166; }
+.ability-btn.active .ability-ring { animation: ab-pulse 0.6s infinite; }
+.ability-btn.locked { opacity: 0.4; }
+@keyframes ab-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 /* §2.1: the results screen. */
 .results {
   position: fixed; inset: 0; display: flex; flex-direction: column;

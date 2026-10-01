@@ -85,10 +85,27 @@ export function createDelivery(env) {
   };
   s.remaining = () => { let n = 0; for (let i = 0; i < targets.length; i++) if (!targets[i].delivered) n++; return n; };
   s.nextUndelivered = () => { for (let i = 0; i < targets.length; i++) if (!targets[i].delivered) return targets[i]; return null; };
+  // §2.8 Trick Shot: the nearest undelivered target within `range` of the player
+  // (a "home in"). Returns null when nothing is in range.
+  s.homeIn = (range) => {
+    const r2 = range * range;
+    let best = null, bd = r2;
+    for (let i = 0; i < targets.length; i++) {
+      const t = targets[i]; if (t.delivered) continue;
+      const dx = t.doormat.x - player.pos.x, dz = t.doormat.z - player.pos.z;
+      const dd = dx * dx + dz * dz;
+      if (dd < bd) { bd = dd; best = t; }
+    }
+    return best;
+  };
 
   function onRest(parcel, zoneOutcome) {
     const pkg = parcel.pkg;
     const target = parcel.target;
+    // §2.8 Trick Shot: a banked throw that reaches its target (porch or lot) is
+    // guaranteed PERFECT — it scores as a perfect delivery (so the multiplier +
+    // streak apply and a fragile/cake parcel stays safe).
+    if (parcel.trick && target && (zoneOutcome === 'perfect' || zoneOutcome === 'nice' || zoneOutcome === 'sloppy')) zoneOutcome = 'perfect';
     const res = scoring.judge(pkg, zoneOutcome, { dist: parcel.dist, impact: parcel.impact, airMail: parcel.airMail, timeFrac: 0 });
     s.lastResult = res;
     const wx = parcel.mesh.position.x, wy = parcel.mesh.position.y, wz = parcel.mesh.position.z;
@@ -124,15 +141,23 @@ export function createDelivery(env) {
 
   function doThrow(aim) {
     if (s.parcels.cooldownGet() > 0) return;
-    const target = aim.target || s.nextUndelivered();
+    let target = aim.target || s.nextUndelivered();
     if (!target) return; // everything delivered: nothing to throw
-    // §2.5: a heavy parcel halves the throw range.
     let ax = aim.x, az = aim.z;
+    // §2.8 Trick Shot: while perfectThrows are banked, the throw homes in to the
+    // nearest target in range and is guaranteed PERFECT. Consumed only when a
+    // target is actually in range (the parcel is tagged so onRest scores it PERFECT).
+    let trick = false;
+    if (player.stack && player.stack.perfectThrows > 0) {
+      const near = s.homeIn(s.throwRange);
+      if (near) { target = near; ax = near.doormat.x; az = near.doormat.z; player.stack.perfectThrows--; trick = true; }
+    }
+    // §2.5: a heavy parcel halves the throw range.
     const maxDist = s.throwRange * (target.pkg.rules.rangeFactor || 1);
     const dx = ax - player.pos.x, dz = az - player.pos.z;
     const d = Math.hypot(dx, dz);
     if (d > maxDist) { const f = maxDist / d; ax = player.pos.x + dx * f; az = player.pos.z + dz * f; }
-    s.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: ax, z: az }, { pkg: target.pkg, target, airMail: player.pos.y > 0.05 });
+    s.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: ax, z: az }, { pkg: target.pkg, target, airMail: player.pos.y > 0.05, trick });
   }
   s.doThrow = doThrow;
 

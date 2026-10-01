@@ -112,3 +112,14 @@ export const MISCHIEF = {
   grumpShoveCdSec: 2,
   subscriberOops: { points: -50, heat: 2 },
 };
+
+// §11.6 + §2.8: ability cooldowns (seconds). The ability *definitions*
+// (name/description/duration + how they touch the modifier stack) live in
+// gameplay/abilities.js and read these cooldowns.
+export const ABILITY = {
+  sprint: 12,        // §2.8: Pip — max speed ×1.5 for 2.5 s, cooldown 12 s
+  unstoppable: 20,   // §2.8: Bea — knockdown-immune 5 s, cooldown 20 s
+  trickshot: 25,     // §2.8: Juno — next 3 throws PERFECT, cooldown 25 s
+  charm: 22,         // §2.8: Marlo — 6 s charm, cooldown 22 s
+  turbo: 15,         // §2.8: Ollie — vehicle ×1.6 for 3 s + 1 s wobble, cooldown 15 s
+};

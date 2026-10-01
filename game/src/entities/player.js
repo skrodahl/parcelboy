@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PLAYER, HAZARD } from '../data/config.js';
 import { RIDE_HEIGHT } from './vehicleModels.js';
+import { createModifierStack } from '../gameplay/abilities.js';
 
 // §2.3: arcade kinematics, no physics engine. The player has a `heading`
 // (radians; 0 = north/−Z, clockwise, forward = (sin h, 0, −cos h) per §5.1)
@@ -17,27 +18,30 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   let airT = -1; // 0..PLAYER.jumpTime while airborne
   let throwT = -1; // 0..0.06 s throw wind-up (§2.12), -1 = idle
   const THROW_WINDUP = 0.06;
-  // §2.6 / §2.7 knockdown + hazard state. Bea (`unstoppable`) is knockdown-
-  // immune; Marlo's `dogFriendly` perk means dogs never chase. Minimal flags
-  // for M7; the full ability/perk system lands in M8.
-  const knockdownImmune = charDef.ability === 'unstoppable';
+  // §11.6: the ability modifier stack — abilities (Sprint / Unstoppable /
+  // Trick Shot / Charm / Turbo) write to it; movement, hazards and targeting
+  // read it. Bea's `unstoppable` is no longer a permanent flag; it is an
+  // ability that sets `knockdownImmune` for 5 s. Marlo's `dogFriendly` is a
+  // static perk (dogs never chase).
+  const stack = createModifierStack();
   const dogFriendly = (charDef.perks || []).includes('dogFriendly');
   let kdT = -1;      // 0..HAZARD.knockdownTime while knocked down / panicking
   let kdKind = null; // 'car' | 'dog' | 'skater' | 'panic'
   let puffyT = 0;    // §2.7: remaining puffy-face time (bee sting)
   let invulnT = 0;   // §2.6: remaining blinking invulnerability
   let spraySlow = 1; // set by hazards each frame (×0.6 inside a sprinkler spray)
+  let abilities = null; // §11.6: the ability system (set via setAbilities)
   // One stable anim-scratch object per player (no per-frame allocation).
   const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1, panic: 0, puffy: 0, blink: 0, pancake: 0 };
 
   function startKnockdown(kind) {
-    if (knockdownImmune) return 'blocked';
+    if (stack.knockdownImmune > 0) return 'blocked';
     if (kdT >= 0 || invulnT > 0) return 'invuln';
     kdKind = kind; kdT = 0;
     if (kind === 'panic') puffyT = HAZARD.puffyTime;
     return 'knockdown';
   }
-  function canBeKnocked() { return !knockdownImmune && kdT < 0 && invulnT <= 0; }
+  function canBeKnocked() { return stack.knockdownImmune <= 0 && kdT < 0 && invulnT <= 0; }
 
   // Final stats = vehicle base × courier speed multiplier (§11.2); static, so
   // computed once — the per-frame paths must not allocate.
@@ -55,8 +59,9 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
 
     const fwd = input.isHeld('forward');
     const back = input.isHeld('back');
-    // §2.7: standing in a sprinkler spray slows movement (×0.6).
-    const spd = maxSpeed * (down ? 0 : spraySlow);
+    // §2.7: standing in a sprinkler spray slows movement (×0.6). §11.6: an
+    // ability's speed modifier (Sprint ×1.5, Turbo ×1.6) scales the top speed.
+    const spd = maxSpeed * stack.speedMul * (down ? 0 : spraySlow);
     const target = down ? 0 : fwd ? spd : back ? -spd * 0.35 : 0;
     if (down) speed = 0;
     // §2.3: accelerate at `accel`, coast at accel*1.5, brake at accel*3.
@@ -72,6 +77,12 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     if (steer && Math.abs(speed) > 0.01) {
       heading += steer * turnRate * (1 - 0.4 * Math.abs(speed) / maxSpeed) * dt;
     }
+    // §2.7 / §2.8: cartoon steering wobble (Turbo's wobbly 2nd phase, or the
+    // puffy face after a bee sting) — a small sin drift so it reads as wobble.
+    if (stack.turnWobble > 0 || puffyT > 0) heading += Math.sin(simT * 9) * 0.8 * dt;
+
+    // §11.6: Shift triggers the courier's ability (writes the modifier stack).
+    if (input.consume('ability') && abilities) abilities.use();
 
     // Integrate (§5.1 heading convention).
     pos.x += Math.sin(heading) * speed * dt;
@@ -147,7 +158,9 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     get spraySlow() { return spraySlow; },
     set spraySlow(v) { spraySlow = v; },
     get dogFriendly() { return dogFriendly; },
-    get knockdownImmune() { return knockdownImmune; },
+    get knockdownImmune() { return stack.knockdownImmune > 0; },
+    get stack() { return stack; },
+    setAbilities(a) { abilities = a; },
     startKnockdown,
     canBeKnocked,
     rig,
