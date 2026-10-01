@@ -17,6 +17,7 @@ You are building **Parcelboy**, a friendly, colorful arcade game in the browser,
 4. Never mark something done without evidence: a screenshot you looked at, stats JSON, or zero console errors.
 5. If the plan is ambiguous, pick the **simplest** option that satisfies it and record it under *Decisions* in `PROGRESS.md`. Don't ask unless you're blocked.
 6. **Autonomous overnight run (user directive 2026-10-01):** do NOT stop at each milestone or at a *User check* gate. A user-check gate (M4 / M7 / M12, etc.) is not a stop: record it under the milestone's `User check:` line in `PROGRESS.md` as "pending — user to verify later" and **continue to the next milestone** so work keeps progressing unattended. Only stop and report if (a) the screenshot tool can't render WebGL after two attempts to fix it, or (b) continuing would require breaking a hard rule below. In both cases, state exactly what you found and where you stopped.
+7. **No check-in narration (user directive 2026-10-01):** run each milestone as one uninterrupted flow — read the PLAN section → implement → run the shot tool → confirm **0 console errors + ≤150 draw calls** → open and look at the PNGs → update `PROGRESS.md` → `git commit -am "M<n>: <title>"` → `git push origin main` — with **no user-facing narration between steps** and **no stop to report progress**. Chain tool calls silently until the milestone is done; emit user-facing text only at the very end of a run, or when genuinely blocked (state exactly what you found and where you stopped).
 
 ## Hard rules
 

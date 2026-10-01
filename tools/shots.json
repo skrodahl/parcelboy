@@ -50,5 +50,16 @@
   { "name": "m8-settings", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=settings", "eval": [] },
   { "name": "m8-select-courier-640", "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier", "width": 1024, "height": 640, "eval": [] },
   { "name": "m8-title-640", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title", "width": 1024, "height": 640, "eval": [] },
-  { "name": "m9-audio-debug", "url": "/?char=pip&veh=bike&mute=1&debug=1&paused=1", "eval": ["__pb.debugAudio();"] }
+  { "name": "m9-audio-debug", "url": "/?char=pip&veh=bike&mute=1&debug=1&paused=1", "eval": ["__pb.debugAudio();"] },
+  { "name": "m10-tod-morning-street", "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-morning-overview", "url": "/?tod=morning&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-noon-street", "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-noon-overview", "url": "/?tod=noon&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-golden-street", "url": "/?tod=golden&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-golden-overview", "url": "/?tod=golden&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-dusk-street", "url": "/?tod=dusk&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-tod-dusk-overview", "url": "/?tod=dusk&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m10-blend", "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setTod(0, 0.5); __pb.step(3); __pb.setCam('street');"] },
+  { "name": "m10-golden-parcel", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(28, 52); __pb.setCam('golden:0');"] },
+  { "name": "m10-golden-pickup", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.collectGolden(0); __pb.teleport(28, 52); __pb.setCam('golden:0'); for (let i = 0; i < 20; i++) __pb.stepFloat();"] }
 ]

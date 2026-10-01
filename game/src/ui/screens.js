@@ -230,6 +230,7 @@ export function createScreens(ctx) {
           valEl.textContent = slider.value;
           const v = Number(slider.value) / 100;
           if (which === 'music') ctx.audio.setMusicVol(v); else ctx.audio.setSfxVol(v);
+          if (ctx.persistSetting) ctx.persistSetting(which === 'music' ? 'musicVol' : 'sfxVol', v);
         });
         const volRow = el('div', 'setting-row audio');
         volRow.append(el('div', 'setting-lbl', which === 'music' ? 'Music' : 'SFX'), slider, valEl);

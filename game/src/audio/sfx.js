@@ -82,6 +82,7 @@ export function createSfx(mgr) {
     restock: () => { tone({ freq: 160, type: 'sine', dec: 0.1, gain: 0.24, slideTo: 90 }); noise({ dur: 0.1, freq: 1000, filter: 'bandpass', gain: 0.18 }); },
     uiClick: () => tone({ freq: 700, type: 'square', atk: 0.005, dec: 0.05, gain: 0.12 }),
     hop: () => tone({ freq: 700, type: 'triangle', atk: 0.01, dec: 0.1, gain: 0.18, slideTo: 1100 }),
+    golden: () => arp([N.C6, N.G6, N.E6, N.C7, N.E6, N.C7], 0.05, 'triangle', 0.28),
   };
 
   function play(name, data) {

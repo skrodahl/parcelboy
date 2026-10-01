@@ -43,6 +43,26 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     ambTimer = setTimeout(chirp, 2000 + Math.random() * 4000);
   }
 
+  // -- crickets (§9): a periodic filtered-noise burst, on only at dusk/golden.
+  let cricketTimer = null, cricketOn = false;
+  function cricket() {
+    if (!ctx || muted || !cricketOn) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    const b = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate);
+    const d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    src.buffer = b;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 4200; f.Q.value = 8;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    src.connect(f); f.connect(g); g.connect(ambBus); src.start(t); src.stop(t + 0.07);
+    cricketTimer = setTimeout(cricket, 320 + Math.random() * 260);
+  }
+  function toggleCrickets(on) {
+    cricketOn = !!on;
+    if (on && !cricketTimer && ctx) cricket();
+    if (!on && cricketTimer) { clearTimeout(cricketTimer); cricketTimer = null; }
+  }
+
   // -- bee buzz: one sawtooth per angry swarm (created on anger, stopped home)
   const buzzes = new Map();
   function startBuzz(id) {
@@ -82,6 +102,7 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
       if (d.splat) sfx.play('splat');
     },
     results: () => sfx.play('star'),
+    golden: () => sfx.play('golden'),
     // mischief (§2.15)
     crash: () => sfx.play('crash'), strike: () => sfx.play('strike'),
     whistle: () => sfx.play('whistle'), grumble: () => sfx.play('grumble'),
@@ -107,6 +128,7 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     lastSounds: () => lastSounds.slice(),
     // the ambience chirp loop starts after the first unlock.
     beginAmbience() { if (!ambTimer) chirp(); },
-    dispose() { for (const h of hooks) events.off(h.type, h.fn); if (ambTimer) clearTimeout(ambTimer); music.stop(); },
+    setCrickets(on) { toggleCrickets(on); },
+    dispose() { for (const h of hooks) events.off(h.type, h.fn); if (ambTimer) clearTimeout(ambTimer); if (cricketTimer) clearTimeout(cricketTimer); music.stop(); },
   };
 }

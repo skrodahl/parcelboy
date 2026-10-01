@@ -37,15 +37,24 @@ import { createScreens } from './ui/screens.js';
 import { createEvents } from './core/events.js';
 import { createAudio } from './audio/audio.js';
 import { mulberry32 } from './core/rng.js';
+import { loadSave, defaultSave } from './core/save.js';
+import { createProgression } from './gameplay/progression.js';
+import { createCollectibles } from './gameplay/collectibles.js';
+import { createDayCycle } from './gameplay/dayCycle.js';
 
 const params = parseParams();
+// §2.11: load the save once at boot (corrupt → defaults). A `?coins=` param seeds
+// a balance for screenshots. Persisted settings feed the renderer quality below.
+const saveData = loadSave();
+if (params.coins) saveData.coins = parseInt(params.coins, 10);
 
 const todRegistry = new Registry('timeOfDay', ['id', 'sunDir', 'sunColor', 'sunIntensity', 'hemiSky', 'hemiGround', 'hemiIntensity', 'skyZenith', 'skyHorizon']);
 for (const p of TIMES_OF_DAY) todRegistry.add(p);
 const preset = todRegistry.get(params.tod || 'morning');
 
 const canvas = document.getElementById('game');
-const { renderer, quality, name: qualityName, targetFps } = createRenderer(canvas, params.quality || 'high');
+// §2.11: a `?quality=` param overrides the persisted quality setting.
+const { renderer, quality, name: qualityName, targetFps } = createRenderer(canvas, params.quality || saveData.settings.quality || 'high');
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 220);
@@ -55,6 +64,9 @@ window.addEventListener('resize', () => resizeRenderer(renderer, camera));
 // manager. The AudioContext itself is created on the first user input (unlock).
 const events = createEvents();
 let audio = createAudio({ events, muted: !!params.mute });
+// §2.11: restore the persisted music/SFX volumes from the save.
+audio.setMusicVol(saveData.settings.musicVol);
+audio.setSfxVol(saveData.settings.sfxVol);
 let audioDebugEl = null; // §9: the ?debug=1 last-sound readout
 
 // One shared Lambert material for all opaque world geometry (§7.3).
@@ -72,7 +84,7 @@ let player = null;
 let vehicleMesh = null;
 let blobs = null;
 let followCam = null;
-let courierRig = null, courierVehMesh = null; // the current courier's rig + vehicle (removed on re-spawn)
+let courierRig = null, courierVehMesh = null, courierVehMat = null; // rig + vehicle (+ a dedicated mat for the golden bike)
 let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
 let mission = null; // M6 active shift runner (null in free roam)
 let hud = null; // M6 HUD (free-roam chip + mission timer/score)
@@ -82,24 +94,16 @@ let abilityBtn = null, abilityRing = null, abilityName = null; // the HUD abilit
 let screens = null; // §10: the menu / select / pause / settings screens
 let charRegistry = null, vehRegistry = null; // filled at boot; reused by the locker
 
-// §10: coins buy locked couriers/vehicles; stars (from shifts) unlock shifts.
-// Fresh save = 0 coins / 0 stars / nothing bought. `?coins=` seeds a balance
-// for the screenshots. (Real persistence lands in M10 save.js.)
-let coins = parseInt(params.coins || '0', 10) || 0;
-let starsEarned = 0;
-const bought = new Set();
-const progress = {
-  get coins() { return coins; },
-  get stars() { return starsEarned; },
-  canBuy(def) { return def.unlockCost === 0 || bought.has(def.id); },
-  canStart(shift) { return starsEarned >= (shift.unlockStars || 0); },
-  buy(def) {
-    if (def.unlockCost === 0 || bought.has(def.id) || coins < def.unlockCost) return false;
-    coins -= def.unlockCost; bought.add(def.id); refreshCoins(); return true;
-  },
-  earn(n) { coins += n; refreshCoins(); },
-};
-function refreshCoins() { if (hud) hud.coins.textContent = coins; }
+// §2.11: the save-backed progression (coins / unlocks / best / golden / last /
+// settings) loaded from localStorage (corrupt → defaults). Every mutation
+// persists via progression.save(). `saveData` is loaded at the top of the file.
+function refreshCoins() { if (hud) hud.coins.textContent = progress.coins; }
+function refreshGolden() { if (hud) hud.golden.textContent = progress.data.goldenParcels.length + '/12'; }
+const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
+// M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
+let collectibles = null, dayCycle = null;
+// §9: crickets only at dusk/golden (a preset with meaningful glow).
+function setCricketsForPreset(p) { if (audio) audio.setCrickets(!!p && p.glow > 0.4); }
 let resultsEl = null; // the results-screen DOM (M6)
 let shiftCardEl = null; // the dispatch mission-card DOM (M6)
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
@@ -247,11 +251,24 @@ if (params.scene === 'test') {
   } else {
     // M6: free roam is the hub state (§2.13). `?autostart=<shiftId>` starts that
     // shift; `?autostart=freeroam` or no autostart = plain free roam at the depot.
-    const charDef = charRegistry.get(params.char || 'pip');
-    const vehDef = vehRegistry.get(params.veh || 'feet');
+    // §2.11: restore the last courier/vehicle from the save (a `?char=`/`?veh=`
+    // override or a missing id falls back to the defaults).
+    const lastChar = charRegistry.get(saveData.last.character) ? saveData.last.character : 'pip';
+    const lastVeh = vehRegistry.get(saveData.last.vehicle) ? saveData.last.vehicle : 'feet';
+    const charDef = charRegistry.get(params.char || lastChar);
+    const vehDef = vehRegistry.get(params.veh || lastVeh);
     spawnCourier(charDef, vehDef);
+    progress.setLast(charDef.id, vehDef.id);
     buildHUD();
     refreshCoins();
+    refreshGolden();
+    // M10: the hidden Golden Parcels (free roam) + the day cycle.
+    collectibles = createCollectibles({ scene, world, mat: world.worldMat, progression: progress, floatText: sharedFloatText, events });
+    dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
+    dayCycle.startAt(preset.id); // sync the cycle to the boot time of day
+    setCricketsForPreset(preset);
+    // §2.13: a `?cam=` param frames the screenshots (street / overview / golden).
+    if (params.cam) applyCamPreset(camera, params.cam);
     // §10: the menu / select / pause / settings screens + keyboard navigation.
     screens = createScreens({
       ui: document.getElementById('ui'), scene, camera, charRegistry, vehRegistry,
@@ -261,8 +278,9 @@ if (params.scene === 'test') {
       getBowled: () => (ambient ? ambient.bowledTotal : 0),
       startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
        activeCharId: charDef.id, activeVehId: vehDef.id,
-       resumePause: () => { simPaused = false; if (screens) screens.close(); },
-       audio,
+        resumePause: () => { simPaused = false; if (screens) screens.close(); },
+        audio,
+        persistSetting: (k, v) => progress.setSetting(k, v), // §2.11: persist the settings screen changes
     });
     window.addEventListener('keydown', (e) => { if (screens && screens.active) screens.handleKey(e); });
     if (params.showCard && !params.screen) showShiftCard();
@@ -278,10 +296,14 @@ function spawnCourier(charDef, vehDef) {
   // §10 locker: re-spawn removes the previous courier's rig + vehicle + shadows.
   if (courierRig) { scene.remove(courierRig.group); courierRig = null; }
   if (courierVehMesh) { scene.remove(courierVehMesh); courierVehMesh = null; }
+  if (courierVehMat && courierVehMat !== world.worldMat) { courierVehMat.dispose(); courierVehMat = null; }
   const rig = buildCourier(charDef, world.worldMat);
   courierRig = rig;
   scene.add(rig.group);
-  const vehicleMesh = buildModel(vehDef.model, world.worldMat);
+  // §2.13: the golden bike rides as solid gold (a dedicated material); every other
+  // vehicle shares the world material.
+  courierVehMat = vehDef.id === 'golden' ? new THREE.MeshLambertMaterial({ color: 0xf5c518 }) : world.worldMat;
+  const vehicleMesh = buildModel(vehDef.model, courierVehMat);
   if (vehicleMesh) scene.add(vehicleMesh);
   courierVehMesh = vehicleMesh;
   blobs = createBlobShadows(16, world.poolTexture);
@@ -423,8 +445,15 @@ function startShift(shiftId) {
   radarState.delivery = delivery;
   mission.start(delivery);
   player.setCarried(delivery.carried);
-  // §2.13: snap to the shift's time of day (a 2 s blend lands in M10's day cycle).
-  if (shift.timeOfDay) { const p = todRegistry.get(shift.timeOfDay); if (p && lighting) { lighting.apply(p); if (sky) sky.apply(p); } }
+  // §2.13: snap to the shift's time of day (the day cycle resumes from here when
+  // the mission ends). Also refreshes the glow + lamp pools + the dusk crickets.
+  if (shift.timeOfDay) {
+    const p = todRegistry.get(shift.timeOfDay);
+    if (p) {
+      if (dayCycle) dayCycle.startAt(shift.timeOfDay); else { if (lighting) lighting.apply(p); if (sky) sky.apply(p); }
+      setCricketsForPreset(p);
+    }
+  }
   gameState.name = 'mission';
   if (hud) hud.missionStart(delivery, shift);
 }
@@ -449,6 +478,7 @@ function changeCourier(charId, vehId) {
   if (mission) endShift(false);
   if (screens) screens.close();
   spawnCourier(charRegistry.get(charId), vehRegistry.get(vehId));
+  progress.setLast(charId, vehId); // §2.11: remember the choice for the next session
   gameState.name = 'freeRoam';
 }
 function gotoFreeRoam() { if (mission) endShift(false); if (screens) screens.close(); }
@@ -462,6 +492,7 @@ function buildHUD() {
   const ui = document.getElementById('ui');
   const chip = el('div', 'hud-chip', 'FREE ROAM');
   const coins = el('div', 'hud-coins', '0');
+  const golden = el('div', 'hud-golden', progress.data.goldenParcels.length + '/12');
   const panel = el('div', 'hud-mission');
   const pName = el('div', 'hud-mission-name');
   const pTimer = el('div', 'hud-mission-timer');
@@ -477,10 +508,10 @@ function buildHUD() {
   const abKey = el('div', 'ability-key', 'Shift');
   ab.append(abRing, abName, abKey);
   ab.style.display = 'none';
-  ui.append(chip, coins, panel, ab);
+  ui.append(chip, coins, golden, panel, ab);
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   hud = {
-    chip, coins, panel, pName, pTimer, pTargets, pNext, pScore,
+    chip, coins, golden, panel, pName, pTimer, pTargets, pNext, pScore,
     missionStart(session, shift) {
       this.panel.style.display = ''; this.chip.style.display = 'none';
       this.pName.textContent = shift.name; this.pNext.textContent = 'next: ' + (session.targets[0] ? session.targets[0].pkg.name : '—');
@@ -521,8 +552,8 @@ function showResults(res) {
   endShift(false);
   // §10: the shift pays out coins + its best star count (unlocks later shifts).
   progress.earn(res.coins || 0);
+  progress.recordShift(res.shift, res.score, res.stars || 0); // §2.11: save the best
   if (events) events.emit('results');
-  starsEarned = Math.max(starsEarned, res.stars || 0);
   if (resultsEl) { resultsEl.remove(); resultsEl = null; }
   resultsEl = el('div', 'results');
   const stars = '★'.repeat(res.stars) + '☆'.repeat(Math.max(0, 3 - res.stars));
@@ -618,6 +649,21 @@ function applyCamPreset(cam, name) {
         return;
       }
     }
+    // M10: frame one of the hidden Golden Parcels (a close-up for the shots).
+    if (name.startsWith('golden:')) {
+      const i = parseInt(name.slice(7), 10);
+      const gp = (t.def.goldenParcels || [])[i];
+      if (gp) {
+        const T = t.tileSize, gx = gp[0] * T + T / 2, gz = gp[1] * T + T / 2;
+        // A close, slightly top-down close-up so the spinning golden box is the subject.
+        cam.position.set(gx + 1.2, 3.6, gz + 2.4);
+        cam.lookAt(gx, 1.3, gz);
+        camLook.set(gx, 1.3, gz);
+        const dd = cam.position.distanceTo(camLook);
+        if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
+        return;
+      }
+    }
     if (p[name]) {
       cam.position.set(...p[name].pos);
       cam.lookAt(...p[name].look);
@@ -650,6 +696,10 @@ function simStep(dt) {
     const bt = (activeVeh && activeVeh.id === 'feet') ? MISCHIEF.bowlFootSpeed : MISCHIEF.bowlVehicleSpeed;
     ambient.step(dt, player, bt);
   }
+  // M10: the hidden Golden Parcels (spin/bob + collect on contact) + the free-roam
+  // day cycle (a mission holds its own time of day, so it only ticks in free roam).
+  if (collectibles && player) collectibles.tick(dt, simTime, player);
+  if (dayCycle && !mission && !delivery) { dayCycle.tick(dt); setCricketsForPreset(TIMES_OF_DAY[dayCycle.phase]); }
   if (player) {
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
@@ -694,7 +744,7 @@ function update(dt) {
   if (scene.fog) { scene.fog.near = d + 45; scene.fog.far = d + 150; }
   const far = Math.max(220, d + 260);
   if (far !== camera.far) { camera.far = far; camera.updateProjectionMatrix(); }
-  if (delivery) delivery.floatText.sync(); // project live text (also while paused)
+  if (sharedFloatText) sharedFloatText.sync(); // the shared pool: mission results + free-roam gags + Golden Parcels (also while paused)
   if (radar) radar.tick(dt); // M6b: the corner radar stays live (also while paused)
   if (fullMap) fullMap.tick(dt);
   updateAbilityBtn(); // §10: the ability button's ring reflects the live cooldown
@@ -750,8 +800,10 @@ function stats() {
   };
 }
 
+// §2.11: the FPS overlay is available via `?debug=1` or the persisted `showFps`
+// setting; the M9 last-sound readout is only on with `?debug=1`.
+if (params.debug || saveData.settings.showFps) createDebugOverlay(stats);
 if (params.debug) {
-  createDebugOverlay(stats);
   audioDebugEl = el('div', 'audio-debug', 'SFX —');
   document.getElementById('ui').append(audioDebugEl);
 }
@@ -897,7 +949,29 @@ window.__pb = {
   closeScreens() { if (screens) screens.close(); },
   buyChar(id) { return progress.buy(charRegistry.get(id)); },
   buyVeh(id) { return progress.buy(vehRegistry.get(id)); },
-  setCoins(n) { coins = n | 0; refreshCoins(); },
+  setCoins(n) { progress.data.coins = n | 0; refreshCoins(); progress.save(); },
+  // M10: the save-backed progression + Golden Parcels + the day cycle (shots/DoD).
+  progression() {
+    return {
+      coins: progress.coins, stars: progress.stars, golden: progress.totalGolden(),
+      goldenUnlocked: progress.goldenBikeUnlocked(), unlocked: progress.data.unlocked,
+      best: progress.data.best, last: progress.data.last, settings: progress.data.settings,
+    };
+  },
+  setGolden(n) { for (let i = 0; i < (n | 0); i++) progress.foundGolden(i); refreshGolden(); return progress.totalGolden(); },
+  collectGolden(i) { if (collectibles) { collectibles.collect(i | 0); refreshGolden(); } return progress.totalGolden(); },
+  setTod(i, frac) { if (dayCycle) dayCycle.setPhase(i | 0, frac == null ? 0 : frac); return dayCycle ? dayCycle.phase : null; },
+  debugGolden() {
+    if (!collectibles || !world) return null;
+    const T = world.tilemap.tileSize;
+    const g0 = (world.def.goldenParcels || [])[0] || [0, 0];
+    const wx = g0[0] * T + T / 2, wz = g0[1] * T + T / 2;
+    const v = new THREE.Vector3(wx, 0.9, wz).project(camera);
+    const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+    return { world: [wx, wz], screen: [Math.round((v.x * 0.5 + 0.5) * w), Math.round((-v.y * 0.5 + 0.5) * h)], z: +v.z.toFixed(2), cam: [Math.round(camera.position.x), Math.round(camera.position.y), Math.round(camera.position.z)], vw: w, vh: h };
+  },
+  syncFloat() { if (sharedFloatText) sharedFloatText.sync(); return true; },
+  stepFloat() { if (sharedFloatText) sharedFloatText.step(1 / 60); if (sharedFloatText) sharedFloatText.sync(); return true; },
   autoplay() {},
   nextTarget() {
     if (!delivery) return null;

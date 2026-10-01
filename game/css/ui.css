@@ -39,6 +39,12 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
   font: 800 14px ui-rounded, system-ui, sans-serif; color: #fff;
   background: rgba(0, 0, 0, 0.55); padding: 4px 10px; border-radius: 8px;
 }
+.hud-golden {
+  position: fixed; top: 74px; left: 12px;
+  font: 800 13px ui-rounded, system-ui, sans-serif; color: #ffd24a;
+  background: rgba(0, 0, 0, 0.5); padding: 4px 10px; border-radius: 8px;
+  letter-spacing: 0.03em;
+}
 .hud-mission {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
   display: flex; gap: 8px; align-items: stretch;

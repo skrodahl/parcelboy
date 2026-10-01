@@ -22,4 +22,11 @@ export const VEHICLES = [
     stats: { maxSpeed: 9.5, accel: 9, turnRate: 2.4, capacityBonus: 5, throwRange: 12 },
     canJump: false, unlockCost: 800,
   },
+  // §2.13: the golden bike — identical to `bike` but gold-colored; not bought,
+  // unlocked by finding all 12 Golden Parcels. Reuses the `bike` model builder.
+  {
+    id: 'golden', name: 'Golden Bike', model: 'bike', riding: 'pedal', colors: 'gold',
+    stats: { maxSpeed: 11, accel: 14, turnRate: 3.2, capacityBonus: 1, throwRange: 12 },
+    canJump: true, unlockCost: null, unlock: { goldenParcels: 12 },
+  },
 ];
