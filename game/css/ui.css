@@ -82,6 +82,21 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .hud-mission-targets { color: #a7c957; }
 .hud-mission-next { color: #90e0ef; }
 .hud-mission-score { color: #ff7b9c; }
+/* §2.6: the restock progress ring — a fill bar over 1.0 s while in the pickup zone. */
+.hud-restock {
+  position: relative; display: flex; align-items: center; gap: 6px;
+  min-width: 96px; padding: 2px 6px; background: rgba(0, 0, 0, 0.28); border-radius: 8px;
+}
+.hud-restock-lbl { color: #a7c957; font-size: 11px; font-weight: 800; }
+.hud-restock-bar {
+  position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 8px;
+  background: rgba(167, 201, 87, 0.16); overflow: hidden; z-index: 0;
+}
+.hud-restock-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+  background: rgba(167, 201, 87, 0.45); z-index: 0;
+}
+.hud-restock-lbl { position: relative; z-index: 1; }
 /* §10: the ability button (bottom-right) + its conic-gradient cooldown ring. */
 .ability-btn {
   position: fixed; right: 14px; bottom: 14px;

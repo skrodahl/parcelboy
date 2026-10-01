@@ -170,7 +170,7 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   }
 
   function setCarried(n) {
-    rig.setCarried(n + vehDef.stats.capacityBonus);
+    rig.setCarried(n);
   }
 
   function teleport(tileX, tileZ, headingDeg) {
@@ -180,7 +180,7 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     airT = -1;
   }
 
-  rig.setCarried(0 + vehDef.stats.capacityBonus);
+  rig.setCarried(0);
 
   return {
     pos,

@@ -512,7 +512,7 @@ function startShift(shiftId) {
   // heat + Watch start clean for the shift.
   if (heat) heat.reset();
   setupGrumps(shift.grumps || 0, mission.targetDefs.map((t) => (typeof t === 'string' ? t : t.house.id)));
-  delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed, sharedEffects, sharedFloatText);
+  delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed, sharedEffects, sharedFloatText, shift);
   radarState.delivery = delivery;
   mission.start(delivery);
   player.setCarried(delivery.carried);
@@ -570,7 +570,11 @@ function buildHUD() {
   const pTargets = el('div', 'hud-mission-targets');
   const pNext = el('div', 'hud-mission-next');
   const pScore = el('div', 'hud-mission-score');
-  panel.append(pName, pTimer, pTargets, pNext, pScore);
+  const pRestock = el('div', 'hud-restock');
+  const pRestockFill = el('div', 'hud-restock-fill');
+  pRestock.append(el('span', 'hud-restock-lbl', 'Restock'), el('div', 'hud-restock-bar'), pRestockFill);
+  pRestock.style.display = 'none';
+  panel.append(pName, pTimer, pTargets, pNext, pScore, pRestock);
   panel.style.display = 'none';
   // §10: the ability button (bottom-right) + its cooldown ring.
   const ab = el('div', 'ability-btn');
@@ -586,8 +590,8 @@ function buildHUD() {
   ui.append(chip, coins, golden, panel, ab, banner);
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
-  hud = {
-    chip, coins, golden, panel, pName, pTimer, pTargets, pNext, pScore,
+    hud = {
+      chip, coins, golden, panel, pName, pTimer, pTargets, pNext, pScore, pRestock, pRestockFill,
     missionStart(session, shift) {
       this.panel.style.display = ''; this.chip.style.display = 'none';
       this.pName.textContent = shift.name; this.pNext.textContent = 'next: ' + (session.targets[0] ? session.targets[0].pkg.name : '—');
@@ -601,6 +605,12 @@ function buildHUD() {
       this.pScore.textContent = 'score ' + session.scoring.score + '  ×' + session.scoring.multiplier();
       const nx = session.nextUndelivered();
       this.pNext.textContent = nx ? 'next: ' + nx.pkg.name : 'all delivered';
+      // §2.6: the restock progress ring — fills over 1.0 s while standing in the
+      // pickup zone (restockT only accumulates when there's still room to refill).
+      if (session.restockT > 0) {
+        this.pRestock.style.display = '';
+        this.pRestockFill.style.width = Math.min(100, Math.round(session.restockT * 100)) + '%';
+      } else this.pRestock.style.display = 'none';
     },
   };
 }
@@ -645,8 +655,27 @@ function routeScreen(name, params) {
 // Setup a delivery session for an explicit target list + package mix (M6 shifts
 // and the M5 interim both go through this). `charDef`/`vehDef` come from the
 // currently-spawned courier.
-function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
+// §2.6: the restock zone for a shift's `pickup` (world-space rect). Main shifts
+// use the depot's `restockZone`; side missions restock at their shop's front row.
+function restockZoneFor(shift) {
+  const T = world.tilemap.tileSize;
+  const rect = (x0, z0, x1, z1) => ({ minX: x0 * T, maxX: (x1 + 1) * T, minZ: z0 * T, maxZ: (z1 + 1) * T });
+  if (shift.kind === 'main' || shift.pickup === 'depot') { const rz = world.def.restockZone; return rect(rz.x0, rz.z0, rz.x1, rz.z1); }
+  const b = (world.def.buildings || []).find((x) => x.id === shift.pickup);
+  if (!b) { const rz = world.def.restockZone; return rect(rz.x0, rz.z0, rz.x1, rz.z1); }
+  if (b.facing === 'S') return rect(b.x, b.z + b.d, b.x + b.w - 1, b.z + b.d);
+  if (b.facing === 'E') return rect(b.x + b.w, b.z, b.x + b.w, b.z + b.d - 1);
+  if (b.facing === 'W') return rect(b.x - 1, b.z, b.x - 1, b.z + b.d - 1);
+  return rect(b.x, b.z - 1, b.x + b.w - 1, b.z - 1); // facing N (default)
+}
+function restockLabelFor(shift) {
+  if (shift.kind === 'main' || shift.pickup === 'depot') return 'depot';
+  const b = (world.def.buildings || []).find((x) => x.id === shift.pickup);
+  return b ? b.name : 'depot';
+}
+
+function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText, shift) {
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, restockZone: shift ? restockZoneFor(shift) : null, restockLabel: shift ? restockLabelFor(shift) : 'depot', onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
 }
 resizeRenderer(renderer, camera);
 
@@ -727,6 +756,7 @@ function simStep(dt) {
   if (delivery) {
     delivery.handleInput();
     delivery.updateDoorstep(dt);
+    delivery.updateRestock(dt);
     delivery.parcels.step(dt);
     delivery.npcs.step(dt);
     delivery.markers.update(dt, simTime, player ? player.pos.x : 0, player ? player.pos.z : 0);
