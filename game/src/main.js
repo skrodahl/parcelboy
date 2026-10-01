@@ -6,6 +6,7 @@ import { createRenderer, resizeRenderer } from './render/renderer.js';
 import { VoxelBuilder } from './render/voxel.js';
 import { createLighting } from './render/lighting.js';
 import { createSky } from './render/sky.js';
+import { applyCamPreset } from './render/camPresets.js';
 import { Registry } from './core/registry.js';
 import { PALETTE } from './data/palette.js';
 import { TIMES_OF_DAY } from './data/timeOfDay.js';
@@ -20,7 +21,7 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
-import { PARCEL, FREE_ROAM, HAZARD, CARTOON, MISCHIEF } from './data/config.js';
+import { FREE_ROAM, HAZARD, CARTOON, MISCHIEF } from './data/config.js';
 import { SHIFTS, MAIN_SHIFTS, SIDE_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
 import { createMission } from './gameplay/mission.js';
@@ -43,6 +44,8 @@ import { createProgression } from './gameplay/progression.js';
 import { createCollectibles } from './gameplay/collectibles.js';
 import { createDayCycle } from './gameplay/dayCycle.js';
 import { createMissionMarkers } from './gameplay/missionMarkers.js';
+import { createDebugHooks } from './core/debugHooks.js';
+import { createShiftFlow } from './gameplay/shiftFlow.js';
 
 const params = parseParams();
 // §2.11: load the save once at boot (corrupt → defaults). A `?coins=` param seeds
@@ -127,12 +130,22 @@ const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: 
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
 // M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
-let markers = null, markerCardEl = null, mcList = null, mcMarker = null, mcIdx = 0, prevM = null;
+let markers = null, prevM = null;
 let MARKER_RADIUS = 8; // ~2 tiles; set from the tilemap's tile size at boot
 // §9: crickets only at dusk/golden (a preset with meaningful glow).
 function setCricketsForPreset(p) { if (audio) audio.setCrickets(!!p && p.glow > 0.4); }
-let resultsEl = null; // the results-screen DOM (M6)
-let shiftCardEl = null; // the dispatch mission-card DOM (M6)
+// M12a.5: the free-roam dispatch / marker card + the results screen live in
+// gameplay/shiftFlow.js (their card state now lives there). main.js keeps only
+// the marker proximity edge (`prevM`) and calls the card functions via the
+// destructured refs. `startShift`/`endShift` are hoisted; the mutable refs are
+// read through getters so the card always sees the live value.
+const flow = createShiftFlow({
+  el, progress, MAIN_SHIFTS, SIDE_SHIFTS, startShift, endShift, events,
+  setPrevM: (v) => { prevM = v; },
+  getSharedEffects: () => sharedEffects,
+  getPlayer: () => player,
+});
+const { openMarkerCard, closeMarkerCard, mcKey, showShiftCard, showResults, getMarkerState } = flow;
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
 let sharedEffects = null, sharedFloatText = null; // M7: created once, shared by hazards + delivery
 let hitStopUntil = 0; // M7: §2.12 hit-stop (sim-time the sim freezes on a knockdown)
@@ -282,7 +295,7 @@ if (params.scene === 'test') {
       lineup.push(rig);
       scene.add(rig.group);
     });
-    applyCamPreset(camera, 'showroom');
+    camPreset('showroom');
   } else {
     // M6: free roam is the hub state (§2.13). `?autostart=<shiftId>` starts that
     // shift; `?autostart=freeroam` or no autostart = plain free roam at the depot.
@@ -306,7 +319,7 @@ if (params.scene === 'test') {
     dayCycle.startAt(preset.id); // sync the cycle to the boot time of day
     setCricketsForPreset(preset);
     // §2.13: a `?cam=` param frames the screenshots (street / overview / golden).
-    if (params.cam) applyCamPreset(camera, params.cam);
+    if (params.cam) camPreset(params.cam);
     // §10: the menu / select / pause / settings screens + keyboard navigation.
     screens = createScreens({
       ui: document.getElementById('ui'), scene, camera, charRegistry, vehRegistry,
@@ -314,7 +327,7 @@ if (params.scene === 'test') {
       pickChar: (id) => changeCourier(id, activeVeh.id),
       pickVeh: (id) => changeCourier(activeChar.id, id),
       getBowled: () => (ambient ? ambient.bowledTotal : 0),
-       startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
+       startShift, gotoFreeRoam, setCam: (n) => camPreset(n),
        activeCharId: charDef.id, activeVehId: vehDef.id, qualityName, setQuality: applyQuality,
         resumePause: () => { simPaused = false; if (screens) screens.close(); },
         // M12a.1: the pause menu's shift actions. Restart re-runs the shift;
@@ -327,7 +340,7 @@ if (params.scene === 'test') {
     });
     window.addEventListener('keydown', (e) => {
       if (screens && screens.active) screens.handleKey(e);
-      else if (markerCardEl) mcKey(e); // M12a.1: the free-roam marker card
+      else if (getMarkerState()) mcKey(e); // M12a.1: the free-roam marker card
     });
     if (params.showCard && !params.screen) showShiftCard();
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
@@ -610,98 +623,9 @@ function updateAbilityBtn() {
   abilityRing.style.background = 'conic-gradient(' + color + ' ' + deg + 'deg, rgba(255,255,255,0.16) 0deg)';
 }
 
-// §2.1 / §10: the results screen (functional; polished in M8).
-function showResults(res) {
-  endShift(false);
-  // §10: the shift pays out coins + its best star count (unlocks later shifts).
-  progress.earn(res.coins || 0);
-  progress.recordShift(res.shift, res.score, res.stars || 0); // §2.11: save the best
-  if (events) events.emit('results');
-  // §2.12: a results-screen confetti / celebration on a finished shift.
-  if (sharedEffects && player && res.success) sharedEffects.celebrate(player.pos.x, 1, player.pos.z);
-  if (resultsEl) { resultsEl.remove(); resultsEl = null; }
-  resultsEl = el('div', 'results');
-  const stars = '★'.repeat(res.stars) + '☆'.repeat(Math.max(0, 3 - res.stars));
-  resultsEl.append(
-    el('h2', 'results-title', res.success ? 'Shift complete!' : "Time's up"),
-    el('div', 'results-stars', stars),
-    el('div', 'results-score', 'Score ' + res.score + (res.timeBonus ? ' (+' + res.timeBonus + ' time bonus)' : '')),
-    el('div', 'results-detail', res.delivered + '/' + res.total + ' delivered · +' + res.coins + ' coins'),
-  );
-  const btnC = el('button', 'results-btn', 'Continue');
-  const btnR = el('button', 'results-btn', 'Retry');
-  btnC.onclick = () => { resultsEl.remove(); resultsEl = null; };
-  btnR.onclick = () => { const id = res.shift; resultsEl.remove(); resultsEl = null; startShift(id); };
-  resultsEl.append(btnC, btnR);
-  document.getElementById('ui').append(resultsEl);
-}
-
-// §2.10: the dispatch card, paged through the main shifts. Shown at the
-// dispatch marker in free roam; `?showCard=1` forces it, and
-// `?screen=missionCard:<id>` focuses a specific shift (locked on a fresh save).
-function showShiftCard(focusId) {
-  if (shiftCardEl) { shiftCardEl.remove(); shiftCardEl = null; }
-  shiftCardEl = el('div', 'shift-card');
-  shiftCardEl.append(el('h3', null, 'Quickbox Dispatch'));
-  const list = el('div', 'sc-list');
-  for (const s of MAIN_SHIFTS) {
-    const locked = !progress.canStart(s);
-    const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (s.id === focusId ? ' focus' : ''));
-    row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', s.deliveries + ' drops · ' + s.duration + 's'));
-    if (locked) row.append(el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★ to unlock'));
-    else row.append(el('div', 'sc-row-go', 'Ready'));
-    list.append(row);
-  }
-  shiftCardEl.append(list, el('div', 'sc-cta', 'Press ENTER to start a shift'));
-  document.getElementById('ui').append(shiftCardEl);
-}
-
-// M12a.1: the free-roam marker card. Walking within ~2 tiles of a mission /
-// locker / side marker opens the matching card (dispatch → the main shifts, a
-// side marker → its side mission, the locker → the courier/vehicle select).
-// ←/→ pages, F/ENTER starts the focused (unlocked) shift, ESC or walking away
-// closes. The locker is a full screen (it locks the player); the dispatch and
-// side cards are light and let you keep riding.
-function mcShifts(id) { return id === 'dispatch' ? MAIN_SHIFTS : SIDE_SHIFTS.filter((s) => s.giver === id); }
-function mcRenderList() {
-  if (!mcList) return;
-  const list = mcShifts(mcMarker);
-  mcList.textContent = '';
-  for (let i = 0; i < list.length; i++) {
-    const s = list[i], locked = !progress.canStart(s);
-    const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (i === (mcIdx % list.length) ? ' focus' : ''));
-    row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', s.deliveries + ' drops · ' + s.duration + 's'));
-    row.append(locked ? el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★') : el('div', 'sc-row-go', 'Ready'));
-    mcList.append(row);
-  }
-}
-function openMarkerCard(id) {
-  if (markerCardEl) { markerCardEl.remove(); markerCardEl = null; }
-  mcMarker = id; mcIdx = 0;
-  markerCardEl = el('div', 'shift-card marker-card');
-  markerCardEl.append(el('h3', null, id === 'dispatch' ? 'Quickbox Dispatch' : 'Quickbox Side Mission'));
-  mcList = el('div', 'sc-list'); markerCardEl.append(mcList);
-  markerCardEl.append(el('div', 'sc-cta', '←/→ page · F / ENTER start · ESC close'));
-  mcRenderList();
-  document.getElementById('ui').append(markerCardEl);
-}
-function closeMarkerCard() {
-  if (markerCardEl) { markerCardEl.remove(); markerCardEl = null; }
-  mcList = null; mcMarker = null; mcIdx = 0;
-}
-function mcStart() {
-  const list = mcShifts(mcMarker);
-  const s = list[(mcIdx % list.length) | 0];
-  if (s && progress.canStart(s)) { const id = s.id; closeMarkerCard(); prevM = null; startShift(id); }
-}
-function mcKey(e) {
-  if (!markerCardEl || mcMarker === 'locker') return;
-  const list = mcShifts(mcMarker), code = e.code;
-  if (code === 'ArrowLeft' || code === 'KeyA') { mcIdx = (mcIdx - 1 + list.length) % list.length; mcRenderList(); }
-  else if (code === 'ArrowRight' || code === 'KeyD') { mcIdx = (mcIdx + 1) % list.length; mcRenderList(); }
-  else if (code === 'Enter' || code === 'KeyF') mcStart();
-  else if (code === 'Escape') { closeMarkerCard(); prevM = null; }
-}
+// M12a.5: the results screen, the dispatch card and the free-roam marker card
+// (mcShifts/mcRenderList/openMarkerCard/closeMarkerCard/mcStart/mcKey) live in
+// gameplay/shiftFlow.js; the destructured refs above call them.
 
 // §10: route a `?screen=` value to the matching screen. The results + full-map
 // screens have their own handlers; the rest go through the screens module.
@@ -735,96 +659,9 @@ function applyQuality(name) {
   location.reload();
 }
 
-// Menu / screenshot camera presets (§7.9). Full follow-cam lands in M4.
-// Every path records the look target in camLook so the distance-scaled fog
-// (§7.3 plan change) can run each frame.
-function applyCamPreset(cam, name) {
-  const t = world ? world.tilemap : null;
-  if (t) {
-    const cx = (t.width / 2) * t.tileSize, cz = (t.height / 2) * t.tileSize;
-    const p = {
-      // High, south of the map: frames the entire 48x40 grid, including the
-      // south strip (park + Distribution Center). Look target sits just north
-      // of center so the map is vertically centered.
-       overview: { pos: [cx, 170, cz + 130], look: [cx, 0, cz - 4] },
-       street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
-        park:     { pos: [40, 16, 118], look: [40, 0, 142] },
-         bulb:     { pos: [142, 10, 92], look: [138, 0.5, 110] },
-        // Willow Court's north-end corner (the sign now sits on the west sidewalk here).
-        willow:   { pos: [118, 11, 62], look: [135, 0.5, 82] },
-        depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
-        hub:      { pos: [150, 13, 116], look: [170, 1, 145] },
-       // M4 lineup: elevated look at the courier row; high enough to see
-       // over the parked vans (2.8u tall), far enough for all 5, with the
-       // depot + lit QUICKBOX sign as backdrop.
-       showroom: { pos: [158, 6, 124], look: [158, 1.4, 140] },
-    };
-    if (name.startsWith('porchClose:') || name.startsWith('porch:')) {
-      const close = name.startsWith('porchClose:');
-      const id = close ? name.slice(11) : name.slice(6);
-      const h = t.def.houses.find((x) => x.id === id);
-      const mat = world.doormatPoints[id];
-      if (h && mat) {
-        const f = { N: [0, 0, -1], S: [0, 0, 1], E: [1, 0, 0], W: [-1, 0, 0] }[h.facing];
-        const dist = close ? 3.4 : 6.5, up = close ? 2.0 : 2.8, lookY = close ? 1.8 : 1.4;
-        cam.position.set(mat.x + f[0] * dist, up, mat.z + f[2] * dist);
-        cam.lookAt(mat.x, lookY, mat.z);
-        camLook.set(mat.x, lookY, mat.z);
-        const dd = cam.position.distanceTo(camLook);
-        if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
-        return;
-      }
-    }
-    // M10: frame one of the hidden Golden Parcels (a close-up for the shots).
-    if (name.startsWith('golden:')) {
-      const i = parseInt(name.slice(7), 10);
-      const gp = (t.def.goldenParcels || [])[i];
-      if (gp) {
-        const T = t.tileSize, gx = gp[0] * T + T / 2, gz = gp[1] * T + T / 2;
-        // A close, slightly top-down close-up so the spinning golden box is the subject.
-        cam.position.set(gx + 1.2, 3.6, gz + 2.4);
-        cam.lookAt(gx, 1.3, gz);
-        camLook.set(gx, 1.3, gz);
-        const dd = cam.position.distanceTo(camLook);
-        if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
-        return;
-      }
-    }
-    // M11: frame one of the trampolines (a low shot so the 5u launch is in-frame).
-    if (name.startsWith('trampoline:')) {
-      const i = parseInt(name.slice(11), 10);
-      const tp = ((t.def.gagSpots || {}).trampoline || [])[i];
-      if (tp) {
-        const T = t.tileSize, tx = tp[0] * T + T / 2, tz = tp[1] * T + T / 2;
-        cam.position.set(tx + 5, 6, tz + 5);
-        cam.lookAt(tx, 2.5, tz);
-        camLook.set(tx, 2.5, tz);
-        const dd = cam.position.distanceTo(camLook);
-        if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
-        return;
-      }
-    }
-    // M11: frame the courier mid-flight over the handlebars (a street shot).
-    if (name === 'handlebars') {
-      const hx = 46, hz = 70; // a clear spot on Maple Avenue
-      cam.position.set(hx + 5, 4.5, hz + 4);
-      cam.lookAt(hx, 1.5, hz);
-      camLook.set(hx, 1.5, hz);
-      const dd = cam.position.distanceTo(camLook);
-      if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
-      return;
-    }
-    if (p[name]) {
-      cam.position.set(...p[name].pos);
-      cam.lookAt(...p[name].look);
-      camLook.set(...p[name].look);
-      return;
-    }
-  }
-  cam.position.set(0, 8, 14);
-  cam.lookAt(0, 2, 0);
-  camLook.set(0, 2, 0);
-}
+// M12a.5: camera presets live in render/camPresets.js; this thin wrapper passes
+// the live module refs (the world is read at call time, null until built).
+function camPreset(name) { applyCamPreset(camera, name, { world, camLook, scene }); }
 
 // One fixed sim step for the playing core: player kinematics + visuals, the
 // follow cam, and the blob shadow. Called by update() each fixed step, or
@@ -1022,257 +859,38 @@ if (params.debug) {
   document.getElementById('ui').append(audioDebugEl);
 }
 
-window.__pb = {
-  ready: false,
-  stats,
-  audio() { return { muted: audio.muted, lastSounds: audio.lastSounds(), musicVol: audio.musicVol, sfxVol: audio.sfxVol }; },
-  setAudioVol(musicVol, sfxVol) { if (musicVol != null) audio.setMusicVol(musicVol); if (sfxVol != null) audio.setSfxVol(sfxVol); },
-  debugAudio() {
-    events.emit('throw');
-    events.emit('land');
-    events.emit('delivery', { outcome: 'perfect', streak: 2, streakAfter: 3, multiplier: 2 });
-    events.emit('streak', { multiplier: 2 });
-    events.emit('restock');
-    events.emit('results');
-    return audio.lastSounds();
-  },
-  state() {
-    return {
-      gameState: gameState.name,
-      score: delivery ? delivery.scoring.score : 0,
-      streak: delivery ? delivery.scoring.streak : 0,
-      multiplier: delivery ? delivery.scoring.multiplier() : 1,
-      carried: delivery ? delivery.carried : 0,
-      remaining: delivery ? delivery.remaining() : 0,
-      lastResult: delivery ? delivery.lastResult : null,
-      time: simTime,
-      player: player
-        ? { x: player.pos.x, z: player.pos.z, heading: (player.heading * 180) / Math.PI, speed: player.speed }
-        : { x: 0, z: 0, heading: 0, speed: 0 },
-    };
-  },
-  setCam(name) {
-    applyCamPreset(camera, name);
-  },
-  setTimeOfDay() {},
-  teleport(tileX, tileZ, headingDeg) {
-    if (player) player.teleport(tileX, tileZ, headingDeg === undefined ? 0 : headingDeg);
-  },
-  press(action, ms) {
-    input.press(action, ms);
-  },
-  throwAt(tileX, tileZ) {
-    if (!delivery || !player) return;
-    const aim = delivery.targeting.pointAim(tileX, tileZ, player, delivery.targets, delivery.throwRange, delivery.accuracy);
-    delivery.doThrow(aim);
-  },
-  throwRaw(wx, wz) {
-    if (!delivery || !player) return;
-    let best = null, bd = Infinity;
-    for (let i = 0; i < delivery.targets.length; i++) {
-      const t = delivery.targets[i];
-      if (t.delivered) continue;
-      const dx = t.doormat.x - wx, dz = t.doormat.z - wz;
-      const d = dx * dx + dz * dz;
-      if (d < bd) { bd = d; best = t; }
-    }
-    const target = best || delivery.nextUndelivered();
-    delivery.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: wx, z: wz }, { pkg: target ? target.pkg : null, target, airMail: player.pos.y > 0.05 });
-  },
-  debugParcels() {
-    if (!delivery) return [];
-    return delivery.parcels.parcels.map((p) => ({ s: p.state, x: +p.mesh.position.x.toFixed(1), z: +p.mesh.position.z.toFixed(1), y: +p.mesh.position.y.toFixed(1), vis: p.mesh.visible, target: p.target ? p.target.house.id : null, mh: p.mailHit || false }));
-  },
-  debugRoofs() {
-    if (!world) return [];
-    return world.colliders.filter((c) => c.type === 'box' && c.h && c.h < 8).map((c) => ({ minZ: c.minZ, maxZ: c.maxZ, minX: c.minX, maxX: c.maxX, h: +c.h.toFixed(2) }));
-  },
-  debugZones() {
-    if (!world) return null;
-    const T = world.tilemap.tileSize;
-    const tile = (w) => [Math.floor(w.x / T), Math.floor(w.z / T)];
-    return {
-      doormats: M5_TARGETS.map((id) => ({ id, x: world.doormatPoints[id].x, z: world.doormatPoints[id].z, tile: tile(world.doormatPoints[id]) })),
-      pond: world.def.pond,
-      mailboxes: (world.mailboxes || []).slice(0, 3).map((m) => [ +m[0].toFixed(1), +m[1].toFixed(1) ]),
-      roadTiles: world.def.roads.map((r) => ({ name: r.name, axis: r.axis, at: r.at, tile: [r.at, r.axis === 'z' ? r.at : 0] })),
-    };
-  },
-  step(frames) {
-    const step = 1 / 60;
-    for (let i = 0; i < (frames | 0); i++) {
-      simTime += step;
-      simStep(step);
-    }
-  },
-  debugHazards() {
-    if (!hazards) return null;
-    return {
-      cars: hazards.cars.length, dogs: hazards.dogs, skaters: hazards.skaters, hives: hazards.hives, bins: hazards.bins, cones: hazards.cones,
-      hiveStates: hazards.hiveSt ? hazards.hiveSt.map((h) => h.state) : [],
-      dogStates: hazards.dogSt ? hazards.dogSt.map((d) => d.state) : [],
-      dogSteal: hazards.dogSt ? hazards.dogSt.map((d) => d.stealT) : [],
-    };
-  },
-  debugPlayer() {
-    if (!player) return null;
-    return {
-      x: +player.pos.x.toFixed(1), z: +player.pos.z.toFixed(1), y: +player.pos.y.toFixed(2),
-      immune: player.knockdownImmune, dogFriendly: player.dogFriendly,
-    };
-  },
-  debugBees() {
-    if (!hazards) return null;
-    return {
-      swarms: hazards.hiveSt.map((h) => ({ cx: +h.cx.toFixed(1), cz: +h.cz.toFixed(1), state: h.state })),
-    };
-  },
-  startShift(id) { startShift(id); },
-  gotoFreeRoam() { gotoFreeRoam(); },
-  angerBees() { if (hazards) hazards.angersSwarmAt(hazards.hiveSt[0].x, hazards.hiveSt[0].z); },
-  setCamDist(h, v) {
-    if (!followCam || !player) return;
-    camTgt.pos = player.pos; camTgt.heading = player.heading;
-    followCam.setDist(h, v);
-    followCam.snap(camTgt, camLook);
-  },
-  // §12.1: point the camera at a world spot (a "porch-style close camera").
-  // The cam position is given explicitly (camX, camZ, up) so a shot can approach
-  // a target from whichever side is clear. Set after the last step in a paused
-  // shot so the follow-cam doesn't override it.
-  aimAt(wx, wz, camX, camZ, up) {
-    camera.position.set(camX, up, camZ);
-    camLook.set(wx, 1.5, wz);
-    camera.lookAt(camLook.x, camLook.y, camLook.z);
-    const d = camera.position.distanceTo(camLook);
-    if (scene.fog) { scene.fog.near = d + 45; scene.fog.far = d + 150; }
-    camera.far = Math.max(220, d + 260);
-    camera.updateProjectionMatrix();
-  },
-  freeRoam() { if (mission) endShift(false); },
-  setWaypoint(tileX, tileZ) { if (radar) radar.setWaypoint(tileX, tileZ); },
-  abandonMission() { if (mission) endShift(false); },
-  setHeat(n) { if (heat) heat.add(n); },
-  heat(n) { if (heat) heat.add(n); },
-  bowl(x, z) { if (ambient) ambient.forceBowl(x, z, 3, 2); },
-  strike() { onStrike(); },
-  bust() { onBusted(0); },
-  crashGrump() { if (mischief && mischief.grumps[0]) mischief.forceBreak(mischief.grumps[0], 'window'); },
-  goto(name) { routeScreen(name, params); },
-  openScreen(name, opts) { if (screens) screens.show(name, opts); },
-  openPause() { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; },
-  closeScreens() { if (screens) screens.close(); },
-  buyChar(id) { return progress.buy(charRegistry.get(id)); },
-  buyVeh(id) { return progress.buy(vehRegistry.get(id)); },
-  setCoins(n) { progress.data.coins = n | 0; refreshCoins(); progress.save(); },
-  // M10: the save-backed progression + Golden Parcels + the day cycle (shots/DoD).
-  progression() {
-    return {
-      coins: progress.coins, stars: progress.stars, golden: progress.totalGolden(),
-      goldenUnlocked: progress.goldenBikeUnlocked(), unlocked: progress.data.unlocked,
-      best: progress.data.best, last: progress.data.last, settings: progress.data.settings,
-    };
-  },
-  setGolden(n) { for (let i = 0; i < (n | 0); i++) progress.foundGolden(i); refreshGolden(); return progress.totalGolden(); },
-  collectGolden(i) { if (collectibles) { collectibles.collect(i | 0); refreshGolden(); } return progress.totalGolden(); },
-  // M12a.1: place the player at a marker (the "walked up to it" position) so the
-  // next sim step's proximity edge opens the card; or open the card directly.
-  nearMarker(id) { const m = markers && markers.byId[id]; if (m && player) { player.pos.x = m.x; player.pos.z = m.z; prevM = null; } return m ? id : null; },
-  openMarker(id) { if (markers && markers.byId[id]) { if (id === 'locker') { screens.show('selectCourier'); } else { openMarkerCard(id); } prevM = id; } return mcMarker || id; },
-  setTod(i, frac) { if (dayCycle) dayCycle.setPhase(i | 0, frac == null ? 0 : frac); return dayCycle ? dayCycle.phase : null; },
-  debugGolden() {
-    if (!collectibles || !world) return null;
-    const T = world.tilemap.tileSize;
-    const g0 = (world.def.goldenParcels || [])[0] || [0, 0];
-    const wx = g0[0] * T + T / 2, wz = g0[1] * T + T / 2;
-    const v = new THREE.Vector3(wx, 0.9, wz).project(camera);
-    const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
-    return { world: [wx, wz], screen: [Math.round((v.x * 0.5 + 0.5) * w), Math.round((-v.y * 0.5 + 0.5) * h)], z: +v.z.toFixed(2), cam: [Math.round(camera.position.x), Math.round(camera.position.y), Math.round(camera.position.z)], vw: w, vh: h };
-  },
-  syncFloat() { if (sharedFloatText) sharedFloatText.sync(); return true; },
-  stepFloat() { if (sharedFloatText) sharedFloatText.step(1 / 60); if (sharedFloatText) sharedFloatText.sync(); return true; },
-  boing(i) {
-    if (!player || !world) return false;
-    const spots = ((world.def.gagSpots || {}).trampoline || []);
-    if (!spots.length) return false;
-    const idx = ((i == null ? 0 : i) | 0) % spots.length;
-    const [tx, tz] = spots[idx];
-    player.teleport(tx, tz, 90);
-    player.boing();
-    return true;
-  },
-  handlebars() {
-    if (!player) return false;
-    player.teleport(11, 17, 0); // a clear stretch of Maple Avenue
-    player.handlebars();
-    return true;
-  },
-  scatterBirds() { if (ambient) ambient.scatterBirds(); return ambient ? ambient.birds.length : 0; },
-  debugAmbient() {
-    if (!ambient || !world) return null;
-    const r1 = (n) => Math.round(n * 10) / 10;
-    return {
-      alive: ambient.aliveCount, walkers: ambient.walkers.length, birds: ambient.birds.length,
-      butterflies: ambient.butterflies.length, ducks: ambient.ducks.length, kids: ambient.kids.length,
-      walkerPos: ambient.walkers.map((w) => [r1(w.x), r1(w.z), w.state]),
-      birdPos: ambient.birds.map((b) => [r1(b.x), r1(b.z), b.state]),
-    };
-  },
-  speedLines() { if (!player || !sharedEffects) return false; sharedEffects.speedLines(player.pos.x, player.pos.z, Math.sin(player.heading) * 9, -Math.cos(player.heading) * 9); return true; },
-  celebrate() { if (!player || !sharedEffects) return false; sharedEffects.celebrate(player.pos.x, 1, player.pos.z); return true; },
-  autoplay() { return autoplayRun(); },
-  debugCars() { return hazards ? hazards.carDebug() : []; },
-  playerPos() { return player ? [ +player.pos.x.toFixed(2), +player.pos.z.toFixed(2) ] : null; },
-  holdF(on) { input.forceHeld('doorstep', !!on); return !!on; },
-  playerTeleportWorld(x, z) {
-    if (!player || !world) return false;
-    const T = world.tilemap.tileSize;
-    player.teleport(Math.floor(x / T), Math.floor(z / T), 0);
-    return true;
-  },
-  // M12 soak test: run `times` autoplay shifts of `shiftId` and return their
-  // scores + the star the current thresholds award each. Used to tune the stars.
-  soak(shiftId, times) {
-    const runs = [];
-    for (let i = 0; i < (times || 3); i++) {
-      startShift(shiftId);
-      const out = autoplayRun();
-      const r = out && out.res;
-      runs.push({ score: r ? r.score : 0, stars: r ? r.stars : 0, delivered: r ? r.delivered : 0, total: r ? r.total : 0, timeBonus: r ? r.timeBonus : 0, success: r ? r.success : false });
-      gotoFreeRoam();
-    }
-    return runs;
-  },
-  nextTarget() {
-    if (!delivery) return null;
-    const t = delivery.nextUndelivered();
-    return t ? [t.doormat.x, t.doormat.z] : null;
-  },
-  useAbility() { return abilities ? abilities.use() : false; },
-  debugAbility() {
-    if (!player) return null;
-    const st = player.stack;
-    return {
-      name: abilities ? abilities.name : null,
-      active: abilities ? abilities.active : null,
-      ready: abilities ? abilities.ready : false,
-      coolFrac: abilities ? +abilities.coolFrac().toFixed(2) : 0,
-      speedMul: st.speedMul, turnWobble: st.turnWobble,
-      knockdownImmune: st.knockdownImmune, perfectThrows: st.perfectThrows, charmActive: st.charmActive,
-      dogFriendly: player.dogFriendly,
-    };
-  },
-  debugMischief() {
-    return {
-      grumps: mischief ? mischief.grumps : [],
-      heat: heat ? +heat.heat.toFixed(2) : 0,
-      level: heat ? heat.level : 0,
-      watchActive: watch ? watch.active : 0,
-      watchPos: watch ? watch.positions.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)]) : [],
-      walkers: ambient ? ambient.walkers.slice(0, 4).map((w) => [+w.x.toFixed(1), +w.z.toFixed(1), w.state]) : [],
-      broken: mischief ? mischief.brokenCount : 0,
-      bowled: ambient ? ambient.bowledTotal : 0,
-      strikes: ambient ? ambient.strikes : 0,
-    };
-  },
+// M12a.5: the __pb debug hooks live in core/debugHooks.js; they read the live
+// module refs through a context of getters (mutable refs) + plain consts/functions,
+// and write back into main.js state only through stepSim / setPrevM / setSimPaused.
+const debugCtx = {
+  get audio() { return audio; },
+  get delivery() { return delivery; },
+  get player() { return player; },
+  get world() { return world; },
+  get ambient() { return ambient; },
+  get hazards() { return hazards; },
+  get mission() { return mission; },
+  get heat() { return heat; },
+  get watch() { return watch; },
+  get mischief() { return mischief; },
+  get collectibles() { return collectibles; },
+  get screens() { return screens; },
+  get followCam() { return followCam; },
+  get radar() { return radar; },
+  get abilities() { return abilities; },
+  get sharedFloatText() { return sharedFloatText; },
+  get sharedEffects() { return sharedEffects; },
+  get charRegistry() { return charRegistry; },
+  get vehRegistry() { return vehRegistry; },
+  get markers() { return markers; },
+  get mcMarker() { return getMarkerState(); },
+  get dayCycle() { return dayCycle; },
+  get simTime() { return simTime; },
+  events, gameState, M5_TARGETS, input, camTgt, camLook, camera, scene, renderer, progress, params,
+  stats, camPreset, startShift, gotoFreeRoam, endShift, routeScreen, openMarkerCard,
+  refreshCoins, refreshGolden, onStrike, onBusted, autoplayRun,
+  stepSim(frames) { const st = 1 / 60; for (let i = 0; i < (frames | 0); i++) { simTime += st; simStep(st); } },
+  setPrevM(v) { prevM = v; },
+  setSimPaused(v) { simPaused = v; },
 };
+window.__pb = createDebugHooks(debugCtx);

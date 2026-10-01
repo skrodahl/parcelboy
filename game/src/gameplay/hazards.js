@@ -4,6 +4,7 @@ import { buildHazardGeos } from '../world/hazardModels.js';
 import { createTraffic } from '../world/traffic.js';
 import { findDriveways } from '../world/cars.js';
 import { mulberry32 } from '../core/rng.js';
+import { aheadOf, dist2d, inArcOf, loopPerim, pointOnRect } from './hazardGeom.js';
 
 // §2.7: the neighborhood hazard manager. Spawns the hazards a shift (or free
 // roam) asks for, renders each pool as one InstancedMesh, and runs every
@@ -96,13 +97,6 @@ export function createHazards(env) {
   for (let i = 0; i < sprinks; i++) place(spM, i, spSt[i].x, spSt[i].z, 0, 1);
 
   // Behavior helpers --------------------------------------------------------
-  function aheadOf(x, z, heading, dx, dz) {
-    const fx = Math.sin(heading), fz = -Math.cos(heading);
-    const d = Math.hypot(dx, dz);
-    if (d < 0.001) return -1;
-    return (dx * fx + dz * fz) / d; // -1..1, 1 = directly ahead
-  }
-
   function stepCars(dt) {
     for (let i = 0; i < nCars; i++) {
       const c = cars[i];
@@ -187,10 +181,10 @@ export function createHazards(env) {
       // Sidewalk loops: a fixed perimeter the skater paces at 5 u/s + weave.
       const loop = def.sidewalkLoops ? Object.values(def.sidewalkLoops)[k.loop % 4] : null;
       if (loop) {
-        const per = loopPerim(loop);
+        const per = loopPerim(loop, T);
         // §2.8 Charm: skaters swerve away — during Charm they stop and give space.
         k.dist = (k.dist + (player.stack.charmActive ? 0 : 5) * dt) % per;
-        const pt = pointOnRect(loop, k.dist);
+        const pt = pointOnRect(loop, k.dist, T);
         k.x = pt.x + Math.sin(k.weave + k.dist * 0.5) * 0.3;
         k.z = pt.z;
         place(skM, i, k.x, k.z, pt.h, 1);
@@ -276,26 +270,8 @@ export function createHazards(env) {
     }
   }
 
-  // Small shared helpers (no allocation).
-  function dist2d(ax, az, bx, bz) { const dx = ax - bx, dz = az - bz; return Math.hypot(dx, dz); }
-  function inArcOf(s, px, pz) {
-    const a = Math.atan2(px - s.x, -(pz - s.z)) - s.angle;
-    let n = a % (Math.PI * 2); if (n < 0) n += Math.PI * 2; if (n > Math.PI) n = Math.PI * 2 - n;
-    return n < (120 * Math.PI) / 180 / 2;
-  }
-  function loopPerim(r) { return 2 * (Math.abs((r.x1 - r.x0) + 1) * T + Math.abs((r.z1 - r.z0) + 1) * T); }
-  function pointOnRect(r, d) {
-    const T2 = T;
-    const w = (r.x1 - r.x0 + 1) * T2, h = (r.z1 - r.z0 + 1) * T2;
-    const x0 = world.tilemap.cx(r.x0) - T2 / 2, z0 = world.tilemap.cz(r.z0) - T2 / 2;
-    let dd = d % (2 * (w + h));
-    const out = { x: 0, z: 0, h: 0 };
-    if (dd < w) { out.x = x0 + dd; out.z = z0; out.h = 0; }
-    else if (dd < w + h) { out.x = x0 + w; out.z = z0 + (dd - w); out.h = Math.PI / 2; }
-    else if (dd < 2 * w + h) { out.x = x0 + w - (dd - w - h); out.z = z0 + h; out.h = Math.PI; }
-    else { out.x = x0; out.z = z0 + h - (dd - 2 * w - h); out.h = -Math.PI / 2; }
-    return out;
-  }
+  // M12a.5: the shared geometry helpers (dist2d / inArcOf / loopPerim /
+  // pointOnRect + aheadOf) live in gameplay/hazardGeom.js.
 
   // Public API -------------------------------------------------------------
   function step(dt) {
