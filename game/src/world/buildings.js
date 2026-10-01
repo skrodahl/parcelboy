@@ -28,7 +28,7 @@ function buildingColliders(def, colliders, id, x, z, w, d, h) {
 // (worldBuilder makes one Mesh with the shared world material; main.js waves it).
 export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects, lampPools, mailboxes) {
   buildHouses(grid, tm, glow, signQuads, colliders, windowRects, lampPools, mailboxes);
-  const flag = buildSchool(grid, tm, glow, signQuads);
+  const flag = buildSchool(grid, tm, glow, signQuads, colliders);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'shop')) buildShop(grid, tm, glow, signQuads, colliders, b);
   buildDepot(grid, tm, glow, signQuads, colliders);
   parkCars(grid, tm, colliders);
@@ -36,7 +36,7 @@ export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects
 }
 
 // --- Hollow Elementary: 2 floors, brick, clock over the door, flagpole.
-function buildSchool(grid, tm, glow, signQuads) {
+function buildSchool(grid, tm, glow, signQuads, colliders) {
   const b = tm.def.buildings.find((x) => x.kind === 'school');
   const op = new VoxelBuilder(301);
   const gl = new GlowBuilder();
@@ -84,6 +84,7 @@ function buildSchool(grid, tm, glow, signQuads) {
 
   ch.opaque.merge(op, m);
   glow.merge(gl, m);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.6);
 
   // Flag geometry: built around the pole (world orientation, so the animated
   // mesh's rotation.y swings it), origin at the pole base. worldBuilder makes
