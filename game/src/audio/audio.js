@@ -90,6 +90,7 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     knockdown: () => sfx.play('knockdown'),
     restock: () => sfx.play('restock'),
     hop: () => sfx.play('hop'),
+    boing: () => sfx.play('boing'),
     ability: () => sfx.play('zip'),
     streak: (d) => sfx.play('streak', d),
     delivery: (d) => {

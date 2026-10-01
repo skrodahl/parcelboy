@@ -85,6 +85,24 @@ export function createEffects(scene) {
         spawnOne('splash', x + Math.sin(a) * 0.4, 1.05, z + -Math.cos(a) * 0.4, Math.sin(a) * sp, 2.5 + Math.random(), -Math.cos(a) * sp, 0.6, '#90e0ef', 0.9);
       }
     },
+    // §2.12: a ×3-streak celebration — a quick rainbow ring burst (a jingle
+    // plays alongside; see audio.js `streak`).
+    celebrate(x, y, z) {
+      if (!CARTOON.enabled) return;
+      for (let i = 0; i < 18; i++) {
+        const a = (i / 18) * Math.PI * 2;
+        const c = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+        spawnOne('confetti', x, y + 0.5, z, Math.cos(a) * 3.2, 4 + Math.random() * 2, Math.sin(a) * 3.2, 0.9, c, 1.8);
+      }
+    },
+    // §2.12: speed lines when sprinting / on Turbo — a few fast white streaks
+    // trailing behind the courier (a short-lived comet trail).
+    speedLines(x, z, vx, vz) {
+      for (let i = 0; i < 3; i++) {
+        const o = (i - 1) * 0.3;
+        spawnOne('dust', x - vx * 0.05 - o, 0.3 + i * 0.15, z - vz * 0.05, -vx * 0.2, 1.5, -vz * 0.2, 0.35, '#ffffff', 0.9);
+      }
+    },
     step(dt) {
       let any = false;
       for (let i = 0; i < MAX; i++) {

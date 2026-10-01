@@ -10,6 +10,7 @@ import { Registry } from './core/registry.js';
 import { PALETTE } from './data/palette.js';
 import { TIMES_OF_DAY } from './data/timeOfDay.js';
 import { buildWorld } from './world/worldBuilder.js';
+import { createDepotLife } from './world/depot.js';
 import { NEIGHBORHOODS } from './data/neighborhoods/index.js';
 import { CHARACTERS } from './data/characters.js';
 import { VEHICLES } from './data/vehicles.js';
@@ -78,6 +79,7 @@ let sky = null;
 let lighting = null;
 let cube = null;
 let world = null;
+let depotLife = null;
 let simTime = 0;
 // M4 dynamic actors (assigned in the world branch; null in menus/test scenes).
 let player = null;
@@ -225,6 +227,8 @@ if (params.scene === 'test') {
   }
   sky = createSky(scene, preset);
   sky.update(0, 0);
+  // §2.14: the busy Distribution Center (conveyor boxes + a forklift NPC).
+  depotLife = createDepotLife(scene, world, world.worldMat, qualityName === 'battery');
 
   // M4: dynamic actors (courier + vehicle) on top of the static world.
   charRegistry = new Registry('character', ['id', 'name', 'build', 'colors', 'stats', 'ability']);
@@ -312,6 +316,14 @@ function spawnCourier(charDef, vehDef) {
   // §11.6: the courier's ability (writes the modifier stack the player reads).
   abilities = createAbilitySystem(player.stack, charDef, vehDef);
   player.setAbilities(abilities);
+  // §2.12 trampolines: launch the courier 5u up with a "BOING!" when they land on one.
+  const trampSpots = ((world.def.gagSpots || {}).trampoline || []).map(([tx, tz]) => ({ x: world.tilemap.cx(tx), z: world.tilemap.cz(tz) }));
+  player.setTrampolines(trampSpots);
+  player.setOnTrampoline(() => {
+    if (sharedFloatText) sharedFloatText.pop('BOING!', player.pos.x, 1.6, player.pos.z, { color: '#ffd166', burst: true });
+    if (sharedEffects) sharedEffects.dust(player.pos.x, 0.3, player.pos.z);
+    if (events) events.emit('boing');
+  });
   followCam = createFollowCam(camera, world.collision);
   camTgt.pos = player.pos; camTgt.heading = player.heading;
   player.syncVisuals(0, simTime);
@@ -345,7 +357,7 @@ function setupMischief() {
     spawnWatch: (i) => unitOps.spawn(i), removeWatch: (i) => unitOps.remove(i),
     onBusted: (level) => onBusted(level),
   });
-  ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike() });
+  ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike(), battery: qualityName === 'battery' });
   watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, onBusted: (i) => onBusted(i) });
   unitOps.spawn = watch.spawn; unitOps.remove = watch.remove;
   mischief = createMischief({
@@ -554,6 +566,8 @@ function showResults(res) {
   progress.earn(res.coins || 0);
   progress.recordShift(res.shift, res.score, res.stars || 0); // §2.11: save the best
   if (events) events.emit('results');
+  // §2.12: a results-screen confetti / celebration on a finished shift.
+  if (sharedEffects && player && res.success) sharedEffects.celebrate(player.pos.x, 1, player.pos.z);
   if (resultsEl) { resultsEl.remove(); resultsEl = null; }
   resultsEl = el('div', 'results');
   const stars = '★'.repeat(res.stars) + '☆'.repeat(Math.max(0, 3 - res.stars));
@@ -626,8 +640,10 @@ function applyCamPreset(cam, name) {
       // of center so the map is vertically centered.
        overview: { pos: [cx, 170, cz + 130], look: [cx, 0, cz - 4] },
        street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
-       park:     { pos: [40, 16, 118], look: [40, 0, 142] },
-       depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
+        park:     { pos: [40, 16, 118], look: [40, 0, 142] },
+        bulb:     { pos: [142, 10, 92], look: [138, 0.5, 110] },
+        depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
+        hub:      { pos: [150, 13, 116], look: [170, 1, 145] },
        // M4 lineup: elevated look at the courier row; high enough to see
        // over the parked vans (2.8u tall), far enough for all 5, with the
        // depot + lit QUICKBOX sign as backdrop.
@@ -664,6 +680,30 @@ function applyCamPreset(cam, name) {
         return;
       }
     }
+    // M11: frame one of the trampolines (a low shot so the 5u launch is in-frame).
+    if (name.startsWith('trampoline:')) {
+      const i = parseInt(name.slice(11), 10);
+      const tp = ((t.def.gagSpots || {}).trampoline || [])[i];
+      if (tp) {
+        const T = t.tileSize, tx = tp[0] * T + T / 2, tz = tp[1] * T + T / 2;
+        cam.position.set(tx + 5, 6, tz + 5);
+        cam.lookAt(tx, 2.5, tz);
+        camLook.set(tx, 2.5, tz);
+        const dd = cam.position.distanceTo(camLook);
+        if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
+        return;
+      }
+    }
+    // M11: frame the courier mid-flight over the handlebars (a street shot).
+    if (name === 'handlebars') {
+      const hx = 46, hz = 70; // a clear spot on Maple Avenue
+      cam.position.set(hx + 5, 4.5, hz + 4);
+      cam.lookAt(hx, 1.5, hz);
+      camLook.set(hx, 1.5, hz);
+      const dd = cam.position.distanceTo(camLook);
+      if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
+      return;
+    }
     if (p[name]) {
       cam.position.set(...p[name].pos);
       cam.lookAt(...p[name].look);
@@ -696,6 +736,7 @@ function simStep(dt) {
     const bt = (activeVeh && activeVeh.id === 'feet') ? MISCHIEF.bowlFootSpeed : MISCHIEF.bowlVehicleSpeed;
     ambient.step(dt, player, bt);
   }
+  if (depotLife) depotLife.step(dt);
   // M10: the hidden Golden Parcels (spin/bob + collect on contact) + the free-roam
   // day cycle (a mission holds its own time of day, so it only ticks in free roam).
   if (collectibles && player) collectibles.tick(dt, simTime, player);
@@ -703,6 +744,11 @@ function simStep(dt) {
   if (player) {
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
+    // §2.12 speed lines: while Sprint/Turbo raise the top speed, a short white
+    // streak trails behind at speed (throttled to ~6/s, allocation-free).
+    if (sharedEffects && player.stack.speedMul > 1 && Math.abs(player.speed) > 6 && (simTime % 0.15) < dt) {
+      sharedEffects.speedLines(player.pos.x, player.pos.z, Math.sin(player.heading) * player.speed, -Math.cos(player.heading) * player.speed);
+    }
     if (blobs) {
       blobs.set(0, player.pos.x, player.pos.z, 1.4 + Math.min(1, Math.abs(player.speed) / 12) * 0.4);
       blobs.flush();
@@ -972,6 +1018,29 @@ window.__pb = {
   },
   syncFloat() { if (sharedFloatText) sharedFloatText.sync(); return true; },
   stepFloat() { if (sharedFloatText) sharedFloatText.step(1 / 60); if (sharedFloatText) sharedFloatText.sync(); return true; },
+  boing(i) {
+    if (!player || !world) return false;
+    const spots = ((world.def.gagSpots || {}).trampoline || []);
+    if (!spots.length) return false;
+    const idx = ((i == null ? 0 : i) | 0) % spots.length;
+    const [tx, tz] = spots[idx];
+    player.teleport(tx, tz, 90);
+    player.boing();
+    return true;
+  },
+  handlebars() {
+    if (!player) return false;
+    player.teleport(11, 17, 0); // a clear stretch of Maple Avenue
+    player.handlebars();
+    return true;
+  },
+  scatterBirds() { if (ambient) ambient.scatterBirds(); return ambient ? ambient.birds.length : 0; },
+  debugAmbient() {
+    if (!ambient || !world) return null;
+    return { alive: ambient.aliveCount, walkers: ambient.walkers.length, birds: ambient.birds.length, butterflies: ambient.butterflies.length, ducks: ambient.ducks.length, kids: ambient.kids.length };
+  },
+  speedLines() { if (!player || !sharedEffects) return false; sharedEffects.speedLines(player.pos.x, player.pos.z, Math.sin(player.heading) * 9, -Math.cos(player.heading) * 9); return true; },
+  celebrate() { if (!player || !sharedEffects) return false; sharedEffects.celebrate(player.pos.x, 1, player.pos.z); return true; },
   autoplay() {},
   nextTarget() {
     if (!delivery) return null;

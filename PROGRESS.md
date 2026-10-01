@@ -1,6 +1,6 @@
 # Progress
 
-Current milestone: M10 complete (ToD presets + free-roam day cycle + save/progression + Golden Parcels + golden bike); M0–M9 + M6b + M7b done
+Current milestone: M11 complete (ambient life + cartoon juice pass: birds/butterflies/ducks/kids, trampolines, over-the-handlebars, speed lines, streak + results celebration, busy depot, battery scaling); M0–M10 + M6b + M7b done
 
 ## Decisions
 - (2026-09-30) Git branch is `master` (git default); kept as-is.
@@ -67,6 +67,11 @@ Current milestone: M10 complete (ToD presets + free-roam day cycle + save/progre
     - (2026-10-01) **M10 free-roam day cycle blends presets, not just swaps.** `gameplay/dayCycle.js`: free roam runs morning→noon→golden→dusk, holding each ~2 min then cross-fading over 30 s by interpolating every numeric + color field into one preallocated scratch preset (no per-frame allocation); the static shadow map is re-baked only every 2 s *while blending*. `startAt(id)` snaps to a boot/mission preset; `setPhase(i,frac)` is used by the `m10-blend` shot.
     - (2026-10-01) **M10 crickets at dusk are a synthesized noise burst, not a file.** `audio.js` `toggleCrickets(on)` = a periodic bandpass-filtered noise chirp (~4.2 kHz, 320–580 ms period) on the ambience bus; `main.js` turns it on when the active preset's `glow > 0.4` (dusk/golden only). Same primitive as the M9 bird-chirp ambience.
     - (2026-10-01) **M10 settings + last-used persist; `?coins=`/`?quality=` override the save.** `saveData.settings.musicVol/sfxVol` are applied to the audio buses on boot, `showFps` enables the `?debug` overlay, and the Settings sliders call `ctx.persistSetting(k,v)` → `progress.setSetting`. `?cam=`/`?tod=`/`?char=`/`?veh=` boot params are unchanged; `?coins=` seeds and `?quality=` override the saved value so the shots stay deterministic.
+    - (2026-10-01) **M11 ambient life is a few InstancedMeshes, all gated by the Battery preset.** `entities/ambient.js` adds to the 6 bowled-over walkers: 18 birds (perched on lawns, scatter up-and-away within 6 u, land elsewhere), 10 park butterflies (a slow circular flutter), 5 pond ducks (slow circles) and 2 kids + an arcing ball in the Willow Court bulb. In Battery saver the counts halve + butterflies/kids drop to 0 (41 → 14 ambient entities, verified headless via `__pb.debugAmbient`). One InstancedMesh per group + the preexisting 6 walker rigs, so the added cost is ~5 draw calls.
+    - (2026-10-01) **M11 the trampoline + over-the-handlebars are player-driven launches, not hazard knockdowns.** `player.js` gains a `boing()` (a 5u parabola, auto-triggered on `gagSpots.trampoline`, "BOING!" + dust + a `boing` SFX) and `handlebars()` (a 2.5u forward arc + a car-style flop, the §2.12 "flies over the handlebars" gag). Both are pure sim (no physics engine) and reuse the knockdown anim (`fall`/`pancake`).
+    - (2026-10-01) **M11 the busy Distribution Center is a small dynamic module, not part of the static chunks.** `world/depot.js` builds a conveyor belt + a forklift NPC + pallet stacks near the open dock; the sliding boxes are one InstancedMesh (colored once) and the forklift one merged mesh, stepped in `simStep`. Battery halves the box count. (A first draft passed a `VoxelBuilder` to `THREE.Mesh` instead of its `.toGeometry()` and crashed the boot — caught by the 0-console-errors shot gate and fixed.)
+    - (2026-10-01) **M11 the streak/results celebrations reuse the one particle pool.** `effects.js` adds `celebrate()` (a quick 18-particle rainbow ring for a ×3+ streak, with a jingle) and `speedLines()` (a short white comet trail while Sprint/Turbo push the top speed, throttled to ~6/s in `simStep`). The results screen fires a `celebrate()` on a finished shift. All share the existing 128-particle InstancedMesh (1 draw call).
+    - (2026-10-01) **M11 ToD tuning (before/after): the golden hour is warmed for longer shadows.** `timeOfDay.js` golden preset: sun lowered `[0.75,0.3,0.2]→[0.8,0.24,0.28]`, sun color `#ffb86b→#ffab52`, intensity `2.6→2.3`, sky zenith `#f4a261→#f79a55`, glow `0.3→0.4`. The before/after pair is `m10-tod-golden-overview` (before) vs `m11-golden-overview` (after).
 
 
 
@@ -281,4 +286,23 @@ Current milestone: M10 complete (ToD presets + free-roam day cycle + save/progre
 - Stats: 11 M10 shots, all ≤150 draw calls (max = 54, m10-tod-*-overview). Full suite m0–m10 + m6b + m7b = **63 shots, 0 console errors**, no m0–m9 regressions.
 - Known issues: the golden boxes + their spin/sparkle are a per-frame `tick` driven by `simStep`, so a paused boot shows them static (correctly placed, but not spinning) until the first sim tick; the `m10-golden-*` shots therefore read a static gold box. Cricket volume is fixed (not a user setting) for now.
 - User check: **GATE — reload a live browser after earning coins + finding a Golden Parcel + changing a setting, and confirm all three persist; then confirm the golden bike appears in the vehicle locker once all 12 are found.** (Pending — user to verify later.)
+
+### M11: Immersion and juice pass: DONE
+- Done: `entities/ambient.js` (added birds/butterflies/ducks/kids to the 6 bowled-over walkers + Battery scaling — 41 ambient entities in High, 14 in Battery), `world/depot.js` (new: the busy Distribution Center — a conveyor belt + sliding boxes on one InstancedMesh, a forklift NPC driving the lot, pallet stacks; `battery` halves the box count), `entities/player.js` (§2.12 trampoline `boing()` 5u launch + over-the-handlebars `handlebars()` 2.5u arc, both reusing the knockdown anim), `render/effects.js` (`celebrate()` rainbow ring for ×3+ streaks + `speedLines()` comet trail), `gameplay/delivery.js` (the ×3+ streak celebration: a rainbow ring + "×N STREAK!" burst), `main.js` (the `boing` SFX event, the trampoline + handlebars + `hub`/`bulb` cam presets + `__pb.boing`/`handlebars`/`speedLines`/`celebrate`/`scatterBirds`/`debugAmbient` hooks, the results-screen `celebrate()`, throttled speed lines in `simStep`, the battery-gated ambient + depot life), `audio/audio.js` (the `boing` → SFX wiring), `data/timeOfDay.js` (golden-hour tuning); 8 M11 shots in `tools/shots.json`.
+- Screenshots reviewed (SwiftShader, 0 console errors):
+  - m11-life-street: a Maple Avenue street with houses/lamps + scattered birds + walkers in the background (the ambient life reads on the lawns).
+  - m11-park: the south park — the pond with 5 drifting ducks, the forest border, a golden parcel on the lawn, and the park paths.
+  - m11-cul-de-sac: the Willow Court bulb with two kids + a ball arcing between them (the hoops gag) + a golden parcel.
+  - m11-golden-overview: the whole map at the warmed golden hour (long shadows, warm amber light, lit windows starting).
+  - m11-hub-busy: the Quickbox Distribution Center — the lit sign, 2 parked vans, the pallet stacks, the conveyor belt with sliding boxes, and the forklift NPC in the lot.
+  - m11-trampoline: Pip on the bike above a trampoline with the "BOING!" comic burst (the player is ~4.5u up at the peak; verified headless via `__pb.debugPlayer` → y 3.29u at t≈0.24).
+  - m11-handlebars: the courier flying off the bike over the handlebars on a Maple Avenue sidewalk.
+  - m11-battery-life: the park in Battery saver — reduced ambient life (2 ducks, no butterflies, 3 walkers) vs the 5-duck / 10-butterfly / 6-walker high shot.
+- DoD verified:
+  - *Draw calls within budget in every shot* — all 71 suite shots ≤150 draw calls (max = 63, m11-golden-overview).
+  - *Battery saver shows reduced ambient life* — `?quality=battery` boots 14 ambient entities vs 41 in High (walkers 3, birds 9, butterflies 0, ducks 2, kids 0), verified via `__pb.debugAmbient()`.
+  - *Every §2.12 gag plays + is tuned* — the trampoline "BOING!" + over-the-handlebars now read clearly; the ×3 streak celebration (rainbow ring + jingle), results confetti, speed lines and the flag wave are wired; the golden-hour ToD was tuned (before/after = `m10-tod-golden-overview` vs `m11-golden-overview`).
+- Stats: 8 M11 shots, all ≤150 draw calls. Full suite m0–m11 + m6b + m7b = **71 shots, 0 console errors**, no m0–m10 regressions.
+- Known issues: the "life-street" shot reads the ambient life best on the lawns (the street cam is a long shot, so walkers/birds are small in the distance). The over-the-handlebars arc is a sim parabola (no separate bike-tumble mesh) — it reads as the courier coming off the bike, not a full tumble. These are polish for M12.
+- User check: **GATE — watch a trampoline bounce + an over-the-handlebars knockdown in a live browser and report on the cartoon feel; confirm Battery saver visibly reduces the ambient life.** (Pending — user to verify later.)
 

@@ -61,5 +61,13 @@
   { "name": "m10-tod-dusk-overview", "url": "/?tod=dusk&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
   { "name": "m10-blend", "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setTod(0, 0.5); __pb.step(3); __pb.setCam('street');"] },
   { "name": "m10-golden-parcel", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(28, 52); __pb.setCam('golden:0');"] },
-  { "name": "m10-golden-pickup", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.collectGolden(0); __pb.teleport(28, 52); __pb.setCam('golden:0'); for (let i = 0; i < 20; i++) __pb.stepFloat();"] }
+  { "name": "m10-golden-pickup", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.collectGolden(0); __pb.teleport(28, 52); __pb.setCam('golden:0'); for (let i = 0; i < 20; i++) __pb.stepFloat();"] },
+  { "name": "m11-life-street", "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.scatterBirds(); __pb.step(24); __pb.setCam('street');"] },
+  { "name": "m11-park", "url": "/?tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('park');"] },
+  { "name": "m11-cul-de-sac", "url": "/?tod=noon&cam=bulb&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('bulb');"] },
+  { "name": "m11-golden-overview", "url": "/?tod=golden&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
+  { "name": "m11-hub-busy", "url": "/?tod=noon&cam=hub&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('hub');"] },
+  { "name": "m11-trampoline", "url": "/?tod=noon&cam=trampoline:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.boing(0); __pb.step(27); __pb.setCam('trampoline:0'); for (let i = 0; i < 18; i++) __pb.stepFloat();"] },
+  { "name": "m11-handlebars", "url": "/?tod=noon&cam=handlebars&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.handlebars(); __pb.step(22); __pb.setCam('handlebars');"] },
+  { "name": "m11-battery-life", "url": "/?quality=battery&tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('park');"] }
 ]

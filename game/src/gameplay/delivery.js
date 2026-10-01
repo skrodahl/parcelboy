@@ -131,6 +131,11 @@ export function createDelivery(env) {
         npcs.react(target.house.id, res.outcome);
         effects.confetti(wx, Math.max(wy, 0.2), wz);
       }
+      // §2.12: a ×3+ streak celebration — a quick rainbow ring + the jingle.
+      if (res.multiplier >= 3) {
+        effects.celebrate(wx, Math.max(wy, 0.2), wz);
+        floatText.pop('×' + res.multiplier + ' STREAK!', wx, wy + 1.8, wz, { color: '#ffd166', burst: true });
+      }
       s.carried = s.remaining();
       floatText.pop(res.label, wx, wy + 0.4, wz, { color: res.color });
       if (res.points > 0) floatText.pop('+' + res.points, wx, wy + 1.1, wz, { color: res.color });

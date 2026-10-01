@@ -31,6 +31,18 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   let invulnT = 0;   // §2.6: remaining blinking invulnerability
   let spraySlow = 1; // set by hazards each frame (×0.6 inside a sprinkler spray)
   let abilities = null; // §11.6: the ability system (set via setAbilities)
+  // §2.12 trampoline: a launch 5 units up on landing on a `gagSpots.trampoline`.
+  let trampT = -1;
+  let trampSpots = [];
+  let onTrampoline = null;
+  const TRAMP_T = 0.9, TRAMP_H = 5, TRAMP_R = 1.6;
+  function boing() { trampT = 0; if (onTrampoline) onTrampoline(); return true; }
+  function setTrampolines(spots) { trampSpots = spots; }
+  function setOnTrampoline(cb) { onTrampoline = cb; }
+  // §2.12: flying over the handlebars in a ~2.5 u arc, landing flat on the back.
+  let hbT = -1;
+  const HB_T = 0.75, HB_H = 2.5;
+  function handlebars() { if (canBeKnocked()) startKnockdown('car'); hbT = 0; return hbT; }
   // One stable anim-scratch object per player (no per-frame allocation).
   const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1, panic: 0, puffy: 0, blink: 0, pancake: 0 };
 
@@ -101,6 +113,25 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
         pos.y = 4 * PLAYER.jumpHeight * t * (1 - t);
       }
     }
+    // §2.12 trampoline: launch 5 units up; auto-trigger when standing on one.
+    if (trampT >= 0) {
+      trampT += dt;
+      if (trampT >= TRAMP_T) { trampT = -1; pos.y = 0; }
+      else { const t = trampT / TRAMP_T; pos.y = TRAMP_H * 4 * t * (1 - t) * 0.9; }
+    } else if (trampSpots.length && airT < 0) {
+      for (let i = 0; i < trampSpots.length; i++) {
+        const s = trampSpots[i];
+        const dx = pos.x - s.x, dz = pos.z - s.z;
+        if (dx * dx + dz * dz < TRAMP_R * TRAMP_R) { boing(); break; }
+      }
+    }
+    // §2.12 over-the-handlebars: a 2.5u forward arc, then the courier lands flat.
+    if (hbT >= 0) {
+      hbT += dt;
+      const t = hbT / HB_T;
+      if (t >= 1) { hbT = -1; pos.y = 0; }
+      else { pos.y = HB_H * 4 * t * (1 - t); pos.x += Math.sin(heading) * 1.5 * dt * 4; pos.z += -Math.cos(heading) * 1.5 * dt * 4; }
+    }
 
     // Collision: slide out of statics; bonk if the hit was fast enough.
     const hit = world.collision.resolveCircle(pos, PLAYER.radius);
@@ -169,5 +200,11 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     setCarried,
     teleport,
     startThrow() { throwT = 0; },
+    boing,
+    setTrampolines,
+    setOnTrampoline,
+    get onTramp() { return trampT >= 0; },
+    handlebars,
+    get onHandlebars() { return hbT >= 0; },
   };
 }
