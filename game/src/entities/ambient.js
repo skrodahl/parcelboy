@@ -163,6 +163,25 @@ export function createAmbient(env) {
   // For the shots: scatter every perched bird at once (a "whoosh").
   function scatterBirds() { for (const b of birds) if (b.state === 'perched') { b.state = 'fly'; b.t = 0; b.vx = (rng() - 0.5) * 6; b.vz = (rng() - 0.5) * 6; } }
 
+  // M12a.3: pick the walker's next target on a walkable tile within ~3 tiles
+  // of where it stands — so it wanders the sidewalks and lawns but never drifts
+  // off the map or through a house. Infrequent (fires once the walker reaches
+  // its target), so a tiny local search is fine; the fallback keeps it in place.
+  function pickWalkerTarget(w) {
+    const T = tm.tileSize;
+    const tx0 = Math.max(1, Math.min(tm.width - 2, Math.floor(w.x / T)));
+    const tz0 = Math.max(1, Math.min(tm.height - 2, Math.floor(w.z / T)));
+    for (let a = 0; a < 6; a++) {
+      const tx = tx0 + ((rng() * 7) | 0) - 3;
+      const tz = tz0 + ((rng() * 7) | 0) - 3;
+      if (tx >= 1 && tz >= 1 && tx < tm.width - 1 && tz < tm.height - 1 && tm.isWalkable(tx, tz)) {
+        w.tx = tm.cx(tx); w.tz = tm.cz(tz);
+        return;
+      }
+    }
+    w.tx = w.x; w.tz = w.z;
+  }
+
   function step(dt, player, bowlThresh) {
     _t += dt;
     // Walkers (the §2.15 bowling state machine).
@@ -170,7 +189,7 @@ export function createAmbient(env) {
       if (w.state === 'walk') {
         w.x += (w.tx - w.x) * Math.min(1, dt * 1.2);
         w.z += (w.tz - w.z) * Math.min(1, dt * 1.2);
-        if (Math.hypot(w.tx - w.x, w.tz - w.z) < 0.6) { w.tx = w.x + (rng() - 0.5) * 14; w.tz = w.z + (rng() - 0.5) * 14; }
+        if (Math.hypot(w.tx - w.x, w.tz - w.z) < 0.6) pickWalkerTarget(w);
         w.mesh.rotation.y = Math.atan2(w.tx - w.x, w.tz - w.z);
         w.mesh.position.set(w.x, Math.abs(Math.sin(_t * 6 + w.x)) * 0.06, w.z);
         if (player && player.speed >= bowlThresh) {

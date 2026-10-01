@@ -1210,7 +1210,13 @@ window.__pb = {
   scatterBirds() { if (ambient) ambient.scatterBirds(); return ambient ? ambient.birds.length : 0; },
   debugAmbient() {
     if (!ambient || !world) return null;
-    return { alive: ambient.aliveCount, walkers: ambient.walkers.length, birds: ambient.birds.length, butterflies: ambient.butterflies.length, ducks: ambient.ducks.length, kids: ambient.kids.length };
+    const r1 = (n) => Math.round(n * 10) / 10;
+    return {
+      alive: ambient.aliveCount, walkers: ambient.walkers.length, birds: ambient.birds.length,
+      butterflies: ambient.butterflies.length, ducks: ambient.ducks.length, kids: ambient.kids.length,
+      walkerPos: ambient.walkers.map((w) => [r1(w.x), r1(w.z), w.state]),
+      birdPos: ambient.birds.map((b) => [r1(b.x), r1(b.z), b.state]),
+    };
   },
   speedLines() { if (!player || !sharedEffects) return false; sharedEffects.speedLines(player.pos.x, player.pos.z, Math.sin(player.heading) * 9, -Math.cos(player.heading) * 9); return true; },
   celebrate() { if (!player || !sharedEffects) return false; sharedEffects.celebrate(player.pos.x, 1, player.pos.z); return true; },
