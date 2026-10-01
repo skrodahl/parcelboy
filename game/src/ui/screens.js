@@ -152,7 +152,8 @@ export function createScreens(ctx) {
     hcard('Move & hop', [
       ['WASD', 'drive or walk (the arrow keys work too)'],
       ['SPACE', 'hop — you can\'t be knocked down mid-air'],
-      ['M · TAB', 'mute · open the full map'],
+      ['M', 'mute'],
+      ['Tab', 'open / close the full map'],
     ]),
     hcard('Throw & deliver', [
       ['Q / E', 'toss the next parcel to your left / right'],

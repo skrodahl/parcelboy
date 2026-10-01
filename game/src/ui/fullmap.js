@@ -74,7 +74,8 @@ export function createFullMap({ tm, state, radar, onPause }) {
 
   function onKey(e) {
     if (!mapOpen) return;
-    if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); close(); }
+    // M12a.8: Tab is a toggle handled by main.js (input 'map'); Escape closes here.
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
   }
   function onClick(e) {
     if (!mapOpen) return;

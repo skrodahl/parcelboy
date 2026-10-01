@@ -838,6 +838,8 @@ function update(dt) {
   updateAbilityBtn(); // §10: the ability button's ring reflects the live cooldown
   if (simPaused !== musicPaused) { musicPaused = simPaused; if (musicPaused) audio.stopMusic(); else audio.startMusic(false); }
   if (input.consume('mute')) audio.setMuted(!audio.muted);
+  // M12a.8: Tab opens / closes the full map (in free roam + missions, not menus).
+  if (!menuGate() && input.consume('map')) { if (fullMap) { if (fullMap.isOpen()) fullMap.close(); else fullMap.open(); } }
   if (audioDebugEl) audioDebugEl.textContent = 'SFX ' + audio.lastSounds().join(' ');
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
