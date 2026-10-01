@@ -108,8 +108,17 @@ export function addStreetSigns(grid, tm, signQuads) {
   const H = 2.2;
   tm.def.roads.forEach((r, i) => {
     let wx, wz;
-    if (r.axis === 'x') { wx = tm.minX(r.x0) - 2; wz = tm.cz(r.z); }
-    else { wx = tm.cx(r.x); wz = tm.minZ(r.z0) - 2; }
+    if (r.axis === 'x') {
+      // E/W road: the NW corner, on the west + north sidewalks (off the road).
+      wx = tm.minX(r.x0) - 0.7; wz = tm.minZ(r.z) - 0.7;
+    } else {
+      // N/S road: on the west curb, at the first walkable west-sidewalk row in the
+      // road's span (past the cross-road at its north end) so it sits on the walk.
+      wx = tm.minX(r.x) - 0.7;
+      let row = r.z0;
+      for (let zz = r.z0; zz <= r.z1; zz++) if (tm.isWalkable(r.x - 1, zz)) { row = zz; break; }
+      wz = tm.cz(row);
+    }
     const ch = grid.chunkAt(Math.floor(wx / tm.tileSize), Math.floor(wz / tm.tileSize));
     ch.opaque.box(wx, 0, wz, 0.12, H, 0.12, '#4a4e69', { skipFaces: ['bottom'] });
     signQuads.push({

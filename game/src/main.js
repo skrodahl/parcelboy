@@ -641,7 +641,9 @@ function applyCamPreset(cam, name) {
        overview: { pos: [cx, 170, cz + 130], look: [cx, 0, cz - 4] },
        street:   { pos: [16, 3, (17 + 1) * 4], look: [96, 2, (17 + 1) * 4] },
         park:     { pos: [40, 16, 118], look: [40, 0, 142] },
-        bulb:     { pos: [142, 10, 92], look: [138, 0.5, 110] },
+         bulb:     { pos: [142, 10, 92], look: [138, 0.5, 110] },
+        // Willow Court's north-end corner (the sign now sits on the west sidewalk here).
+        willow:   { pos: [118, 11, 62], look: [135, 0.5, 82] },
         depot:    { pos: [158, 8, 128], look: [158, 2, 148] },
         hub:      { pos: [150, 13, 116], look: [170, 1, 145] },
        // M4 lineup: elevated look at the courier row; high enough to see
