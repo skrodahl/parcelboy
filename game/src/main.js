@@ -170,7 +170,7 @@ let dayClock = null, clockSaveGap = 0;
 // the courier is in the bench zone (so the fast-forward + its prompt show only there).
 let benchZone = null, benchIn = false, benchFF = false, benchMesh = null, benchPromptEl = null, benchFFTarget = -1;
 // M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
-let markers = null, prevM = null;
+let markers = null, prevM = null, prevLocker = -1;
 let MARKER_RADIUS = 8; // ~2 tiles; set from the tilemap's tile size at boot
 // §9: crickets only at dusk/golden (a preset with meaningful glow).
 function setCricketsForPreset(p) { if (audio) audio.setCrickets(!!p && p.glow > 0.4); }
@@ -566,6 +566,7 @@ function startShift(shiftId) {
   setupGrumps(shift.grumps || 0, mission.targetDefs.map((t) => (typeof t === 'string' ? t : t.house.id)));
   delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed, sharedEffects, sharedFloatText, shift);
   radarState.delivery = delivery;
+  if (world.lockers) world.lockers.setAllFull(); // §2.17: lockers refill when a new shift starts
   mission.start(delivery);
   player.setCarried(delivery.carried);
   // §2.13: snap to the shift's time of day (the day cycle resumes from here when
@@ -684,7 +685,7 @@ function buildHUD() {
       chip, coins, golden, clockEl, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
     missionStart(session, shift) {
       this.panel.style.display = ''; this.chip.style.display = 'none';
-      this.pName.textContent = shift.name; this.pNext.textContent = 'next: ' + (session.targets[0] ? session.targets[0].pkg.name : '—');
+      this.pName.textContent = shift.name; this.pNext.textContent = addrLabel(session.topParcel());
     },
     missionEnd() { this.panel.style.display = 'none'; this.chip.style.display = ''; },
     tick(mission2, session) {
@@ -701,8 +702,9 @@ function buildHUD() {
       this.pParcels.textContent = '📦 ' + session.carried + '/' + session.capacity + (empty ? ' · Restock!' : '');
       this.pParcels.classList.toggle('empty', empty);
       this.pScore.textContent = 'score ' + session.scoring.score + '  ×' + session.scoring.multiplier();
-      const nx = session.nextUndelivered();
-      this.pNext.textContent = nx ? 'next: ' + nx.pkg.name : 'all delivered';
+      // §2.16: the HUD shows the top parcel's address (the one you throw next).
+      const nx = session.topParcel();
+      this.pNext.textContent = nx ? addrLabel(nx) : 'all delivered';
       // §2.6: the restock progress ring — fills over 1.0 s while standing in the
       // pickup zone (restockT only accumulates when there's still room to refill).
       if (session.restockT > 0) {
@@ -729,6 +731,12 @@ function updateAbilityBtn() {
   abilityBtn.classList.toggle('active', !!abilities.active);
   abilityBtn.classList.toggle('ready', abilities.ready);
   abilityRing.style.background = 'conic-gradient(' + color + ' ' + deg + 'deg, rgba(255,255,255,0.16) 0deg)';
+}
+
+// §2.16: the top parcel's address for the HUD — "#num street · type".
+function addrLabel(t) {
+  if (!t) return '—';
+  return '📦 #' + t.house.num + ' ' + t.house.street + ' · ' + t.pkg.name;
 }
 
 // §2.20 / §10: the world clock readout. Free roam shows the clock; a running
@@ -796,7 +804,7 @@ function restockLabelFor(shift) {
 }
 
 function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText, shift) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, restockZone: shift ? restockZoneFor(shift) : null, restockLabel: shift ? restockLabelFor(shift) : 'depot', onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, restockZone: shift ? restockZoneFor(shift) : null, restockLabel: shift ? restockLabelFor(shift) : 'depot', lockerBodies: world.lockerBodies || [], lockers: world.lockers || null, onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
 }
 resizeRenderer(renderer, camera);
 
@@ -899,14 +907,28 @@ function simStep(dt) {
       else if (nearM) openMarkerCard(nearM);
       else closeMarkerCard();
     }
+    // §2.17: a parcel locker in free roam does nothing — a "Closed" nudge on approach.
+    if (world.lockerBodies && world.lockerBodies.length) {
+      let nl = -1;
+      const LR = 2.4;
+      for (let i = 0; i < world.lockerBodies.length; i++) {
+        const dx = world.lockerBodies[i].wx - player.pos.x, dz = world.lockerBodies[i].wz - player.pos.z;
+        if (dx * dx + dz * dz < LR * LR) { nl = i; break; }
+      }
+      if (nl !== prevLocker) {
+        prevLocker = nl;
+        if (nl !== -1 && sharedFloatText) sharedFloatText.pop('Closed. Shift parcels only.', player.pos.x, 1.7, player.pos.z, { color: '#8d99ae' });
+      }
+    }
   }
   if (delivery) {
     delivery.handleInput();
     delivery.updateDoorstep(dt);
     delivery.updateRestock(dt);
+    delivery.updateLockerRestock(dt); // §2.17: restock at a full parcel locker
     delivery.parcels.step(dt);
     delivery.npcs.step(dt);
-    delivery.markers.update(dt, simTime, player ? player.pos.x : 0, player ? player.pos.z : 0);
+    delivery.markers.update(dt, simTime, player ? player.pos.x : 0, player ? player.pos.z : 0, delivery.topParcel());
   }
   // M7: shared effects + float text (the delivery session uses these same ones).
   if (sharedEffects) sharedEffects.step(dt);
@@ -943,14 +965,16 @@ function autoplayRun() {
   let lastRes = null, guard = 0, lastTid = '', retries = 0;
   while (guard++ < 200 && !lastRes) {
     if (m.lastResult) { lastRes = m.lastResult; break; } // auto-ended (all delivered or time out)
-    const t = d.nextUndelivered();
+    const t = d.topParcel(); // §2.16: deliver the top parcel's house (auto-matching doorstep)
     if (!t) { m.end(); lastRes = m.lastResult; break; }
     const tid = String(t.house.id);
     if (tid === lastTid) retries++; else { retries = 0; lastTid = tid; }
     if (retries >= 3) break; // give up on a stubborn target (the shift ends short)
     // M12a.6: when the stack is empty + parcels remain, refill at the pickup zone first.
     if (d.carried <= 0 && d.remaining() > 0) autoplayerRestock();
-    const dx = t.doormat.x, dz = t.doormat.z;
+    const top = d.topParcel(); // re-grab (the restock rebuilds the stack)
+    if (!top) { m.end(); lastRes = m.lastResult; break; }
+    const dx = top.doormat.x, dz = top.doormat.z;
     // Teleport to the target's porch (the doormat tile) + doorstep it (safe + reliable).
     const TS = world.tilemap.tileSize;
     player.teleport(Math.floor(dx / TS), Math.floor(dz / TS), 0);

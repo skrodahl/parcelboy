@@ -23,24 +23,20 @@ export function createTargeting({ world, camera, renderer, rng }) {
 
   function dist2(ax, az, bx, bz) { const dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
 
-  // §2.4 aim assist: the undelivered target on the given side (-1 left / +1
-  // right) with the smallest angle offset, within throwRange.
-  function assist(player, targets, side, throwRange) {
+  // §2.4 / §2.16 aim assist: snap to the TOP parcel's house on the given side
+  // (-1 left / +1 right) when it's in range + in the side cone. The parcel is
+  // always the top one, so the assist only ever snaps to it.
+  function assist(player, top, side, throwRange) {
     const sideBearing = player.heading + side * (Math.PI / 2);
-    let best = null;
-    let bestOff = Infinity;
-    for (let i = 0; i < targets.length; i++) {
-      const t = targets[i];
-      if (t.delivered) continue;
-      const dx = t.doormat.x - player.pos.x;
-      const dz = t.doormat.z - player.pos.z;
+    if (top) {
+      const dx = top.doormat.x - player.pos.x;
+      const dz = top.doormat.z - player.pos.z;
       const d = Math.sqrt(dx * dx + dz * dz);
-      if (d > throwRange) continue;
       const off = wrap(bearing(dx, dz) - sideBearing);
-      if (Math.abs(off) <= ASSIST_ANGLE && Math.abs(off) < bestOff) { bestOff = Math.abs(off); best = t; }
+      if (d <= throwRange && Math.abs(off) <= ASSIST_ANGLE) return { x: top.doormat.x, z: top.doormat.z, target: top };
     }
-    if (best) return { x: best.doormat.x, z: best.doormat.z, target: best };
-    // Fallback: a point throwRange*0.6 out to that side (no target).
+    // Fallback: a point throwRange*0.6 out to that side (the top house is out of
+    // reach / behind you, so just toss to that side — it lands wherever it lands).
     const r = throwRange * FALLBACK;
     return { x: player.pos.x + Math.sin(sideBearing) * r, z: player.pos.z - Math.cos(sideBearing) * r, target: null };
   }
@@ -56,22 +52,17 @@ export function createTargeting({ world, camera, renderer, rng }) {
     return { x: camera.position.x + ray.x * t, z: camera.position.z + ray.z * t };
   }
 
-  // Clamp a ground point to throwRange from the player, snap to a target's
-  // doormat when one is within SNAP_DIST, then add the seeded accuracy offset.
-  function refine(px, pz, player, targets, throwRange, accuracy) {
+  // Clamp a ground point to throwRange from the player, snap to the TOP parcel's
+  // doormat (§2.16: the aim assist only snaps to the top parcel's house) when it
+  // is within SNAP_DIST, then add the seeded accuracy offset.
+  function refine(px, pz, player, top, throwRange, accuracy) {
     let dx = px - player.pos.x;
     let dz = pz - player.pos.z;
     const d = Math.sqrt(dx * dx + dz * dz) || 1;
     if (d > throwRange) { dx = (dx / d) * throwRange; dz = (dz / d) * throwRange; px = player.pos.x + dx; pz = player.pos.z + dz; }
-    // Snap assist: nearest undelivered doormat within 2.5 units.
+    // §2.16: the snap assist only snaps to the top parcel's doormat.
     let best = null;
-    let bd = SNAP_DIST * SNAP_DIST;
-    for (let i = 0; i < targets.length; i++) {
-      const t = targets[i];
-      if (t.delivered) continue;
-      const dd = dist2(px, pz, t.doormat.x, t.doormat.z);
-      if (dd < bd) { bd = dd; best = t; }
-    }
+    if (top && dist2(px, pz, top.doormat.x, top.doormat.z) <= SNAP_DIST * SNAP_DIST) best = top;
     if (best) { px = best.doormat.x; pz = best.doormat.z; }
     // §2.4: random offset of radius (1 - accuracy) * 1.6, seeded RNG.
     const radius = (1 - accuracy) * 1.6;
@@ -85,14 +76,14 @@ export function createTargeting({ world, camera, renderer, rng }) {
   }
 
   // Mouse throw aim (called on click).
-  function mouseAim(mx, my, player, targets, throwRange, accuracy) {
+  function mouseAim(mx, my, player, top, throwRange, accuracy) {
     const g = groundPoint(mx, my);
-    return refine(g.x, g.z, player, targets, throwRange, accuracy);
+    return refine(g.x, g.z, player, top, throwRange, accuracy);
   }
 
   // §12.2 __pb.throwAt: aim at a tile center (then clamp + snap + accuracy).
-  function pointAim(tileX, tileZ, player, targets, throwRange, accuracy) {
-    return refine(world.tilemap.cx(tileX), world.tilemap.cz(tileZ), player, targets, throwRange, accuracy);
+  function pointAim(tileX, tileZ, player, top, throwRange, accuracy) {
+    return refine(world.tilemap.cx(tileX), world.tilemap.cz(tileZ), player, top, throwRange, accuracy);
   }
 
   return { assist, mouseAim, pointAim };

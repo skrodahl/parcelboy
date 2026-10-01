@@ -61,6 +61,15 @@ export function loadTilemap(def) {
     throw new Error(`tilemap ${def.id}: footprint tile count mismatch (H ${seenH.size}/${expectH.size}, X ${seenX.size}/${expectX.size})`);
   }
 
+  // §2.17: parcel lockers must sit on walkable sidewalk tiles.
+  if (def.parcelLockers) {
+    for (const [lx, lz] of def.parcelLockers) {
+      const c = rows[lz] ? rows[lz][lx] : '#';
+      if (!TILES[c] || !TILES[c].walkable) throw new Error(`tilemap ${def.id}: parcel locker at (${lx},${lz}) is not walkable`);
+      if (TILES[c].key !== 'sidewalk') throw new Error(`tilemap ${def.id}: parcel locker at (${lx},${lz}) must be on a sidewalk tile`);
+    }
+  }
+
   const t = def.tileSize;
   return {
     def,

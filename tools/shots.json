@@ -87,5 +87,10 @@
   { "name": "m12b-card-closed", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(720); __pb.nearMarker('dispatch'); __pb.step(3);"] },
   { "name": "m12b-report-partial", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning", "eval": ["__pb.setCam('follow'); for(var i=0;i<4;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.setClock(659); __pb.step(90); __pb.setCam('follow');"] },
   { "name": "m12b-bench", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(480); var b=__pb.benchZone; __pb.playerTeleportWorld(b.x, b.z); __pb.step(3); __pb.setCam('follow');"] },
-  { "name": "m12b-dusk-by-clock", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(1230); __pb.step(3); __pb.setCam('overview');"] }
+  { "name": "m12b-dusk-by-clock", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(1230); __pb.step(3); __pb.setCam('overview');"] },
+  { "name": "m13-hud-address", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(20); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"] },
+  { "name": "m13-cycle", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.cycle(); __pb.step(3); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"] },
+  { "name": "m13-wrong-address", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); var r=__pb.wrongAddressDemo(); __pb.settleParcel(); for(var i=0;i<9;i++) __pb.stepFloat(); __pb.camAt(r.x, r.z, 11, 4.2);"], "waitMs": 500 },
+  { "name": "m13-locker-full", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.lockerView(0);"] },
+  { "name": "m13-locker-empty", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.emptyLocker(0); __pb.lockerView(0);"] }
 ]

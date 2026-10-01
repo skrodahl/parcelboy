@@ -6,6 +6,7 @@ import { buildProps, sidewalkLampPositions } from './props.js';
 import { buildCollision } from './collision.js';
 import { buildSignMesh, addStreetSigns } from './signs.js';
 import { buildBuildings } from './buildings.js';
+import { buildLockers, createLockerVisuals } from './lockers.js';
 import { GlowBuilder, createGlowMaterial } from './glow.js';
 import { createLampPools, createPoolTexture } from './lightPools.js';
 import { PALETTE } from '../data/palette.js';
@@ -33,6 +34,7 @@ export function buildWorld(def, seed = 1, preset) {
   const windowRects = {};
   const mailboxes = [];
   const { flagGeo, flagPos } = buildBuildings(grid, tm, glowB, signQuads, colliders, windowRects, lampPoolPts, mailboxes);
+  const lockerBodies = buildLockers(grid, tm, colliders); // §2.17: the parcel lockers
 
   // One shared opaque material for all world geometry (§7.3), plus a
   // translucent water material. FrontSide: builders emit CCW triangles.
@@ -92,6 +94,10 @@ export function buildWorld(def, seed = 1, preset) {
   pools.mesh.visible = !!preset && preset.glow > 0;
   group.add(pools.mesh);
 
+  // §2.17: the locker lights + doors (the dynamic full/empty state).
+  const lockers = createLockerVisuals(lockerBodies, group);
+  lockers.setAllFull();
+
   const collision = buildCollision(tm, colliders);
   const porches = buildPorches(tm);
   const doormatPoints = buildDoormats(tm, porches);
@@ -116,6 +122,8 @@ export function buildWorld(def, seed = 1, preset) {
     mailboxes,
     worldMat,
     waterMat,
+    lockerBodies,
+    lockers,
   };
 }
 

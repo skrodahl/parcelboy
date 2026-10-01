@@ -77,32 +77,48 @@ export function createDelivery(env) {
   const npcs = createNpcs(scene, world.worldMat, world, 4);
   const markers = createMarkers(scene, world, targets);
   // §2.6: capacity = the courier's base capacity + the vehicle's bonus. The back
-  // stack holds `carried` parcels (0..capacity), refilled on restock.
+  // stack holds up to `capacity` parcels, refilled on restock.
   const capacity = charDef.stats.capacity + vehDef.stats.capacityBonus;
+  // §2.16: each carried parcel is addressed to one target (that target's `pkg` +
+  // `house`). The stack is the carried-parcel order and the TOP parcel (stack[0])
+  // is the next throw. Preallocated (no growth at runtime).
+  const stack = new Array(capacity);
+  let stackLen = 0;
+  const targetHouseIds = new Set(targets.map((t) => t.house.id)); // §2.16 'wrongAddress'
+  function syncCarried() { player.setCarried(stackLen); }
+  // §2.16: refill with the undelivered targets' parcels, in target-list order.
+  function rebuildStack() {
+    stackLen = 0;
+    for (let i = 0; i < targets.length && stackLen < capacity; i++) if (!targets[i].delivered) stack[stackLen++] = targets[i];
+  }
+  // §2.16: remove the parcel addressed to `t` from the stack (no allocation).
+  function removeFromStack(t) {
+    for (let i = 0; i < stackLen; i++) if (stack[i] === t) { for (let k = i; k + 1 < stackLen; k++) stack[k] = stack[k + 1]; stackLen--; return true; }
+    return false;
+  }
+  rebuildStack(); syncCarried(); // you start restocked
+
   const s = {
     targets, houseRects, scoring, targeting, rng, floatText, effects, npcs, markers,
-    capacity, carried: 0, lastResult: null,
+    capacity, lastResult: null,
     restockZone: env.restockZone || null, restockLabel: env.restockLabel || 'depot', restockT: 0,
     throwRange: vehDef.stats.throwRange * charDef.stats.throwRange,
     accuracy: charDef.stats.accuracy,
     doorstepT: 0, doorstepHouse: null, doorstepStart: { x: 0, z: 0 }, mouseHeld: false,
+    targetHouseIds,
+    get carried() { return stackLen; },
+    topParcel() { return stackLen > 0 ? stack[0] : null; },
+    syncCarried,
   };
   s.remaining = () => { let n = 0; for (let i = 0; i < targets.length; i++) if (!targets[i].delivered) n++; return n; };
   s.nextUndelivered = () => { for (let i = 0; i < targets.length; i++) if (!targets[i].delivered) return targets[i]; return null; };
-  // §2.6: you start restocked — the stack holds min(capacity, undelivered) parcels.
-  s.carried = Math.min(s.capacity, s.remaining());
-  // §2.8 Trick Shot: the nearest undelivered target within `range` of the player
-  // (a "home in"). Returns null when nothing is in range.
-  s.homeIn = (range) => {
-    const r2 = range * range;
-    let best = null, bd = r2;
-    for (let i = 0; i < targets.length; i++) {
-      const t = targets[i]; if (t.delivered) continue;
-      const dx = t.doormat.x - player.pos.x, dz = t.doormat.z - player.pos.z;
-      const dd = dx * dx + dz * dz;
-      if (dd < bd) { bd = dd; best = t; }
-    }
-    return best;
+  // §2.16: R cycles the stack — the top parcel moves to the bottom (your route).
+  s.cycle = () => {
+    if (stackLen <= 1) return;
+    const top = stack[0];
+    for (let k = 0; k + 1 < stackLen; k++) stack[k] = stack[k + 1];
+    stack[stackLen - 1] = top;
+    if (events) events.emit('cycle');
   };
 
   function onRest(parcel, zoneOutcome) {
@@ -153,28 +169,28 @@ export function createDelivery(env) {
   }
   s.onRest = onRest;
   // §2.12 mailbox gag: a parcel that clips a mailbox pops the flag + "DING!".
-  s.parcels = createParcels({ scene, material: world.worldMat, world, packages: PACKAGES, targets, houseRects, rng, effects, onRest, mailboxes, onMailbox: (x, z) => { effects.dust(x, 1.1, z); floatText.pop('DING!', x, 1.8, z, { color: '#ffd166', burst: true }); }, onThrow: (p) => { player.startThrow(); floatText.pop('THWUMP!', p.mesh.position.x, p.mesh.position.y + 0.8, p.mesh.position.z, { burst: true }); } });
+  s.parcels = createParcels({ scene, material: world.worldMat, world, packages: PACKAGES, targets, houseRects, rng, effects, onRest, mailboxes, targetHouseIds, onMailbox: (x, z) => { effects.dust(x, 1.1, z); floatText.pop('DING!', x, 1.8, z, { color: '#ffd166', burst: true }); }, onThrow: (p) => { player.startThrow(); floatText.pop('THWUMP!', p.mesh.position.x, p.mesh.position.y + 0.8, p.mesh.position.z, { burst: true }); } });
 
   function doThrow(aim) {
     if (s.parcels.cooldownGet() > 0) return;
-    let target = aim.target || s.nextUndelivered();
-    if (!target) return; // everything delivered: nothing to throw
-    // §2.6: running out never blocks the shift, but a throw needs a parcel — at
-    // 0 carried, Q/E / click just nudge you to restock instead of throwing.
-    if (s.carried <= 0) {
+    // §2.16: the top parcel (addressed to a specific target) is the one you throw.
+    // At 0 carried, a throw just nudges you to restock instead of firing.
+    if (stackLen <= 0) {
       floatText.pop('Empty! Restock at the ' + s.restockLabel, player.pos.x, 2, player.pos.z, { color: '#ff6b6b' });
       return;
     }
-    s.carried--; // the top parcel leaves the stack, whatever the outcome
-    player.setCarried(s.carried);
+    const target = stack[0]; // the parcel's address (where it's FOR)
+    for (let k = 0; k + 1 < stackLen; k++) stack[k] = stack[k + 1]; // it leaves the stack
+    stackLen--;
+    syncCarried();
     let ax = aim.x, az = aim.z;
     // §2.8 Trick Shot: while perfectThrows are banked, the throw homes in to the
-    // nearest target in range and is guaranteed PERFECT. Consumed only when a
-    // target is actually in range (the parcel is tagged so onRest scores it PERFECT).
+    // top parcel's own house + is guaranteed PERFECT (the parcel is tagged so
+    // onRest scores it PERFECT). Consumed only when that house is in range.
     let trick = false;
     if (player.stack && player.stack.perfectThrows > 0) {
-      const near = s.homeIn(s.throwRange);
-      if (near) { target = near; ax = near.doormat.x; az = near.doormat.z; player.stack.perfectThrows--; trick = true; }
+      const dd = Math.hypot(target.doormat.x - player.pos.x, target.doormat.z - player.pos.z);
+      if (dd <= s.throwRange * (target.pkg.rules.rangeFactor || 1)) { ax = target.doormat.x; az = target.doormat.z; player.stack.perfectThrows--; trick = true; }
     }
     // §2.5: a heavy parcel halves the throw range.
     const maxDist = s.throwRange * (target.pkg.rules.rangeFactor || 1);
@@ -186,15 +202,17 @@ export function createDelivery(env) {
   }
   s.doThrow = doThrow;
 
-  s.tryAssistThrow = (side) => doThrow(targeting.assist(player, targets, side, s.throwRange));
+  // §2.16: the aim assist + mouse aim snap to the top parcel's house.
+  s.tryAssistThrow = (side) => doThrow(targeting.assist(player, s.topParcel(), side, s.throwRange));
 
-  // Q/E aim-assist throws and a mouse-click throw at the cursor.
+  // Q/E aim-assist throws, a mouse-click throw at the cursor, + R cycles the stack.
   s.handleInput = () => {
+    if (input.consume('cycle')) s.cycle();
     let side = 0;
     if (input.consume('throwLeft')) side = -1;
     else if (input.consume('throwRight')) side = 1;
     if (side !== 0) { s.tryAssistThrow(side); s.mouseHeld = input.mouse.down; return; }
-    if (input.mouse.down && !s.mouseHeld) doThrow(targeting.mouseAim(input.mouse.x, input.mouse.y, player, targets, s.throwRange, s.accuracy));
+    if (input.mouse.down && !s.mouseHeld) doThrow(targeting.mouseAim(input.mouse.x, input.mouse.y, player, s.topParcel(), s.throwRange, s.accuracy));
     s.mouseHeld = input.mouse.down;
   };
 
@@ -203,29 +221,76 @@ export function createDelivery(env) {
   // thief (§2.12) can steal that dropped parcel — the courier recovers it by
   // catching the dog, else it's gone when the dog trots home.
   s.stolen = false;
-  s.dropParcel = (stolen) => { s.carried = Math.max(0, s.carried - 1); player.setCarried(s.carried); scoring.breakStreak(); if (stolen) s.stolen = true; };
-  s.recoverParcel = () => { if (s.stolen) { s.stolen = false; s.carried = Math.min(s.capacity, s.carried + 1); player.setCarried(s.carried); floatText.pop('Got it back!', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } };
+  // §2.6: a knockdown drops the top carried parcel (lost, streak resets). A dog
+  // thief (§2.12) can steal that dropped parcel — the courier recovers it by
+  // catching the dog, else it's gone when the dog trots home.
+  let droppedTarget = null;
+  s.dropParcel = (stolen) => { if (stackLen > 0) { droppedTarget = stack[--stackLen]; } syncCarried(); scoring.breakStreak(); if (stolen) s.stolen = true; };
+  s.recoverParcel = () => { if (s.stolen && droppedTarget) { s.stolen = false; stack[stackLen++] = droppedTarget; droppedTarget = null; syncCarried(); floatText.pop('Got it back!', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } };
   // §2.6: restock — refill the stack to min(capacity, undelivered) + the ka-chunk.
   // Running out never ends the shift; you can always restock again. Only refills
   // when it actually adds parcels (so it doesn't re-emit at a full stack).
   s.restock = () => {
-    const target = Math.min(s.capacity, s.remaining());
-    if (s.carried >= target) return;
-    s.carried = target;
-    player.setCarried(s.carried);
-    if (events) events.emit('restock');
-    floatText.pop('Restocked!', player.pos.x, 2, player.pos.z, { color: '#a7c957' });
+    const oldLen = stackLen;
+    rebuildStack();
+    syncCarried();
+    if (stackLen > oldLen) {
+      if (events) events.emit('restock');
+      floatText.pop('Restocked!', player.pos.x, 2, player.pos.z, { color: '#a7c957' });
+    }
   };
   // §2.6: stand in the pickup zone for 1.0 s to restock (progress ring). Only
   // refills while there's still room in the stack for more parcels.
   s.updateRestock = (dt) => {
-    if (!s.restockZone || s.carried >= Math.min(s.capacity, s.remaining())) { s.restockT = 0; return; }
+    if (!s.restockZone || stackLen >= Math.min(s.capacity, s.remaining())) { s.restockT = 0; return; }
     const z = s.restockZone;
     const inZone = player.pos.x >= z.minX && player.pos.x <= z.maxX && player.pos.z >= z.minZ && player.pos.z <= z.maxZ;
     if (inZone) { s.restockT += dt; if (s.restockT >= 1.0) { s.restock(); s.restockT = 0; } }
     else s.restockT = 0;
   };
   s.addScore = (n) => { scoring.add(n); };
+
+  // §2.17: the parcel lockers. Stand at a FULL locker for 1.0 s to restock; it
+  // goes empty for the rest of the shift (light red, door open, radar grey).
+  const lockerBodies = env.lockerBodies || [];
+  const lockerVis = env.lockers || null;
+  const lockerState = lockerBodies.map(() => ({ full: true }));
+  const LOCKER_RADIUS = 2.4;
+  let lockerT = 0, lockerIdx = -1;
+  s.lockerBodies = lockerBodies;
+  s.lockerState = lockerState;
+  s.updateLockerRestock = (dt) => {
+    let idx = -1, bd = LOCKER_RADIUS * LOCKER_RADIUS;
+    for (let i = 0; i < lockerBodies.length; i++) {
+      if (!lockerState[i].full) continue;
+      const dx = lockerBodies[i].wx - player.pos.x, dz = lockerBodies[i].wz - player.pos.z;
+      const dd = dx * dx + dz * dz;
+      if (dd < bd) { bd = dd; idx = i; }
+    }
+    if (idx === -1) { lockerT = 0; lockerIdx = -1; return; }
+    if (idx !== lockerIdx) { lockerIdx = idx; lockerT = 0; }
+    lockerT += dt;
+    if (lockerT >= 1.0) {
+      lockerT = 0;
+      s.restock();
+      lockerState[idx].full = false; // empty for the rest of this shift
+      if (lockerVis) lockerVis.setEmpty(idx);
+      floatText.pop('Locker emptied!', player.pos.x, 2, player.pos.z, { color: '#ffbe0b' });
+    }
+  };
+  // §2.17: the GPS objective when the stack is empty — the nearest FULL locker or
+  // the pickup zone, whichever is closer.
+  s.nearestRestock = () => {
+    const pz = s.restockZone ? { x: (s.restockZone.minX + s.restockZone.maxX) / 2, z: (s.restockZone.minZ + s.restockZone.maxZ) / 2 } : null;
+    let best = pz, bd = Infinity;
+    for (let i = 0; i < lockerBodies.length; i++) {
+      if (!lockerState[i].full) continue;
+      const dx = lockerBodies[i].wx - player.pos.x, dz = lockerBodies[i].wz - player.pos.z;
+      const dd = dx * dx + dz * dz;
+      if (dd < bd) { bd = dd; best = { x: lockerBodies[i].wx, z: lockerBodies[i].wz }; }
+    }
+    return best;
+  };
   s.updateDoorstep = (dt) => {
     if (!input.isHeld('doorstep')) { s.doorstepT = 0; s.doorstepHouse = null; return; }
     let on = null;
@@ -240,10 +305,10 @@ export function createDelivery(env) {
     if (dx * dx + dz * dz > PARCEL.doorwayCancel * PARCEL.doorwayCancel) { s.doorstepT = 0; s.doorstepHouse = null; s.doorstepStart.x = player.pos.x; s.doorstepStart.z = player.pos.z; return; }
     s.doorstepT += dt;
     if (s.doorstepT >= PARCEL.doorwayTime) {
-      // §2.6: a hand-over uses one parcel too; at 0 carried you can't hand one over.
-      if (s.carried <= 0) { s.doorstepT = 0; s.doorstepHouse = null; floatText.pop('Empty! Restock at the ' + s.restockLabel, player.pos.x, 2, player.pos.z, { color: '#ff6b6b' }); return; }
-      s.carried--; // the handed-over parcel leaves the stack
-      player.setCarried(s.carried);
+      // §2.16: the doorstep auto-hands-over the matching parcel from anywhere in
+      // the stack (no cycling needed). If its parcel isn't carried, nudge to restock.
+      if (!removeFromStack(on)) { s.doorstepT = 0; s.doorstepHouse = null; floatText.pop('Empty! Restock at the ' + s.restockLabel, player.pos.x, 2, player.pos.z, { color: '#ff6b6b' }); return; }
+      syncCarried();
       const res = scoring.doorstep(on.pkg, { dist: 0, impact: 0, airMail: false, timeFrac: 0 });
       s.lastResult = res;
       on.delivered = true;

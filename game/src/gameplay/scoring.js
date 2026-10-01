@@ -13,6 +13,7 @@ const LABEL = {
   sloppy:  { text: 'Sloppy…', color: '#8d99ae' },
   doorstep:{ text: 'Signed for!', color: '#00b4a6' },
   wrong:   { text: 'Wrong house!', color: '#e63946' },
+  wrongAddress: { text: 'Wrong address!', color: '#e63946' }, // §2.16: another target's house
   road:    { text: 'In the road!', color: '#e63946' },
   splash:  { text: 'Splash!', color: '#4cc9f0' },
   roof:    { text: 'On the roof!', color: '#e63946' },

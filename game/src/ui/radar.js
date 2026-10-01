@@ -13,7 +13,7 @@ const RANGE = 45;   // world units visible in the radius
 const PPU = R / RANGE; // pixels per world unit
 
 // Blip colors (§10). The white outline is drawn around each marker.
-const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d' };
+const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d', lockerFull: '#00b4a6', lockerEmpty: '#8d99ae' };
 
 export function createRadar({ tm, state, ui }) {
   const map = renderMapCanvas(tm);
@@ -42,16 +42,20 @@ export function createRadar({ tm, state, ui }) {
   ctx.scale(SCALE, SCALE);
   ui.appendChild(canvas);
 
+  function pickupObj() {
+    const rz = state.world.def.restockZone;
+    return { x: tm.cx((rz.x0 + rz.x1) / 2), z: tm.cz((rz.z0 + rz.z1) / 2) };
+  }
   function objectiveOf() {
     if (state.waypoint) return state.waypoint; // a user-set waypoint wins
     const del = state.delivery;
     if (del) {
       if (del.carried > 0) {
-        const t = del.nextUndelivered();
+        const t = del.topParcel(); // §2.16: the GPS follows the top parcel's house
         if (t) return { x: t.doormat.x, z: t.doormat.z };
       }
-      const rz = state.world.def.restockZone; // empty → head to the depot pickup
-      return { x: tm.cx((rz.x0 + rz.x1) / 2), z: tm.cz((rz.z0 + rz.z1) / 2) };
+      // §2.17: empty → the nearest full locker or the pickup zone, whichever is closer.
+      return del.nearestRestock ? del.nearestRestock() : pickupObj();
     }
     return null;
   }
@@ -97,6 +101,11 @@ export function createRadar({ tm, state, ui }) {
     const push = (wx, wz, kind, color) => { if (blipCount < BLIP_N) { const s = blip[blipCount++]; s.wx = wx; s.wz = wz; s.kind = kind; s.color = color; } };
     if (del) for (const t of del.targets) if (!t.delivered) push(t.doormat.x, t.doormat.z, 'target', KIND_COLOR.target);
     if (del) { const rz = wd.def.restockZone; push(tm.cx((rz.x0 + rz.x1) / 2), tm.cz((rz.z0 + rz.z1) / 2), 'pickup', KIND_COLOR.pickup); }
+    // §2.17: locker blips — teal when full, grey when empty (the rest of the shift).
+    if (del && del.lockerState && del.lockerBodies) for (let i = 0; i < del.lockerState.length; i++) {
+      const full = del.lockerState[i].full;
+      push(del.lockerBodies[i].wx, del.lockerBodies[i].wz, 'locker', full ? KIND_COLOR.lockerFull : KIND_COLOR.lockerEmpty);
+    }
     const depot = wd.def.buildings.find((b) => b.kind === 'depot');
     if (depot) push(tm.cx(depot.x + depot.w / 2), tm.cz(depot.z + depot.d / 2), 'depot', KIND_COLOR.depot);
     if (!del) for (const m of wd.def.missionMarkers) push(tm.cx(m.x), tm.cz(m.z), 'marker', m.color);
@@ -141,6 +150,13 @@ export function createRadar({ tm, state, ui }) {
       ctx.strokeStyle = color; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(lx, ly, atRim ? 4 : 5, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = color; ctx.beginPath(); ctx.arc(lx, ly, 1.5, 0, Math.PI * 2); ctx.fill();
+    } else if (kind === 'locker') {
+      // §2.17: a small cabinet (a square split by a door line); teal=full, grey=empty.
+      const r = atRim ? 3 : 4.5;
+      ctx.globalAlpha = atRim ? 0.85 : 1;
+      ctx.fillStyle = color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+      ctx.fillRect(lx - r, ly - r, r * 2, r * 2); ctx.strokeRect(lx - r, ly - r, r * 2, r * 2);
+      ctx.beginPath(); ctx.moveTo(lx, ly - r); ctx.lineTo(lx, ly + r); ctx.stroke(); // the door line
     } else {
       // parcel-style marker (targets / pickup) with a white outline
       const r = atRim ? 3 : 5;

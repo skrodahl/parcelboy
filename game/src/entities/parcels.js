@@ -32,9 +32,10 @@ function buildParcelGeometry(model, colors) {
 
 // Judge where a resting parcel landed (parcels.js decides the outcome key;
 // scoring.js turns it into points). Returns 'perfect'|'nice'|'sloppy'|'wrong'
-// |'road'|'splash'|'missed'. `target` = the target object this parcel was
-// thrown at (or null); `houseRects` = { house, porch, lot } for every house.
-function judgeZone(x, z, target, houseRects, world) {
+// |'wrongAddress'|'road'|'splash'|'missed'. `target` = the target object this
+// parcel was thrown at (its address, or null); `houseRects` = { house, porch,
+// lot } for every house; `targetHouseIds` = the set of target house ids (§2.16).
+function judgeZone(x, z, target, houseRects, world, targetHouseIds) {
   const t = world.tilemap;
   const key = t.keyAt(Math.floor(x / t.tileSize), Math.floor(z / t.tileSize));
   if (key === 'pond') return 'splash';
@@ -51,13 +52,18 @@ function judgeZone(x, z, target, houseRects, world) {
   for (let i = 0; i < houseRects.length; i++) {
     const r = houseRects[i];
     if (r.house === selfHouse) continue;
-    if (x >= r.porch.minX && x <= r.porch.maxX && z >= r.porch.minZ && z <= r.porch.maxZ) return 'wrong';
-    if (x >= r.lot.minX && x <= r.lot.maxX && z >= r.lot.minZ && z <= r.lot.maxZ) return 'wrong';
+    const onHouse =
+      (x >= r.porch.minX && x <= r.porch.maxX && z >= r.porch.minZ && z <= r.porch.maxZ) ||
+      (x >= r.lot.minX && x <= r.lot.maxX && z >= r.lot.minZ && z <= r.lot.maxZ);
+    if (!onHouse) continue;
+    // §2.16: landing on ANOTHER target's house is "Wrong address!" (the parcel is
+    // lost); a non-target house stays "Wrong house!".
+    return targetHouseIds && targetHouseIds.has(r.house.id) ? 'wrongAddress' : 'wrong';
   }
   return 'missed';
 }
 
-export function createParcels({ scene, material, world, packages, targets, houseRects, rng, effects, onRest, onThrow, onMailbox, mailboxes }) {
+export function createParcels({ scene, material, world, packages, targets, houseRects, rng, effects, onRest, onThrow, onMailbox, mailboxes, targetHouseIds }) {
   const geos = {};
   for (const p of packages) geos[p.id] = buildParcelGeometry(p.model, p.colors);
   const defaultGeo = geos.standard;
@@ -213,7 +219,7 @@ export function createParcels({ scene, material, world, packages, targets, house
         m.rotation.x += dt * 3;
         if (p.slideT >= PARCEL.slideTime) {
           p.state = 'resting';
-          onRest(p, judgeZone(m.position.x, m.position.z, p.target, houseRects, world));
+          onRest(p, judgeZone(m.position.x, m.position.z, p.target, houseRects, world, targetHouseIds));
         }
       } else if (p.state === 'roofWait') {
         p.roofT += dt;

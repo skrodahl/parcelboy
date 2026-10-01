@@ -18,6 +18,7 @@ export const SCORING = {
   nice: 150,         // target porch, elsewhere
   sloppy: 60,        // target's lot, not the porch (still delivered)
   wrong: -25,        // a non-target / already-delivered house
+  wrongAddress: -25, // §2.16: landed on another target's house (the parcel is lost)
   road: 0, splash: 0, roof: 0, missed: 0,
   doorstep: 120,     // hold F on the target porch (safe, keeps streak)
   perfectRadius: 1.0,

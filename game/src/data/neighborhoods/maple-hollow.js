@@ -94,6 +94,8 @@ export default {
   pond: { x: 8, z: 35, w: 6, d: 2 },
   spawn: { x: 39, z: 34, facing: 'N' },
   restockZone: { x0: 37, z0: 35, x1: 41, z1: 35 },   // inclusive tile rect in front of the depot
+  // §2.17: parcel lockers on sidewalks (2–4, away from the depot + pickup).
+  parcelLockers: [[5, 5], [41, 5], [5, 30]],
   // Closed loops of tile waypoints, right-hand traffic, cars drive tile centers between them.
   traffic: {
     outer: [[4, 4], [43, 4], [43, 31], [4, 31]],

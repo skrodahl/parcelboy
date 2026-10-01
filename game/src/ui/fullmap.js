@@ -4,8 +4,8 @@
 // zero GPU draw calls.
 import { renderMapCanvas } from './mapcanvas.js';
 
-const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d' };
-const KIND_LABEL = { target: 'Deliver', pickup: 'Pickup', depot: 'Quickbox Q', marker: 'Mission', waypoint: 'Waypoint', bee: 'Angry bees' };
+const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d', locker: '#00b4a6' };
+const KIND_LABEL = { target: 'Deliver', pickup: 'Pickup', depot: 'Quickbox Q', marker: 'Mission', waypoint: 'Waypoint', bee: 'Angry bees', locker: 'Parcel locker' };
 
 export function createFullMap({ tm, state, radar, onPause }) {
   const map = renderMapCanvas(tm);
@@ -41,6 +41,11 @@ export function createFullMap({ tm, state, radar, onPause }) {
       for (const t of state.delivery.targets) if (!t.delivered) dot(t.doormat.x, t.doormat.z, KIND_COLOR.target, 5);
       const rz = state.world.def.restockZone;
       dot(tm.cx((rz.x0 + rz.x1) / 2), tm.cz((rz.z0 + rz.z1) / 2), KIND_COLOR.pickup, 6);
+      // §2.17: the parcel lockers (teal=full, grey=empty for the rest of the shift).
+      const del = state.delivery;
+      if (del.lockerState && del.lockerBodies) for (let i = 0; i < del.lockerState.length; i++) {
+        dot(del.lockerBodies[i].wx, del.lockerBodies[i].wz, del.lockerState[i].full ? KIND_COLOR.locker : '#8d99ae', 5);
+      }
     }
     const depot = state.world.def.buildings.find((b) => b.kind === 'depot');
     if (depot) letter('Q', tm.cx(depot.x + depot.w / 2), tm.cz(depot.z + depot.d / 2), KIND_COLOR.depot);

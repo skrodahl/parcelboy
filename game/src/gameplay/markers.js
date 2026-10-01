@@ -59,26 +59,29 @@ export function createMarkers(scene, world, targets) {
     for (let i = 0; i < targets.length; i++) if (targets[i].house.id === houseId) targets[i].delivered = true;
   }
 
-  // dt + player position; animates the markers.
-  function update(dt, simT, playerX, playerZ) {
+  // dt + player position; animates the markers. §2.16: `top` = the top parcel's
+  // target — its marker is emphasized (bigger) + the others are dimmed.
+  function update(dt, simT, playerX, playerZ, top) {
     for (let i = 0; i < n; i++) {
       const t = targets[i];
       const dm = t.doormat;
       const hidden = t.delivered;
       if (hidden) { s.set(0.001, 0.001, 0.001); p.set(dm.x, 0.13, dm.z); m4.compose(p, q.identity(), s); rings.setMatrixAt(i, m4); icons.setMatrixAt(i, m4); tapes.setMatrixAt(i, m4); continue; }
+      // §2.16: emphasize the top parcel's marker, dim the rest.
+      const em = (t === top) ? 1.4 : 0.8;
       // Ring pulse (grow + settle), offset per target so they don't sync.
       const ph = (simT * 1.4 + i * 0.7) % 1;
-      const pulse = 1 + 0.25 * Math.sin(ph * Math.PI * 2);
+      const pulse = em * (1 + 0.25 * Math.sin(ph * Math.PI * 2));
       s.set(pulse, 1, pulse);
       p.set(dm.x, 0.14, dm.z);
-      m4.compose(p, q.identity(), s);
+      m4.compose(p, q, s);
       rings.setMatrixAt(i, m4);
-      // Bobbing icon + tape, spinning slowly.
+      // Bobbing icon + tape, spinning slowly (emphasized/dimmed to match).
       const bob = 1.5 + 0.25 * Math.sin(simT * 2.2 + i);
       p.set(dm.x, bob, dm.z);
       e.set(0, simT * 1.5 + i, 0);
       q.setFromEuler(e);
-      s.set(1, 1, 1);
+      s.set(em, em, em);
       m4.compose(p, q, s);
       icons.setMatrixAt(i, m4);
       p.set(dm.x, bob + 0.16, dm.z);
@@ -89,17 +92,18 @@ export function createMarkers(scene, world, targets) {
     icons.instanceMatrix.needsUpdate = true;
     tapes.instanceMatrix.needsUpdate = true;
 
-    // Compass points at the nearest undelivered target.
-    const nt = nearestTarget(playerX, playerZ);
-    if (nt) {
-      const dx = nt.doormat.x - playerX, dz = nt.doormat.z - playerZ;
-      const ang = Math.atan2(dx, -dz); // 0 = north
-      compass.position.set(playerX, 2.3 + 0.1 * Math.sin(simT * 3), playerZ);
-      compass.rotation.y = ang;
-      compass.visible = true;
-    } else {
-      compass.visible = false;
-    }
+  // §2.16: the compass points at the TOP parcel's house (the next throw); when
+  // nothing is carried it falls back to the nearest undelivered target.
+  const goal = (top && !top.delivered) ? top : nearestTarget(playerX, playerZ);
+  if (goal) {
+    const dx = goal.doormat.x - playerX, dz = goal.doormat.z - playerZ;
+    const ang = Math.atan2(dx, -dz); // 0 = north
+    compass.position.set(playerX, 2.3 + 0.1 * Math.sin(simT * 3), playerZ);
+    compass.rotation.y = ang;
+    compass.visible = true;
+  } else {
+    compass.visible = false;
+  }
   }
 
   return { update, setDelivered, rings, icons, tapes, compass };

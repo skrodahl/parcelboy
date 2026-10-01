@@ -92,6 +92,7 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     hop: () => sfx.play('hop'),
     boing: () => sfx.play('boing'),
     ability: () => sfx.play('zip'),
+    cycle: () => sfx.play('zip'), // §2.16: R shuffles the parcel stack
     streak: (d) => sfx.play('streak', d),
     delivery: (d) => {
       if (!d) return;

@@ -156,9 +156,10 @@ export function createScreens(ctx) {
       ['Tab', 'open / close the full map'],
     ]),
     hcard('Throw & deliver', [
-      ['Q / E', 'toss the next parcel to your left / right'],
-      ['CLICK', 'toss a parcel at the ground under the cursor'],
-      ['F', 'hold on a porch to doorstep — always safe'],
+      ['Q / E', 'toss the top parcel to your left / right'],
+      ['CLICK', 'toss the top parcel at the ground under the cursor'],
+      ['R', 'cycle the parcel stack — the top parcel is the one you throw'],
+      ['F', 'hold on a porch to doorstep — hands over the matching parcel'],
     ]),
     hnote('The loop', 'Free roam: explore, hunt the 12 Golden Parcels, and restock at the Quickbox depot (the Q blip on the radar). Enter a shift at the teal dispatch marker and deliver every parcel before the clock runs out — more + a time bonus means more stars and coins.'),
     hnote('Mischief', 'Bowl pedestrians over and smash the "NO QUICKBOX!" Grump houses — it\'s all cartoon, so everyone pops back up. Keep the Neighborhood Watch\'s heat under three whistles or you get BUSTED.'),

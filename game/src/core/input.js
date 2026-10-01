@@ -9,6 +9,7 @@ const KEYS = {
   KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right',
   KeyQ: 'throwLeft', KeyE: 'throwRight',
+  KeyR: 'cycle',
   Space: 'jump',
   KeyF: 'doorstep',
   ShiftLeft: 'ability', ShiftRight: 'ability',

@@ -44,30 +44,109 @@ export function createDebugHooks(ctx) {
       };
     },
     setCam(name) { ctx.camPreset(name); },
+    // frame an arbitrary world point (a close-up for the shots).
+    camAt(wx, wz, dist, up) {
+      const c = camera, cl = camLook;
+      const d = dist || 12, u = up || 4.5;
+      c.position.set(wx + d * 0.45, u, wz + d * 0.45);
+      c.lookAt(wx, 1.3, wz);
+      cl.set(wx, 1.3, wz);
+      const dd = c.position.distanceTo(cl);
+      if (scene && scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
+    },
     setTimeOfDay() {},
     teleport(tileX, tileZ, headingDeg) {
       const p = R.player;
       if (p) p.teleport(tileX, tileZ, headingDeg === undefined ? 0 : headingDeg);
     },
     press(action, ms) { input.press(action, ms); },
+    // §2.16: rotate the parcel stack (top → bottom), like the R key.
+    cycle() { if (R.delivery) R.delivery.cycle(); },
+    // §2.16: the top parcel's house + address (for the HUD-address shot).
+    topParcel() {
+      const t = R.delivery ? R.delivery.topParcel() : null;
+      return t ? { house: t.house.id, num: t.house.num, street: t.house.street, pkg: t.pkg.name, x: t.doormat.x, z: t.doormat.z } : null;
+    },
+    // §2.17: the locker full/empty state + positions.
+    lockerState() {
+      const d = R.delivery;
+      if (!d || !d.lockerState) return [];
+      return d.lockerState.map((st, i) => ({ i, full: st.full, wx: d.lockerBodies[i].wx, wz: d.lockerBodies[i].wz }));
+    },
+    // §2.17: the locker positions + state (free roam or a shift).
+    lockers() {
+      const w = R.world;
+      if (!w || !w.lockerBodies) return [];
+      const d = R.delivery;
+      return w.lockerBodies.map((b, i) => ({ i, wx: b.wx, wz: b.wz, full: d ? d.lockerState[i].full : true }));
+    },
+    // §2.17: view a locker (frame the cabinet with a fixed close-up cam).
+    lockerView(i) {
+      const w = R.world;
+      if (!w || !w.lockerBodies[i]) return;
+      const b = w.lockerBodies[i];
+      this.camAt(b.wx, b.wz, 11, 4.2);
+    },
+    // §2.16: throw the top parcel at the nearest OTHER target → "Wrong address!".
+    wrongAddressDemo() {
+      const d = R.delivery, p = R.player, w = R.world;
+      if (!d || !p || !w) return null;
+      const top = d.topParcel();
+      if (!top) return null;
+      let other = null, bd = Infinity;
+      for (const t of d.targets) {
+        if (!t.delivered && t !== top) {
+          const dx = t.doormat.x - top.doormat.x, dz = t.doormat.z - top.doormat.z;
+          const dd = dx * dx + dz * dz;
+          if (dd < bd) { bd = dd; other = t; }
+        }
+      }
+      if (!other) return null;
+      const T = w.tilemap.tileSize;
+      p.teleport(Math.floor(top.doormat.x / T), Math.floor(top.doormat.z / T), 0);
+      d.parcels.throwParcel({ x: p.pos.x, y: PARCEL.throwHeight, z: p.pos.z }, { x: other.doormat.x, z: other.doormat.z }, { pkg: top.pkg, target: top, airMail: false });
+      // stand at the landing (the other target's porch) + face the top target, so
+      // the follow cam shows the "Wrong address!" popup + the lost parcel.
+      const a = Math.atan2(top.doormat.x - other.doormat.x, -(top.doormat.z - other.doormat.z));
+      p.teleport(Math.floor(other.doormat.x / T), Math.floor(other.doormat.z / T), (a * 180) / Math.PI);
+      return { top: top.house.id, other: other.house.id, x: other.doormat.x, z: other.doormat.z };
+    },
+    // §2.17: force a locker to restock + go empty (for the empty-state shot).
+    emptyLocker(i) {
+      const d = R.delivery, w = R.world;
+      if (!d || !d.lockerBodies[i]) return;
+      d.restock();
+      if (d.lockerState[i]) d.lockerState[i].full = false;
+      if (w.lockers) w.lockers.setEmpty(i);
+    },
+    // §2.16/§10: step the sim until every thrown parcel has come to rest. A
+    // paused run doesn't age the shared float text (only __pb.step does), so
+    // the result float ("Wrong address!") is fresh (life ~0) when this returns
+    // — the shot then grows it with stepFloat() + frames it with camAt().
+    settleParcel(maxSteps) {
+      const d = R.delivery; if (!d || !d.parcels) return 0;
+      const ps = d.parcels.parcels;
+      const max = maxSteps || 300; let n = 0;
+      for (; n < max; n++) {
+        let active = false;
+        for (let i = 0; i < ps.length; i++) { const st = ps[i].state; if (st !== 'idle' && st !== 'resting') { active = true; break; } }
+        if (!active) break;
+        ctx.stepSim(1);
+      }
+      return n;
+    },
     throwAt(tileX, tileZ) {
       const d = R.delivery, p = R.player;
       if (!d || !p) return;
-      const aim = d.targeting.pointAim(tileX, tileZ, p, d.targets, d.throwRange, d.accuracy);
+      const aim = d.targeting.pointAim(tileX, tileZ, p, d.topParcel(), d.throwRange, d.accuracy);
       d.doThrow(aim);
     },
     throwRaw(wx, wz) {
       const d = R.delivery, p = R.player;
       if (!d || !p) return;
-      let best = null, bd = Infinity;
-      for (let i = 0; i < d.targets.length; i++) {
-        const t = d.targets[i];
-        if (t.delivered) continue;
-        const dx = t.doormat.x - wx, dz = t.doormat.z - wz;
-        const dist = dx * dx + dz * dz;
-        if (dist < bd) { bd = dist; best = t; }
-      }
-      const target = best || d.nextUndelivered();
+      // §2.16: the parcel thrown is always the top one (addressed to its target);
+      // where it lands decides the outcome.
+      const target = d.topParcel();
       d.parcels.throwParcel({ x: p.pos.x, y: PARCEL.throwHeight, z: p.pos.z }, { x: wx, z: wz }, { pkg: target ? target.pkg : null, target, airMail: p.pos.y > 0.05 });
     },
     debugParcels() {
@@ -252,7 +331,8 @@ export function createDebugHooks(ctx) {
     nextTarget() {
       const d = R.delivery;
       if (!d) return null;
-      const t = d.nextUndelivered();
+      // §2.16: the next throw is the top parcel's house.
+      const t = d.topParcel();
       return t ? [t.doormat.x, t.doormat.z] : null;
     },
     useAbility() { const ab = R.abilities; return ab ? ab.use() : false; },
