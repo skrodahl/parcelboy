@@ -5,14 +5,10 @@
 
 ## Plan changes (read first; apply before starting the next milestone)
 
-**2026-10-01: post-M12 review fixes** (from a read-only review of the finished build plus the user's play-through). Do these in order, re-run the shot tool, look at the PNGs, log each item under *Decisions* in PROGRESS.md, and commit + push each fix separately.
-1. **A normal player can't start a shift (blocker).** The §2.13 dispatch-marker flow was deferred in M6 and never built: `showShiftCard()` is only reachable through `?showCard=1` / `?screen=missionCard:` and `startShift()` only through `?autostart=`, `__pb` or the results-screen Retry. The How-to-play screen already tells players to "enter a shift at the teal dispatch marker". Build it as §2.13 describes: a visible marker column at each `missionMarkers` entry (dispatch, locker, bakery, hardware); in free roam, stepping within ~2 tiles shows the matching card (dispatch → main shifts, bakery/hardware → their side shift, locker → the courier/vehicle locker); ←/→ pages, ENTER starts the focused shift if unlocked, walking away or ESC closes it. Also add the pause-menu "abandon shift" if it's still missing. Add a shot that starts from a plain load, walks to the marker and opens the card.
-   **The vehicle select screen is unreachable.** It's fully built (`selectVehicle` in `ui/screens.js`), but `confirmChar()` goes straight to free roam, so it's only reachable through `?screen=selectVehicle`. Per §5.3 the locker flow is `selectCourier → selectVehicle → freeRoam`: ENTER on the courier screen must open the vehicle screen, and ESC on the vehicle screen goes back to the courier screen, not to free roam. The same flow runs from the title (ESC) and from the locker marker.
-2. **"Cars" outside the map (north / north-west) that sit still, then jump.** These are almost certainly the **clouds** in `render/sky.js`: 6 white box-cluster clouds at y=45 spread over ±80 around world (0,0). The map spans roughly (0,0)→(192,160), so they all hang over the NW corner and beyond, and they wrap from x=80 to x=-80 (the "jump"). Fix: spread the clouds over the map's extent plus a margin (centered on the map center from the tilemap, not hard-coded), wrap them over that full width well outside the camera's view so the wrap is never seen, and make them read as clouds, not cars (bigger, flatter, softer). Verify with the `overview` shot over time (step a few hundred frames). Separately, also fix the Grump driveway car in `gameplay/mischief.js`: it offsets along `side` by `h.w` for every facing, but for E/W-facing houses `side` runs along Z, so it should use `h.d`.
-3. **Pedestrian walking outside the map.** `entities/ambient.js` walkers random-walk with `tx/tz = x/z ± 7` and no bounds or collision, so they drift off the map (and through houses). Pick each new target from walkable sidewalk/yard tiles near the walker (or clamp to the tilemap and reject non-walkable tiles), and keep the pop-back-up target after a bowl on a walkable tile too.
-4. **Birds only spawn in the north-west corner.** In `ambient.js`, the bird spawn is `4 + rng() * (tm.width - 8) * tm.tileSize / 4`, which covers only about a quarter of the map. Spawn them on lawn tiles across the whole map, like the walkers.
-5. **Split `main.js`.** At ~1,160 lines it is far past the ~300-line rule. Move the shift/results/dispatch-card flow, the `__pb` debug hooks and the cam presets into their own modules (e.g. `gameplay/shiftFlow.js`, `core/debugHooks.js`, `render/camPresets.js`) with no behavior change; 72/72 shots must stay clean. `gameplay/hazards.js` (333) and `ui/screens.js` (310) should get a light split too.
-6. **User-check gates cleared.** The user has waived the pending M4–M12 user checks (2026-10-01). Don't re-open them; the user will give gameplay feedback directly.
+**2026-10-01: new milestones M12b–M17** (user design session): shifts follow the day clock with no time limit or game over (§2.20), addressed parcels + parcel lockers (§2.16, §2.17), terrain heights (§2.19) and more suburbs joined by Zelda-style edge exits (§2.18), with Cedar Heights, Lakeside and Old Town. Do M12a (the review fixes) first, then continue with M12b in §13. §15 no longer rules out a bigger world (it now rules out a streamed open world and the delivery van). These are additive: the save stays `parcelboy.save.v1` with new fields, and Maple Hollow's layout only changes by its exit roads.
+
+**2026-10-01: post-M12 review fixes moved into milestone M12a** (§13). They're a normal milestone now: do M12a next, then M12b, M13, … M17, without stopping.
+- **No user-check gates anymore.** The user waived the M4–M12 checks (2026-10-01) and every ⛔ gate is removed. Never stop for a review; the user gives feedback by editing this plan.
 
 **2026-09-30: fog, tone mapping, overview framing** (you raised fog concerns in PROGRESS.md; they were right, and the original spec was tuned only for the close follow cam):
 1. `render/renderer.js`: `toneMapping = THREE.NeutralToneMapping` (ACES washes out the pastel palette). See §7.3.
@@ -44,10 +40,10 @@
 4. **Mission intro.** A 2-second camera swoop from above the pickup location down to the player, with the banner "Morning Round: 10 deliveries". The time of day blends to the mission's setting over 2 s.
 5. **Deliver.** Target houses get a floating bobbing parcel icon, a glowing ring on the porch, and a blip on the radar. A **GPS route** on the radar leads to the nearest target, or to the pickup zone when you're empty. A compass arrow on the ground under the player points the same way.
 6. **Restock** at the mission's **pickup zone**: the Distribution Center's loading bay for shifts, or the shop counter for side missions.
-7. **Mission ends** when every delivery is done (time bonus), when the timer reaches 0, or when you **abandon** it (pause menu → Abandon mission: no reward, no penalty).
+7. **Mission ends** when every delivery is done (early finish bonus), when the shift's window on the day clock closes, or when you **clock out early** (pause menu; you keep what you earned). See §2.20.
 8. **Results** screen: score, stars (0–3), coins earned, best record. Then choose **Continue** (back to free roam, exactly where you are) or **Retry** (teleports to the mission's pickup and restarts). Coins unlock couriers and vehicles; stars unlock missions.
 
-**You can always ignore a mission.** During a mission nothing stops you from riding off to explore. The timer keeps running and the targets wait. When time runs out you get whatever you scored, and you're back in free roam.
+**You can always ignore a mission.** During a mission nothing stops you from riding off to explore. The day clock keeps running and the targets wait. When the shift's window closes you're paid for what you delivered, and you're back in free roam. There is no game over (§2.20).
 
 ### 2.2 Controls (keyboard and mouse; gamepad is out of scope)
 | Input | Action |
@@ -60,12 +56,13 @@
 | Space | jump or hop: 1.2 units high, 0.5 s. You can't be knocked down while airborne; a throw while airborne earns "Air Mail!" |
 | F (hold 0.8 s) | doorstep delivery while standing in a target's porch zone; a ring fills around the player |
 | F (tap) | start the mission while standing in a mission marker; open the locker while in the locker marker |
+| R | cycle the parcel stack: move the top parcel to the bottom (§2.16) |
 | Shift | use the courier's special ability |
 | Esc / P | pause |
 | M | mute or unmute |
 | Tab | open or close the **full-screen map** (§10). The game pauses while it's open. Click a spot to set a **waypoint** (GPS route on the radar, a pin on the map); click the waypoint again to clear it |
 
-The input layer maps keys to **actions** (`forward`, `back`, `left`, `right`, `throwLeft`, `throwRight`, `throwAim`, `jump`, `doorstep`, `ability`, `pause`, `mute`, `map`). Game code only ever reads actions, never raw keys.
+The input layer maps keys to **actions** (`forward`, `back`, `left`, `right`, `throwLeft`, `throwRight`, `throwAim`, `jump`, `doorstep`, `ability`, `cycle`, `pause`, `mute`, `map`). Game code only ever reads actions, never raw keys.
 
 ### 2.3 Movement
 - Arcade kinematics, no physics engine. The player has a `heading` (radians) and a scalar `speed`. Speed accelerates toward the target at `accel`, decelerates at `accel * 1.5` when no key is held, and at `accel * 3` when braking.
@@ -122,7 +119,7 @@ The player carries a **queue** of parcels whose order follows the target list. T
 - When a mission starts, the player's stack is filled right away as if restocked (you start in the pickup zone). Parcels carried on restock = `min(capacity, undeliveredTargets)`. Restocking takes 1.0 s inside the mission's **pickup zone** (a progress ring), and parcels visibly slide down the conveyor or out of the shop door into the player's back stack. Restocking is only possible during a mission.
 - A lost parcel (miss, wrong house, splash, knockdown drop) doesn't remove the target. You need a parcel from a later restock to deliver it.
 - **Knockdown** (from a car, dog or skater): the player falls for 1.2 s, drops 1 parcel (lost), the streak resets, the camera shakes (0.3), then 1.5 s of blinking invulnerability. Every knockdown is played as a slapstick gag (§2.12); the timings here stay the same.
-- **Time bonus** when all targets are delivered: remaining seconds × 10.
+- **Early finish bonus** when all targets are delivered: remaining game minutes in the shift's window × 2 (§2.20).
 - **Stars** use the shift's `stars` thresholds. **Coins earned** = `floor(score / 10)`.
 
 ### 2.7 Hazards (behaviors, §11.3)
@@ -221,7 +218,7 @@ After every knockdown, 3 small cartoon stars circle the courier's head for the w
 
 ### 2.13 Free roam and exploration
 - **Free roam is the hub state.** The HUD shows the radar, coins, Golden Parcel count and a "FREE ROAM" chip. There's no timer or score. Hazards run at the free-roam levels in `data/config.js` → `FREE_ROAM.hazards` (start with car 5, dog 3, sprinkler 3, skater 2, bees 2, bin 8). Knockdowns and gags all work; knockdowns just don't cost anything.
-- **Day cycle:** free roam slowly blends through morning → noon → golden → dusk → back to morning, with each preset held for `FREE_ROAM.minutesPerPhase` (2) and blended over 30 s. Blend by interpolating every numeric and color field of the two presets into a scratch preset (no allocations). While blending, refresh the static shadow map at most every 2 s. Missions with a fixed time of day blend to theirs over 2 s at mission start, then back to the cycle when the mission ends.
+- **Day cycle** (superseded by the day clock in §2.20; the blending rules below still apply): free roam slowly blends through morning → noon → golden → dusk → back to morning, with each preset held for `FREE_ROAM.minutesPerPhase` (2) and blended over 30 s. Blend by interpolating every numeric and color field of the two presets into a scratch preset (no allocations). While blending, refresh the static shadow map at most every 2 s. Missions with a fixed time of day blend to theirs over 2 s at mission start, then back to the cycle when the mission ends.
 - **Changing hazard counts** between free roam and missions: the hazard manager holds a *target count* per hazard type. It despawns extra actors and spawns missing ones from the pools **only when the spot is outside the camera frustum**, so nothing pops in or out on screen.
 - **Golden Parcels** (a nod to GTA's hidden packages): 12 shiny golden boxes at `goldenParcels` in the neighborhood data. Each one spins, bobs and sparkles, but **isn't** shown on the radar. Pick one up by touching it: fanfare, "GOLDEN PARCEL 4/12", +50 coins, saved forever. Finding all 12 unlocks the **golden bike** (a vehicle identical to `bike` with gold colors, `unlockCost: null`, unlocked by `unlock: { goldenParcels: 12 }`). Some are hidden in fun places: the middle of the cul-de-sac, the playground, behind the school, beside the pond.
 - **Mission markers are visible from far away** (tall light columns with fog disabled on their material), so the world invites you to go and pick something up.
@@ -269,6 +266,65 @@ A nod to both Paperboy (vandalizing non-subscribers) and GTA (running people ove
 - **BUSTED!** (a Watch unit within 1.0 unit): hit-stop, whistle blast, Doug writes a ticket (a big paper-note particle flutters), and a 2 s control freeze. Penalty: in free roam, lose 10% of coins (min 10, max 100); in a mission, −300 points and the streak resets. Heat resets to 0. Then Doug says "Move along!" and leaves.
 - Watch units use the hazard system: hazard defs `watchSegway` and `watchCart` with behavior `watchChase`, spawned by the heat system rather than by counts. Max 2 at once.
 - **Heat decays by itself** at 0.5 per 10 s while below level 2, so small mischief is forgiven.
+
+### 2.16 Addressed parcels (every parcel has an address)
+Missions are real routes: each parcel in the stack is addressed to one target, so the order you deliver in matters.
+- On restock, the stack is filled with the undelivered targets' parcels in target-list order (`min(capacity, undelivered)`, §2.6). Each parcel carries its target's address and package type.
+- **The top parcel is the one you throw.** The HUD shows it: `📦 #14 Maple Ave · fragile` (address from §6.3). **R** cycles the stack (top parcel to the bottom, a short shuffle animation on the back stack plus a *zip* SFX), so you can choose your own route as long as the right parcel is on top.
+- A throw that lands on the top parcel's own house scores normally (§2.4). A throw that lands on **another target house** is **"Wrong address!"**: −25, streak reset, the parcel is lost (the target stays; you need a restock to replace it, §2.6). A non-target house stays "Wrong house!" as today.
+- **Doorstep hand-over** (the slow, safe option) automatically hands over the matching parcel from anywhere in the stack, so walking up never needs cycling.
+- The GPS route, the radar's highlighted blip and the strongest target marker follow the **top parcel's** house. The other targets keep a dimmer marker.
+- The aim assist only snaps to the top parcel's house (a Trick Shot homes in on it too, §2.8).
+- The autoplayer (§12.2) always throws the top parcel at its own house (and cycles with R when another target is closer).
+
+### 2.17 Parcel lockers
+Fixed Quickbox **parcel lockers** (not the courier/vehicle locker marker at the depot) stand on sidewalks around each neighborhood (`parcelLockers: [[x, z], ...]` in the neighborhood data, 2–4 per neighborhood, never right next to the depot or the local pickup point).
+- **In a mission**, standing at a locker for 1.0 s (the same progress ring as the depot) restocks you like the pickup zone (§2.6). After that the locker is **empty for the rest of the shift**: its light turns from teal to red, its door hangs open, and its radar blip turns grey. All lockers refill when a new shift starts.
+- In free roam, a locker does nothing (a little "Closed. Shift parcels only" popup).
+- Radar and full map show full lockers as teal squares and empty ones as grey squares; the GPS points to the nearest *full* locker or the pickup zone, whichever is closer, when you're empty.
+- Model: a teal voxel cabinet (2×1 tiles wide, 2.2 units tall) with a grid of little doors, the Quickbox logo (atlas) and a glow light (glow mesh, §7.4). It's a static collider; all lockers merge into the chunk, and only the light/door state changes (one small InstancedMesh for the doors + lights).
+- **Future option (not now):** a Quickbox van you call from a call box that drives to you along the roads. Leave it out; lockers cover the need.
+
+### 2.18 More neighborhoods (old-school Zelda-style edge transitions)
+The world becomes **several suburbs**, each its own neighborhood data file, joined by roads that leave the map edge. Only one suburb is loaded at a time.
+- **Every suburb must look and play differently** from Maple Hollow, which stays the flat, square starter. Each new suburb needs all of these:
+  - an **irregular outline**: forest, water, cliffs or fences carve the playable shape out of the rectangular grid, so it never reads as a box;
+  - **elevation**: terraces at different heights joined by ramps, stairs and retaining walls (§2.19);
+  - a **different road layout**: winding roads, dead ends, a loop, bridges, alleys, rather than Maple Hollow's grid;
+  - its own **landmark**, **house-style mix and palette tint**, a **hazard mix** and at least one **unique gag**.
+- **Edge exits:** a road that runs off the map edge is an exit (`exits: [{ id, edge: 'N'|'E'|'S'|'W', tiles: [from, to], to: '<neighborhoodId>', entry: '<exitId in the target>' }]`). Driving into it fades to a road-sign card ("Welcome to Cedar Heights", 0.6 s), unloads the current suburb (dispose every GPU resource, §8), loads the next, and places you at the matching entry facing inward, keeping your courier, vehicle and speed.
+- **Leaving during a shift** asks "Clock out? Undelivered parcels go back to the depot." (§2.20); yes ends the shift with its report, no turns you around. Shifts belong to one suburb (`neighborhood` in §11.5).
+- **Unlocks:** each suburb has `unlockStars` (total stars from all shifts). A locked exit shows a barrier with a sign "Opens at 8★" and a padlock blip on the radar.
+- **Each suburb has a small Quickbox pickup point** (a kiosk with an awning and a parked van) holding its own `dispatch` marker and `restockZone`, so its shifts work without driving back to Maple Hollow. Its shifts are added to `data/shifts.js` with `giver: 'dispatch'` + `neighborhood: '<id>'`. The dispatch card at each kiosk lists only that suburb's shifts.
+- **Region map:** the full map (Tab) gets a small inset showing the suburbs as tiles linked by their roads (locked ones greyed with the star count), with "you are here".
+- **Save** (`parcelboy.save.v1`, additive fields only): `neighborhood` (current suburb id), and golden parcels become per-suburb (`goldenParcels: { [neighborhoodId]: [indices] }`; migrate the old array to `maple-hollow`). The golden bike still needs Maple Hollow's 12.
+- **Starter suburbs** (names, themes and unlocks are starting values):
+  | id | Name | Unlock | Shape and terrain | Landmark | Hazards / gag |
+  |---|---|---|---|---|---|
+  | `cedar-heights` | Cedar Heights | 8★ | a hillside: 3–4 terraces, a switchback road climbing north, long steep driveways, stair paths only couriers on foot can take | a hilltop water tower + overlook with a bench | runaway bins that roll downhill; **gag:** a missed parcel bounces and rolls downhill ("Come back!") |
+  | `lakeside` | Lakeside | 16★ | a lake bites into the map from one side; an irregular shoreline, two bridges, a boardwalk along the water, houses on a low bluff | a pier with a little lighthouse | geese (chase like dogs, honk, never hurt), more sprinklers; **gag:** parcels that land in the lake float and bob ("SPLOOSH! …and it floats"), still lost |
+  | `old-town` | Old Town | 26★ | dense, crooked streets around a market square, narrow alleys (walk-only), row houses, a low hill with the old church | a clock tower that chimes on the hour (day cycle) | more skaters and pedestrians, a market stall you can bowl into fruit everywhere (cartoon, +heat); **gag:** pigeons that lift off as one big flock |
+- Maple Hollow gets one exit per new suburb (a road cut through the forest border), added by a script in M14.
+
+### 2.19 Terrain heights
+Neighborhoods can have **levels** (0–3, 1.5 units per level).
+- A neighborhood has an optional `heights` layer: an array of strings the same size as `map`, one char per tile: `0`–`3` = that level, `/` = a **ramp** that rises from its lower neighbor to its higher neighbor along one axis, `=` = **stairs** (like a ramp, but walk-only: vehicles are blocked). Missing layer = everything at 0 (Maple Hollow stays flat).
+- Where two walkable tiles meet at different levels with no ramp or stairs, there's a **retaining wall** (a solid edge collider, built as stone or brick boxes with a cap). Dropping off a wall edge is allowed (a cartoon hop down, land with a little squash); climbing up is not.
+- `world/terrain.js` exposes `groundY(x, z)` (constant per level tile, a linear slope on ramp/stairs tiles; allocation-free) and `edgeBlocked(fromTile, toTile, vehicle)`. Everything that stands on the ground uses it: player, parcels (landing and bouncing), hazards, Watch units, ambient life, markers, golden parcels, blob shadows, the follow cam's ground clearance. Traffic loops may only use road tiles and ramps.
+- Ground tiles, curbs, roads and sidewalks are built at their level (slabs reach down to the level below so there are no gaps); ramps are sloped boxes, built as small steps if a true slope isn't possible with boxes (keep the voxel look). Houses, buildings and props sit at their tile's level.
+- Throwing up or down a level works naturally with the parcel's flight (§2.4); aim assist uses the target's real `y`.
+
+### 2.20 Shifts follow the day clock (no time limit, no game over)
+A shift is a part of the day, not a stopwatch. If you don't deliver everything, you just aren't paid in full. Overrides the timer wording in §2.1, §2.6, §2.10, §2.13 and §10.
+- **One world clock.** The game has a clock (`gameplay/dayClock.js`) that runs everywhere, in free roam and in shifts: **1 game hour = 60 real seconds** from 06:00 to 24:00, and the night (00:00–06:00) passes in 60 real seconds total. The time-of-day look is driven by the clock (replacing `FREE_ROAM.minutesPerPhase`): morning ~06–10, noon ~11–15, golden ~16–19, dusk ~19.5–24, blended in between (same no-allocation blending as §2.13). A shift never snaps the lighting; the clock is the truth. The clock is saved, and shown on the HUD (`10:24`).
+- **Shift windows.** Each shift has a `window: ['07:00', '11:00']` instead of `duration`; its time of day follows from the window. Starting values: Morning Round 07:00–11:00, Lunch Rush 11:30–15:00, Fragile Friday 11:30–15:30, Golden Hour 16:00–20:00, Night Owl 19:30–24:00. The dispatch card lists every shift whose window is open now (others show "Opens at 16:00"). You can take an open shift any time inside its window; starting late just leaves less of the day. One main shift at a time.
+- **Waiting is optional:** a Quickbox bench next to the dispatch marker; F there fast-forwards the clock (×20, with a ticking-clock sound) to the next shift window opening. Walking off stops it.
+- **The shift ends** when every parcel is delivered, when its window closes, or when you **clock out early** (pause menu, replacing "Abandon"). There is no failure screen: the results are a **shift report**: "8 / 10 delivered", pay for the delivered parcels, style points, stars, coins, best record. Undelivered parcels go back to the depot automatically: no penalty, they're just unpaid.
+- **Pay and score:** each delivered parcel adds its points (§2.4, multiplier and streak as before); coins = `floor(score / 10)` as before. The old "time bonus" becomes an **early finish bonus**: remaining game minutes in the window × 2 points. Stars use the shift's thresholds; re-tune them for windows with the autoplayer (§12.4).
+- **During a shift you play freely.** Golden parcels, mischief, trampolines and side missions all keep working; the shift just keeps running on the clock. Leaving the suburb through an exit (§2.18) asks "Clock out? Undelivered parcels go back to the depot." instead of being blocked.
+- **Side missions** (Cake Rush, Heavy Haul) have a soft **deliver-by** time (`deliverBy: 60` game minutes after accepting) instead of a timer: delivered in time = full pay plus the tip, late = pay without the tip. They never fail; they end on delivery or when you clock out. They can run alongside a main shift (the HUD shows both).
+- **HUD:** the countdown is replaced by the clock and the shift's end, e.g. `10:24 · shift ends 11:00`, which turns orange in the window's last game hour. No red pulsing panic timer.
+- **Schema change** (§11.5, log under *Decisions*): `duration` → `window` (main shifts) or `deliverBy` (side missions); `timeOfDay` is derived from the window (main shifts) or `null` (side missions). The save gains `clock` (game minutes since 00:00).
 
 ---
 
@@ -797,7 +853,7 @@ The game must run **cool and quiet on a laptop**. An earlier prototype spun the 
 
 - Font: `ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif`. Big, round and friendly. White text with a 3px dark outline (`paint-order: stroke`) for readability over the 3D scene.
 - The UI uses the palette (brand teal, accent yellow, pastel cards with a 16px radius and chunky bottom shadows). Buttons "squish" on press (CSS transform). Screen transitions are 200 ms fade and slide.
-- **HUD:** top-left score plus multiplier badge (pulses on change); top-center timer (turns red and pulses under 30 s); bottom-left corner **radar** (see below); left the **delivery list** (next 5 targets: address + package-type icon, with a check animation when delivered); above the radar, the carried **parcel stack** (icons) with the next parcel's type highlighted; bottom-right the **ability button** with a cooldown ring (conic-gradient) and key hint.
+- **HUD:** top-left score plus multiplier badge (pulses on change); top-center day clock and shift end (`10:24 · shift ends 11:00`, orange in the window's last game hour; §2.20); bottom-left corner **radar** (see below); left the **delivery list** (next 5 targets: address + package-type icon, with a check animation when delivered); above the radar, the carried **parcel stack** (icons) with the next parcel's type highlighted; bottom-right the **ability button** with a cooldown ring (conic-gradient) and key hint.
 - **Radar (GTA-style, `ui/radar.js`):** a **circular** 200px canvas in the bottom-left corner with a chunky white rim and soft shadow. It is **player-centered and rotates with the camera**, so up on the radar is always the direction the camera faces, and the player is a fixed arrow in the middle. Draw it like this:
   - At boot, pre-render the whole map once to an offscreen canvas at 3 px per tile: grass, roads (dark with lighter edges), sidewalks, houses as roof-colored rectangles, park, pond, lot.
   - At 15 Hz: clear, clip to a circle, translate and rotate, then `drawImage` the pre-rendered map. Visible range is about a 45-unit radius, zooming out to 60 at top speed.
@@ -807,7 +863,7 @@ The game must run **cool and quiet on a laptop**. An earlier prototype spun the 
 - **Full-screen map (Tab):** the whole pre-rendered map, north-up, scaled to fit, with all blips, a legend, and the player arrow. Clicking sets or clears a waypoint. Golden Parcels found so far show as small gold checkmarks. The game pauses while the map is open.
 - **Mission card:** slides in from the right while you stand in a mission marker. It shows the name, a one-line blurb, deliveries, time limit, time-of-day icon, package-mix icons, best score and stars, and "Press F to start". Locked missions show the padlock and the stars needed. At `dispatch`, ←/→ pages through the main shifts.
 - **Heat:** 3 whistle icons sit just above the radar, filled per level. They wobble when heat rises and flash while the Watch is losing you. Watch units are **flashing red blips** on the radar and are always clamped to the rim when far away.
-- **Free-roam HUD:** radar, coins, Golden Parcels found (x/12), a "FREE ROAM" chip, and an ability button. The mission HUD adds score, multiplier, timer and the delivery list, and the chip becomes the mission name.
+- **Free-roam HUD:** radar, coins, Golden Parcels found (x/12), a "FREE ROAM" chip, and an ability button. The mission HUD adds score, multiplier, the shift-end time and the delivery list, and the chip becomes the mission name.
 - **Floating texts** (PERFECT! and so on) are pooled DOM elements (max 8), positioned by projecting the world position each frame. Only positions are written, via `transform`. They pop in, rise and fade over 0.9 s. Colors: PERFECT gold, Nice teal, Sloppy grey, miss/wrong red. **Onomatopoeia** (§2.12) uses a second style from the same pool: a jagged comic burst (CSS `clip-path` polygon) in yellow or white with thick dark outlined, slightly rotated text. It pops in with an overshoot scale (0 → 1.3 → 1) and shakes briefly.
 - **Screens:**
   - **Title:** a big logo "PARCELBOY" in chunky letters (CSS) with a small parcel icon, over the live world with the camera slowly orbiting the Distribution Center. Continue (only with a save), New Game (confirms before wiping a save), Settings, and a credits line.
@@ -925,7 +981,7 @@ window.__pb = {
 
 ## 13. Milestones
 
-Every milestone ends with: shots added to `tools/shots.json` → run → **look at them** → fix → update `PROGRESS.md` → commit. "Expected" describes what the screenshots must show.
+Every milestone ends with: shots added to `tools/shots.json` → run → **look at them** → fix → update `PROGRESS.md` → commit → push → **start the next milestone right away**. There are no user-check gates. "Expected" describes what the screenshots must show.
 
 ### M0: Scaffold, Docker and tooling
 - `git init`. Create every file from §4. Create `PROGRESS.md` from the appendix template.
@@ -960,7 +1016,6 @@ Every milestone ends with: shots added to `tools/shots.json` → run → **look 
 - Shots: `m4-follow` `/?autostart=morning&char=pip&veh=feet&mute=1&paused=1` (spawn at the depot), `m4-bike` (`veh=bike`, eval `__pb.teleport(12,16,90); __pb.step(30)`), `m4-cast` (a temporary debug param `lineup=1` placing all 5 couriers side by side in the showroom).
 - **Expected:** the courier is readable, cute and correctly colored; the camera sits behind and above; the bike looks like a bike, with the rider in a pedaling pose.
 - **Done when:** walking into a house can't pass through it (verify with `teleport` + `press('forward', 2000)` + `state()`), and the draw calls in `m4-follow` are ≤ 90.
-- ⛔ **User check:** ask the user to play in a real browser on their laptop and confirm the controls feel good and the fans stay quiet. Record the answer in `PROGRESS.md`.
 
 ### M5: Parcels and delivering
 - `parcels.js` (pool, flight, bounce, roof/wall/water/road outcomes), `targeting.js` (assist, mouse raycast), `scoring.js` (the table in §2.4 plus package rules), doorstep delivery, the throw animation, `markers.js` (floating target icons + porch rings as InstancedMesh, the compass arrow), `effects.js` (confetti, dust, splash; pooled particles in one InstancedMesh), `floatText.js`, and resident door-wave NPCs (`npcs.js`).
@@ -989,7 +1044,6 @@ Every milestone ends with: shots added to `tools/shots.json` → run → **look 
 - **Expected:** cars stay in lanes and don't overlap each other at corners; the dog visibly runs toward the player with a "!"; spray particles are visible; the bee swarm reads clearly as a buzzing cloud (not scattered specks) and is funny, not scary.
 - **Also verify by script** (and log in `PROGRESS.md`): a parcel hitting a hive tree angers its swarm; running through an active sprinkler sends an angry swarm home; Bea's Unstoppable blocks a sting; a dog's stolen parcel can be recovered by touching the dog within 8 s.
 - **Done when:** the gameplay draw calls in a busy scene (the `lunch` shift, all hazards) are ≤ 130; there are zero errors; the soak test passes again with the `lunch` shift.
-- ⛔ **User check:** play a `lunch` shift and report on feel, difficulty and fans.
 
 ### M7b: Mischief
 - Everything in §2.15: the pedestrian bowling state machine, Grump selection and dressing, breakables with pooled props and the window-overlay InstancedMesh, heat and whistles, Deputy Doug and the golf cart (`watchChase`), BUSTED!, Grump chases, subscriber "Oops!", and radar blips for Grumps and Watch units.
@@ -1026,8 +1080,71 @@ Every milestone ends with: shots added to `tools/shots.json` → run → **look 
 - Audit the hot paths for allocations (search the `update` functions for `new `, `[`, `{`, `=>`, `.map(`, `.filter(`, spreads). Record the findings and fixes.
 - Write `README.md`: how to run (dev and production), controls, and how to add content (a copy of §14).
 - Production check: `docker build -t parcelboy . && docker run --rm -d -p 8081:80 --name pb-prod parcelboy`, then run a shot against it (temporarily set `BASE_URL`), then stop the container.
-- ⛔ **User check:** a final play session on the laptop in all 3 quality presets.
-- **Done when:** every shot is clean, the budgets are met, the README is complete, and the user signs off.
+- **Done when:** every shot is clean, the budgets are met, and the README is complete.
+
+### M12a: Post-M12 review fixes
+Fixes from the user's play-through and a code review. Do them in order (item 0 first), and commit + push each fix separately (`M12a.<n>: <title>`), logging each under *Decisions* in PROGRESS.md.
+
+0. **PRIORITY: do this first. Golden parcel pickup message is unreadable.** It does pop "GOLDEN PARCEL n/12", but:
+   - **Yellow on yellow:** `.pb-burst` (`css/ui.css`) is dark text on a yellow `#ffbe0b` badge, and `floatText.pop()` sets the text color from `opts.color`, so `collectibles.js` (`#ffd24a`) gives yellow text on yellow. Same bug for every burst popup that passes a color (e.g. "×N STREAK!" `#ffd166`, the dog's "!", "DING!"). Fix in `render/floatText.js`: for a burst, `opts.color` sets the badge **background** and the text stays dark `#22223b`; for plain text it stays the text color. Reset both inline styles on every `pop()`, since the elements are pooled.
+   - **Clipped:** the jagged `clip-path` is applied to the text box itself, so long labels lose their first and last letters. Give bursts enough padding (e.g. `8px 22px`) so the polygon's inner points clear the text.
+   - **Too short:** every popup lives 0.9 s. Add an optional `opts.life` and use it for milestones.
+   - **The golden parcel gets a proper banner:** a big screen-space banner (top-center, not world-anchored) with a gold badge, dark outlined text "GOLDEN PARCEL!", a second line "4 / 12 found · +50 coins", a pop-in, held for **2.5 s**, then a 0.4 s fade. At 12/12, show "ALL 12 FOUND! Golden Bike unlocked!" for 4 s. Keep the small world popup "+50" at the parcel. One DOM element, reused (no allocation per frame; the HUD golden counter also pulses).
+   - **Shots:** `fix-golden-banner` (`__pb.collectGolden(0)` then a few frames; the banner must be legible), `fix-burst-streak` (a burst popup with a color, readable dark text on a colored badge). Look at both PNGs.
+1. **A normal player can't start a shift (blocker).** The §2.13 dispatch-marker flow was deferred in M6 and never built: `showShiftCard()` is only reachable through `?showCard=1` / `?screen=missionCard:` and `startShift()` only through `?autostart=`, `__pb` or the results-screen Retry. The How-to-play screen already tells players to "enter a shift at the teal dispatch marker". Build it as §2.13 describes: a visible marker column at each `missionMarkers` entry (dispatch, locker, bakery, hardware); in free roam, stepping within ~2 tiles shows the matching card (dispatch → main shifts, bakery/hardware → their side shift, locker → the courier/vehicle locker); ←/→ pages, F (tap, §2.2) or ENTER starts the focused shift if unlocked, walking away or ESC closes it. Also add the pause-menu "abandon shift" if it's still missing. Add a shot that starts from a plain load, walks to the marker and opens the card.
+   **The vehicle select screen is unreachable.** It's fully built (`selectVehicle` in `ui/screens.js`), but `confirmChar()` goes straight to free roam, so it's only reachable through `?screen=selectVehicle`. Per §5.3 the locker flow is `selectCourier → selectVehicle → freeRoam`: ENTER on the courier screen must open the vehicle screen, and ESC on the vehicle screen goes back to the courier screen, not to free roam. The same flow runs from the title (ESC) and from the locker marker.
+2. **"Cars" outside the map (north / north-west) that sit still, then jump.** These are almost certainly the **clouds** in `render/sky.js`: 6 white box-cluster clouds at y=45 spread over ±80 around world (0,0). The map spans roughly (0,0)→(192,160), so they all hang over the NW corner and beyond, and they wrap from x=80 to x=-80 (the "jump"). Fix: spread the clouds over the map's extent plus a margin (centered on the map center from the tilemap, not hard-coded), wrap them over that full width well outside the camera's view so the wrap is never seen, and make them read as clouds, not cars (bigger, flatter, softer). Verify with the `overview` shot over time (step a few hundred frames). Separately, also fix the Grump driveway car in `gameplay/mischief.js`: it offsets along `side` by `h.w` for every facing, but for E/W-facing houses `side` runs along Z, so it should use `h.d`.
+3. **Pedestrian walking outside the map.** `entities/ambient.js` walkers random-walk with `tx/tz = x/z ± 7` and no bounds or collision, so they drift off the map (and through houses). Pick each new target from walkable sidewalk/yard tiles near the walker (or clamp to the tilemap and reject non-walkable tiles), and keep the pop-back-up target after a bowl on a walkable tile too.
+4. **Birds only spawn in the north-west corner.** In `ambient.js`, the bird spawn is `4 + rng() * (tm.width - 8) * tm.tileSize / 4`, which covers only about a quarter of the map. Spawn them on lawn tiles across the whole map, like the walkers.
+5. **Split `main.js`.** At ~1,160 lines it is far past the ~300-line rule. Move the shift/results/dispatch-card flow, the `__pb` debug hooks and the cam presets into their own modules (e.g. `gameplay/shiftFlow.js`, `core/debugHooks.js`, `render/camPresets.js`) with no behavior change; 72/72 shots must stay clean. `gameplay/hazards.js` (333) and `ui/screens.js` (310) should get a light split too.
+6. **The parcel stack, capacity and restock (§2.5/§2.6) were never built.** This is a blocker after item 1. Today `delivery.carried` is just "undelivered targets" (no capacity), a throw never uses up a parcel, there is no restock (the `restock` event is only emitted by `__pb.debugAudio`), and the back stack is set once at shift start (`main.js` `player.setCarried`) and never again after a delivery. It also always adds the vehicle's `capacityBonus` (`player.js` `setCarried(n + capacityBonus)`), so it shows boxes even at 0 carried. Implement §2.6 as written:
+   - capacity = courier `capacity` + vehicle `capacityBonus`; at shift start and on restock, carried = `min(capacity, undelivered targets)`.
+   - every throw takes the next parcel off the queue (carried − 1), whatever the outcome; a doorstep hand-over uses one too; a knockdown drop or dog steal loses one (already there). With carried = 0, Q/E does nothing except a small "Empty! Restock at the depot" popup.
+   - restock: stand in the mission's pickup zone (`restockZone` for main shifts, the shop front row for side missions) for 1.0 s with a progress ring; emit `restock` (the ka-chunk SFX already exists). The radar/GPS already points to the pickup when empty.
+   - the back stack shows exactly `carried`, updated on every change (throw, delivery, drop, steal/recover, restock). The courier-only `capacityBonus` add is removed.
+   - running out never ends a shift; you can always restock. (Shifts don't fail at all, see §2.20 / M12b.)
+7. **The HUD has no parcel count.** The mission panel shows "x/y delivered" + next package but not what you carry. Add a parcel counter, e.g. "📦 3 / 5" (carried / capacity), that pulses red at 0 with "Restock!" and the depot direction. The game start or the dispatch card also says how many drops the shift has and how many you can carry.
+8. **Tab doesn't open the full map.** `core/input.js` maps `Tab → 'map'`, but nothing ever does `input.consume('map')`, so the map only opens through `?screen=fullMap` (its own key handler only closes it). Consume `'map'` in `update()` (free roam and missions, not in menus) and call `fullMap.open()`. Also, the How-to-play row `['M · TAB', 'mute · open the full map']` reads like "M-Tab = full map"; split it into two rows: `M` mute, `Tab` full map.
+9. **The heat whistles are effectively invisible.** `ui/radar.js` draws them *inside* the radar canvas at y=12 as 4 px dots, sitting on the radar's white rim; empty ones are 25% white. Players don't see them, so the Watch seems to appear from nowhere. Per §10 they go **above** the radar: a DOM row of 3 proper whistle icons (~28 px each, emoji or CSS/inline-SVG drawn in code, no files) just above the radar disc, filled red per level, with a dark outline so they read on any background. They **wobble** + play a short whistle tick when heat rises, **flash** while the Watch is losing you, and the whole row is hidden while heat is 0 (it appears as soon as heat > 0). Also show a short popup the first time a level is reached ("Neighborhood Watch is on to you!" at level 2). Remove the in-canvas version. Add a shot with `__pb.setHeat(7)` (2 whistles) to prove it reads.
+- **Done when:** items 0–9 are fixed, every new shot exists and you looked at it, all existing shots are still clean, 0 console errors, ≤150 draw calls.
+
+### M12b: Shifts follow the day clock
+Needs M12a.
+- §2.20: `gameplay/dayClock.js` (one clock, saved; drives the time-of-day blend), shift `window` / `deliverBy` in `data/shifts.js` (schema change, logged), the dispatch card's open/"Opens at" states, the fast-forward bench, end conditions (all delivered / window closes / clock out early), the shift report (no failure wording anywhere: grep for "Time's up"), early finish bonus, side missions' soft deadline + tip, the HUD clock line, and the exit clock-out prompt once exits exist (M14). Re-tune star thresholds with the autoplayer and record the scores.
+- **Shots:** `m12b-clock-hud` (HUD showing `hh:mm · shift ends hh:mm`), `m12b-card-closed` (a shift showing "Opens at"), `m12b-report-partial` (a report with e.g. 6/10 delivered and partial pay, no failure wording), `m12b-bench` (fast-forward in progress), `m12b-dusk-by-clock` (the clock at 21:00 with the dusk look, reached by stepping the clock, not by a URL preset).
+- **Done when:** a shift ends on its window close with a partial-pay report, nothing in the game says you failed, the clock survives a reload, 0 console errors, ≤150 draw calls.
+
+### M13: Addressed parcels and parcel lockers
+Needs M12b.
+- §2.16: addressed stack (each carried parcel = a target ref), top parcel = next throw, R cycles (`cycle` action), "Wrong address!" outcome in `parcels.js`/`scoring.js` (new `wrongAddress` label + config value), doorstep auto-match, GPS/radar/marker/aim assist follow the top parcel, autoplayer updated.
+- §2.17: `parcelLockers` in Maple Hollow's data (3 lockers on sidewalks, away from the depot; validated as walkable sidewalk tiles), the locker model, restock-at-locker, empty-for-the-shift state, refill on shift start, radar/full-map blips, the free-roam "Closed" popup.
+- **Shots:** `m13-hud-address` (the HUD showing `📦 #n Street · type`), `m13-cycle` (after R, a different top parcel and route), `m13-wrong-address` (a throw at another target → "Wrong address!"), `m13-locker-full`, `m13-locker-empty` (after a locker restock: red light, open door, grey blip).
+- **Done when:** a shift can't be completed by throwing at targets in any order without the right parcel on top; a locker restocks once per shift; 0 console errors; ≤150 draw calls.
+
+### M14: Terrain heights and the multi-neighborhood engine
+- §2.19: the `heights` layer, `world/terrain.js` (`groundY`, `edgeBlocked`), ramps, stairs, retaining walls, and every ground-standing system switched to `groundY` (see the list in §2.19). Maple Hollow has no `heights` and must look and play exactly as before (re-shoot `m2-*`/`m3-*`/`m4-*` and compare).
+- A **terrain test neighborhood** (`?nb=test-hills`, small, debug only): 3 levels, a ramp road, stairs, a retaining wall, two houses at different levels. Use it to prove walking/riding up ramps, being blocked by walls, hopping down, stairs blocking vehicles, parcels landing on upper and lower levels, and cars driving a ramp loop.
+- §2.18 engine: `exits`, the fade + sign card transition, unload (dispose every geometry/material/texture the suburb created; check `renderer.info` before and after a round trip: counts must return to the same values) and load, the clock-out prompt at exits during a shift, locked exits with `unlockStars`, the per-suburb kiosk pickup point + dispatch card filtering by `neighborhood`, the region-map inset, save fields + the golden-parcel migration, `?nb=<id>` URL param, `__pb.gotoNeighborhood(id, exitId)`.
+- **Extend the tilemap validator** (boot-time, clear errors): `heights` same size as `map`; ramps/stairs sit between exactly two adjacent levels along one axis; traffic loops only on road + ramp tiles and never across a wall; porches reachable from a sidewalk at the same level; every walkable tile (including each exit and the kiosk) reachable from the spawn by flood fill, with vehicles (ramps only) and on foot (ramps + stairs); exits on the map edge with a matching entry in the target suburb.
+- **Author maps with a generator, not by hand.** Maple Hollow was generated and validated by a script; do the same. Write `tools/neighborhoods/<id>.cjs` (plain Node, no packages; run it in the shots container) that builds the map + heights + houses + roads + traffic from a high-level layout, runs the same validation, and prints the data file. Commit the generator next to its output.
+- Maple Hollow gets its exits. Its generator isn't in the repo, so write `tools/neighborhoods/maple-hollow-exits.cjs` that takes the current map and cuts one road through the forest border for each suburb, then re-validates it (this is the one allowed edit to §6.1's data; log it under *Decisions*) (north → Cedar Heights, east → Lakeside, west → Old Town), with no other change to the layout. Exits to suburbs that don't exist yet stay locked barriers.
+- **Shots:** `m14-hills-ramp`, `m14-hills-wall`, `m14-hills-throw-up`, `m14-exit-sign` (the transition card), `m14-exit-locked`, `m14-region-map`, plus a stats check that a Maple Hollow → test-hills → Maple Hollow round trip leaves geometries/textures unchanged.
+- **Done when:** heights work everywhere in the test suburb, Maple Hollow is unchanged apart from its exits, the round trip leaks nothing, 0 console errors, ≤150 draw calls.
+
+### M15: Cedar Heights
+- Build `cedar-heights` per §2.18 (generator + data), its kiosk, 3 shifts (morning/lunch/dusk-style, star thresholds tuned with the autoplayer like M12), 2–3 parcel lockers, 8 golden parcels, hazard spots, the runaway-bin hazard (a data-driven hazard def; rolls downhill along `groundY`, knocks you down like a skater) and the roll-downhill parcel gag.
+- **Shots:** `m15-overview` (irregular outline and terraces must be obvious), `m15-switchback`, `m15-stairs`, `m15-watertower`, `m15-bin-roll`, `m15-shift`.
+- **Done when:** the suburb is reachable through Maple Hollow's north exit once unlocked, a shift can be played start to finish, the overview clearly doesn't look like Maple Hollow, 0 console errors, ≤150 draw calls.
+
+### M16: Lakeside
+- Same structure as M15: `lakeside` with the lake, irregular shoreline (water edge tiles, shore rocks and reeds), bridges (road tiles on a raised deck), boardwalk, pier + lighthouse landmark (a glow light at dusk), geese as a data-driven hazard (dog-like chase with honks), floating-parcel gag, kiosk, shifts, lockers, golden parcels.
+- **Shots:** `m16-overview`, `m16-bridge`, `m16-pier-dusk`, `m16-geese`, `m16-float`, `m16-shift`.
+- **Done when:** as M15, through Maple Hollow's east exit.
+
+### M17: Old Town
+- Same structure: `old-town` with crooked streets, a market square, walk-only alleys (vehicles blocked like stairs), row houses (a new building style: narrow, 2–3 floors, joined walls), the church hill, the clock tower (chimes on the hour of the day cycle), the market-stall fruit gag (§2.15 breakable, cartoon, +heat), the pigeon flock, kiosk, shifts, lockers, golden parcels.
+- **Shots:** `m17-overview`, `m17-alley`, `m17-market`, `m17-clocktower`, `m17-pigeons`, `m17-shift`.
+- **Done when:** as M15, through Maple Hollow's west exit; a full tour Maple Hollow → each suburb → back works by keyboard alone, and a final soak (autoplay one shift per suburb) shows no errors and no leaks.
 
 ---
 
@@ -1038,12 +1155,12 @@ Every milestone ends with: shots added to `tools/shots.json` → run → **look 
 - **New hazard:** add an entry to `data/hazards.js`. Reuse a behavior, or add `behaviors/<id>.js` exporting `{ id, create, update, onPlayerContact? }` and register it in `behaviors/index.js`. Add a model builder.
 - **New package type:** add an entry to `data/packages.js` and, for a new rule key, one handler in `scoring.js`.
 - **New mission:** add an entry to `data/shifts.js`. For a side mission with a new giver, also add a marker to the neighborhood's `missionMarkers`.
-- **New neighborhood:** add a file in `data/neighborhoods/` with the same shape as Maple Hollow (map, roads, houses, buildings, spawn, restockZone, missionMarkers, goldenParcels, traffic, sidewalkLoops, hazardSpots, gagSpots) and register it. The tilemap validator will catch layout mistakes. Shifts pick it with `neighborhood: '<id>'`.
+- **New neighborhood:** add a file in `data/neighborhoods/` with the same shape as Maple Hollow (map, roads, houses, buildings, spawn, restockZone, missionMarkers, goldenParcels, traffic, sidewalkLoops, hazardSpots, gagSpots, plus the optional `heights`, `parcelLockers`, `exits` and `unlockStars` of §2.17–§2.19) and register it. Link it from an existing suburb's `exits` (both directions). The tilemap validator will catch layout mistakes. Shifts pick it with `neighborhood: '<id>'`.
 
 ---
 
 ## 15. Out of scope (don't build)
-A bigger or procedurally generated world (the free-roam area is Maple Hollow only), Multiplayer, online leaderboards, gamepad, touch or mobile controls, a level editor, physics engines, post-processing (bloom, SSAO, etc.), external asset files, a build step, TypeScript, localization, weather (rain is a possible future hazard, so leave room in the time-of-day structure but don't implement it).
+A procedurally generated or streamed open world (the world is a set of hand-made suburbs, one loaded at a time, §2.18), the call-a-delivery-van mechanic (a future option, §2.17), Multiplayer, online leaderboards, gamepad, touch or mobile controls, a level editor, physics engines, post-processing (bloom, SSAO, etc.), external asset files, a build step, TypeScript, localization, weather (rain is a possible future hazard, so leave room in the time-of-day structure but don't implement it).
 
 ---
 

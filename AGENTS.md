@@ -13,11 +13,16 @@ You are building **Parcelboy**, a friendly, colorful arcade game in the browser,
    - run the screenshot tool (`PLAN.md` §12),
    - **open and look at every PNG it produced**, and write one or two sentences in `PROGRESS.md` on what each one actually shows,
    - fix anything that doesn't match the expected description and re-shoot,
-   - update `PROGRESS.md`, then `git commit -am "M<n>: <title>"` and **`git push origin main`** (the user runs overnight and expects work to land on GitHub each milestone).
+   - update `PROGRESS.md`, then `git commit -am "M<n>: <title>"` and **`git push origin main`** (the user expects work to land on GitHub after every milestone and every M12a fix).
 4. Never mark something done without evidence: a screenshot you looked at, stats JSON, or zero console errors.
 5. If the plan is ambiguous, pick the **simplest** option that satisfies it and record it under *Decisions* in `PROGRESS.md`. Don't ask unless you're blocked.
-6. **Autonomous overnight run (user directive 2026-10-01):** do NOT stop at each milestone or at a *User check* gate. A user-check gate (M4 / M7 / M12, etc.) is not a stop: record it under the milestone's `User check:` line in `PROGRESS.md` as "pending — user to verify later" and **continue to the next milestone** so work keeps progressing unattended. Only stop and report if (a) the screenshot tool can't render WebGL after two attempts to fix it, or (b) continuing would require breaking a hard rule below. In both cases, state exactly what you found and where you stopped.
-7. **No check-in narration (user directive 2026-10-01):** run each milestone as one uninterrupted flow — read the PLAN section → implement → run the shot tool → confirm **0 console errors + ≤150 draw calls** → open and look at the PNGs → update `PROGRESS.md` → `git commit -am "M<n>: <title>"` → `git push origin main` — with **no user-facing narration between steps** and **no stop to report progress**. Chain tool calls silently until the milestone is done; emit user-facing text only at the very end of a run, or when genuinely blocked (state exactly what you found and where you stopped).
+6. **Never stop on your own (user directive 2026-10-01, replaces the earlier overnight-run rule).** Work through **every** milestone in `PLAN.md` §13, in order, until the last one is DONE. Only the user decides when you stop. That means:
+   - A finished milestone is **not** a stopping point: commit, push, and start the next milestone in the same run.
+   - There are no user-check gates. Never wait for a review, a sign-off or an answer.
+   - **Don't write a summary, a status report or a question to the user** until every milestone is DONE. In your agent a plain text reply ends your turn, which stops the work. Keep calling tools instead; your progress report is `PROGRESS.md` and the git log.
+   - If something is blocked (a tool fails, a fix doesn't work after two serious attempts, the plan contradicts itself), record it under *Known issues* in `PROGRESS.md` with exactly what you found, pick the simplest workaround or skip that one item, and **keep going** with the rest. Never break a hard rule to get unblocked; skip the item instead.
+   - If your context fills up or the session restarts, resume from `PROGRESS.md` and `git log` and continue where you left off.
+7. **No narration between steps.** Run each milestone as one uninterrupted flow: read the PLAN section → implement → run the shot tool → confirm **0 console errors + ≤150 draw calls** → open and look at the PNGs → update `PROGRESS.md` → `git commit -am "M<n>: <title>"` → `git push origin main` → next milestone. Chain tool calls silently.
 
 ## Hard rules
 
