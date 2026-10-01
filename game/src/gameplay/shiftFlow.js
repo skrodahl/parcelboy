@@ -13,6 +13,12 @@ export function createShiftFlow(ctx) {
   let shiftCardEl = null, resultsEl = null;
 
   function mcShifts(id) { return id === 'dispatch' ? MAIN_SHIFTS : SIDE_SHIFTS.filter((s) => s.giver === id); }
+  // M12a.7: the card row's meta — how many drops the shift has + how many you
+  // can carry (the current courier + vehicle capacity).
+  function meta(s) {
+    const cap = ctx.getCapacity ? ctx.getCapacity() : null;
+    return s.deliveries + ' drops' + (cap != null ? ' · ' + cap + ' on your back' : '') + ' · ' + s.duration + 's';
+  }
   function mcRenderList() {
     if (!mcList) return;
     const list = mcShifts(mcMarker);
@@ -20,7 +26,7 @@ export function createShiftFlow(ctx) {
     for (let i = 0; i < list.length; i++) {
       const s = list[i], locked = !progress.canStart(s);
       const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (i === (mcIdx % list.length) ? ' focus' : ''));
-      row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', s.deliveries + ' drops · ' + s.duration + 's'));
+      row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', meta(s)));
       row.append(locked ? el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★') : el('div', 'sc-row-go', 'Ready'));
       mcList.append(row);
     }
@@ -70,7 +76,7 @@ export function createShiftFlow(ctx) {
     for (const s of MAIN_SHIFTS) {
       const locked = !progress.canStart(s);
       const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (s.id === focusId ? ' focus' : ''));
-      row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', s.deliveries + ' drops · ' + s.duration + 's'));
+      row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', meta(s)));
       if (locked) row.append(el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★ to unlock'));
       else row.append(el('div', 'sc-row-go', 'Ready'));
       list.append(row);

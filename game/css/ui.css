@@ -80,6 +80,12 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .hud-mission-name { color: #ffbe0b; font-size: 15px; }
 .hud-mission-timer { color: #fff; font-size: 22px; font-weight: 800; }
 .hud-mission-targets { color: #a7c957; }
+/* M12a.7: the live parcel counter "📦 carried / capacity". */
+.hud-mission-parcels { color: #ffd166; font-size: 15px; font-weight: 800; }
+.hud-mission-parcels.empty {
+  color: #ff6b6b; animation: pb-pulse 0.7s ease-in-out infinite;
+}
+@keyframes pb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .hud-mission-next { color: #90e0ef; }
 .hud-mission-score { color: #ff7b9c; }
 /* §2.6: the restock progress ring — a fill bar over 1.0 s while in the pickup zone. */

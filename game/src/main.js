@@ -144,6 +144,7 @@ const flow = createShiftFlow({
   setPrevM: (v) => { prevM = v; },
   getSharedEffects: () => sharedEffects,
   getPlayer: () => player,
+  getCapacity: () => activeChar ? activeChar.stats.capacity + (activeVeh ? activeVeh.stats.capacityBonus : 0) : null,
 });
 const { openMarkerCard, closeMarkerCard, mcKey, showShiftCard, showResults, getMarkerState } = flow;
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
@@ -568,13 +569,14 @@ function buildHUD() {
   const pName = el('div', 'hud-mission-name');
   const pTimer = el('div', 'hud-mission-timer');
   const pTargets = el('div', 'hud-mission-targets');
+  const pParcels = el('div', 'hud-mission-parcels');
   const pNext = el('div', 'hud-mission-next');
   const pScore = el('div', 'hud-mission-score');
   const pRestock = el('div', 'hud-restock');
   const pRestockFill = el('div', 'hud-restock-fill');
   pRestock.append(el('span', 'hud-restock-lbl', 'Restock'), el('div', 'hud-restock-bar'), pRestockFill);
   pRestock.style.display = 'none';
-  panel.append(pName, pTimer, pTargets, pNext, pScore, pRestock);
+  panel.append(pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock);
   panel.style.display = 'none';
   // §10: the ability button (bottom-right) + its cooldown ring.
   const ab = el('div', 'ability-btn');
@@ -591,7 +593,7 @@ function buildHUD() {
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
     hud = {
-      chip, coins, golden, panel, pName, pTimer, pTargets, pNext, pScore, pRestock, pRestockFill,
+      chip, coins, golden, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
     missionStart(session, shift) {
       this.panel.style.display = ''; this.chip.style.display = 'none';
       this.pName.textContent = shift.name; this.pNext.textContent = 'next: ' + (session.targets[0] ? session.targets[0].pkg.name : '—');
@@ -602,6 +604,11 @@ function buildHUD() {
       const m = Math.max(0, mission2.timer);
       this.pTimer.textContent = Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0');
       this.pTargets.textContent = (session.targets.length - session.remaining()) + '/' + session.targets.length + ' delivered';
+      // M12a.7: the live parcel counter "📦 carried / capacity"; red + pulsing
+      // with a Restock! nudge when the stack is empty (but targets still remain).
+      const empty = session.carried <= 0 && session.remaining() > 0;
+      this.pParcels.textContent = '📦 ' + session.carried + '/' + session.capacity + (empty ? ' · Restock!' : '');
+      this.pParcels.classList.toggle('empty', empty);
       this.pScore.textContent = 'score ' + session.scoring.score + '  ×' + session.scoring.multiplier();
       const nx = session.nextUndelivered();
       this.pNext.textContent = nx ? 'next: ' + nx.pkg.name : 'all delivered';
