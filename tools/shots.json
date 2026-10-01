@@ -75,5 +75,6 @@
   { "name": "fix-burst-streak", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(30,20,0); __pb.strike(); __pb.step(8);"] },
   { "name": "m12a-start-shift", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.nearMarker('dispatch'); __pb.step(24);"] },
   { "name": "m12a-side-cake", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('bakery');"] },
-  { "name": "m12a-locker", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('locker');"] }
+  { "name": "m12a-locker", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('locker');"] },
+  { "name": "m12a-clouds", "url": "/?cam=overview&mute=1&paused=1", "eval": ["__pb.step(600);"] }
 ]

@@ -54,9 +54,14 @@ export function createMischief(env) {
     props.position.set(dm.x, 0, dm.z);
     props.rotation.y = Math.atan2(out[0], out[1]);
     scene.add(props);
-    // Parked car on the driveway side of the house.
+    // Parked car on the driveway side of the house. The offset runs along the
+    // house's axis that `side` points down, so it must use that axis's extent
+    // (h.w along X, h.d along Z) — for E/W-facing houses `side` runs along Z,
+    // so h.d is the correct half-depth (M12a.2).
     const car = new THREE.Mesh(parkedCarGeo(), mat);
-    car.position.set(cx + side[0] * (h.w / 2 + 1.2) * T, 0, cz + side[1] * (h.w / 2 + 1.2) * T);
+    const offX = side[0] !== 0 ? (h.w / 2 + 1.2) * T : 0;
+    const offZ = side[1] !== 0 ? (h.d / 2 + 1.2) * T : 0;
+    car.position.set(cx + offX, 0, cz + offZ);
     car.rotation.y = (h.facing === 'E' || h.facing === 'W') ? Math.PI / 2 : 0;
     scene.add(car);
 

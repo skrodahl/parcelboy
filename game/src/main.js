@@ -250,7 +250,13 @@ if (params.scene === 'test') {
     sc.near = 5; sc.far = 400;
     sc.updateProjectionMatrix();
   }
-  sky = createSky(scene, preset);
+  const tt = world.tilemap;
+  sky = createSky(scene, preset, {
+    cx: (tt.width / 2) * tt.tileSize,
+    cz: (tt.height / 2) * tt.tileSize,
+    sx: tt.width * tt.tileSize + 120,
+    sz: tt.height * tt.tileSize + 120,
+  });
   sky.update(0, 0);
   // §2.14: the busy Distribution Center (conveyor boxes + a forklift NPC).
   depotLife = createDepotLife(scene, world, world.worldMat, qualityName === 'battery');
