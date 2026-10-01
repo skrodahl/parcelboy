@@ -72,5 +72,8 @@
   { "name": "m11-handlebars", "url": "/?tod=noon&cam=handlebars&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.handlebars(); __pb.step(22); __pb.setCam('handlebars');"] },
   { "name": "m11-battery-life", "url": "/?quality=battery&tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('park');"] },
   { "name": "fix-golden-banner", "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.collectGolden(0); __pb.step(6);"] },
-  { "name": "fix-burst-streak", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(30,20,0); __pb.strike(); __pb.step(8);"] }
+  { "name": "fix-burst-streak", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(30,20,0); __pb.strike(); __pb.step(8);"] },
+  { "name": "m12a-start-shift", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.nearMarker('dispatch'); __pb.step(24);"] },
+  { "name": "m12a-side-cake", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('bakery');"] },
+  { "name": "m12a-locker", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('locker');"] }
 ]

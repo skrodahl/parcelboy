@@ -21,7 +21,7 @@ import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
 import { PARCEL, FREE_ROAM, HAZARD, CARTOON, MISCHIEF } from './data/config.js';
-import { SHIFTS, MAIN_SHIFTS } from './data/shifts.js';
+import { SHIFTS, MAIN_SHIFTS, SIDE_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
 import { createMission } from './gameplay/mission.js';
 import { createHazards } from './gameplay/hazards.js';
@@ -42,6 +42,7 @@ import { loadSave, defaultSave } from './core/save.js';
 import { createProgression } from './gameplay/progression.js';
 import { createCollectibles } from './gameplay/collectibles.js';
 import { createDayCycle } from './gameplay/dayCycle.js';
+import { createMissionMarkers } from './gameplay/missionMarkers.js';
 
 const params = parseParams();
 // §2.11: load the save once at boot (corrupt → defaults). A `?coins=` param seeds
@@ -89,6 +90,7 @@ let followCam = null;
 let courierRig = null, courierVehMesh = null, courierVehMat = null; // rig + vehicle (+ a dedicated mat for the golden bike)
 let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
 let mission = null; // M6 active shift runner (null in free roam)
+let activeShiftId = null; // M12a.1: the running shift's id (for the pause Restart / Abandon)
 let hud = null; // M6 HUD (free-roam chip + mission timer/score)
 let activeChar = null, activeVeh = null; // the spawned courier/vehicle
 let abilities = null; // §11.6: the active courier's ability system (Modifier stack)
@@ -124,6 +126,9 @@ events.on('golden', (d) => { pulseGolden(); showGoldenBanner(d.total, d.count); 
 const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
+// M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
+let markers = null, markerCardEl = null, mcList = null, mcMarker = null, mcIdx = 0, prevM = null;
+let MARKER_RADIUS = 8; // ~2 tiles; set from the tilemap's tile size at boot
 // §9: crickets only at dusk/golden (a preset with meaningful glow).
 function setCricketsForPreset(p) { if (audio) audio.setCrickets(!!p && p.glow > 0.4); }
 let resultsEl = null; // the results-screen DOM (M6)
@@ -288,6 +293,9 @@ if (params.scene === 'test') {
     refreshGolden();
     // M10: the hidden Golden Parcels (free roam) + the day cycle.
     collectibles = createCollectibles({ scene, world, mat: world.worldMat, progression: progress, floatText: sharedFloatText, events });
+    // M12a.1: the tall mission/locker/side marker columns + their proximity card.
+    markers = createMissionMarkers({ scene, def: world.def, T: world.tilemap.tileSize });
+    MARKER_RADIUS = 2 * world.tilemap.tileSize; // ~2 tiles
     dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
     dayCycle.startAt(preset.id); // sync the cycle to the boot time of day
     setCricketsForPreset(preset);
@@ -303,10 +311,18 @@ if (params.scene === 'test') {
        startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
        activeCharId: charDef.id, activeVehId: vehDef.id, qualityName, setQuality: applyQuality,
         resumePause: () => { simPaused = false; if (screens) screens.close(); },
+        // M12a.1: the pause menu's shift actions. Restart re-runs the shift;
+        // Abandon clocks out to free roam (you keep what you earned, §2.20-ish).
+        isInMission: () => !!mission,
+        restartShift: () => { const id = activeShiftId; if (id) endShift(id); simPaused = false; if (screens) screens.close(); },
+        abandonShift: () => { endShift(false); simPaused = false; if (screens) screens.close(); },
         audio,
         persistSetting: (k, v) => progress.setSetting(k, v), // §2.11: persist the settings screen changes
     });
-    window.addEventListener('keydown', (e) => { if (screens && screens.active) screens.handleKey(e); });
+    window.addEventListener('keydown', (e) => {
+      if (screens && screens.active) screens.handleKey(e);
+      else if (markerCardEl) mcKey(e); // M12a.1: the free-roam marker card
+    });
     if (params.showCard && !params.screen) showShiftCard();
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
     // §10: route `?screen=` to the matching screen (screenshots + the DoD flow).
@@ -469,6 +485,7 @@ function startShift(shiftId) {
   if (!player || (mission && mission.active)) return;
   const shift = SHIFTS.find((s) => s.id === shiftId);
   if (!shift) return;
+  activeShiftId = shiftId;
   const seed = params.seed || 1;
   setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
   mission = createMission({ def: world.def, shift, seed, onResults: (r) => showResults(r) });
@@ -504,7 +521,7 @@ function endShift(retry) {
   if (hud) hud.missionEnd();
   setHazards(FREE_ROAM.hazards);
   if (retry) startShift(retry);
-  else { if (heat) heat.reset(); setupGrumps(FREE_ROAM.grumps, []); } // §2.15: back to the free-roam Grumps
+  else { activeShiftId = null; if (heat) heat.reset(); setupGrumps(FREE_ROAM.grumps, []); } // §2.15: back to the free-roam Grumps
 }
 
 // §10: the locker — swap the active courier / vehicle (a re-spawn) and return to
@@ -631,6 +648,53 @@ function showShiftCard(focusId) {
   }
   shiftCardEl.append(list, el('div', 'sc-cta', 'Press ENTER to start a shift'));
   document.getElementById('ui').append(shiftCardEl);
+}
+
+// M12a.1: the free-roam marker card. Walking within ~2 tiles of a mission /
+// locker / side marker opens the matching card (dispatch → the main shifts, a
+// side marker → its side mission, the locker → the courier/vehicle select).
+// ←/→ pages, F/ENTER starts the focused (unlocked) shift, ESC or walking away
+// closes. The locker is a full screen (it locks the player); the dispatch and
+// side cards are light and let you keep riding.
+function mcShifts(id) { return id === 'dispatch' ? MAIN_SHIFTS : SIDE_SHIFTS.filter((s) => s.giver === id); }
+function mcRenderList() {
+  if (!mcList) return;
+  const list = mcShifts(mcMarker);
+  mcList.textContent = '';
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i], locked = !progress.canStart(s);
+    const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (i === (mcIdx % list.length) ? ' focus' : ''));
+    row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', s.deliveries + ' drops · ' + s.duration + 's'));
+    row.append(locked ? el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★') : el('div', 'sc-row-go', 'Ready'));
+    mcList.append(row);
+  }
+}
+function openMarkerCard(id) {
+  if (markerCardEl) { markerCardEl.remove(); markerCardEl = null; }
+  mcMarker = id; mcIdx = 0;
+  markerCardEl = el('div', 'shift-card marker-card');
+  markerCardEl.append(el('h3', null, id === 'dispatch' ? 'Quickbox Dispatch' : 'Quickbox Side Mission'));
+  mcList = el('div', 'sc-list'); markerCardEl.append(mcList);
+  markerCardEl.append(el('div', 'sc-cta', '←/→ page · F / ENTER start · ESC close'));
+  mcRenderList();
+  document.getElementById('ui').append(markerCardEl);
+}
+function closeMarkerCard() {
+  if (markerCardEl) { markerCardEl.remove(); markerCardEl = null; }
+  mcList = null; mcMarker = null; mcIdx = 0;
+}
+function mcStart() {
+  const list = mcShifts(mcMarker);
+  const s = list[(mcIdx % list.length) | 0];
+  if (s && progress.canStart(s)) { const id = s.id; closeMarkerCard(); prevM = null; startShift(id); }
+}
+function mcKey(e) {
+  if (!markerCardEl || mcMarker === 'locker') return;
+  const list = mcShifts(mcMarker), code = e.code;
+  if (code === 'ArrowLeft' || code === 'KeyA') { mcIdx = (mcIdx - 1 + list.length) % list.length; mcRenderList(); }
+  else if (code === 'ArrowRight' || code === 'KeyD') { mcIdx = (mcIdx + 1) % list.length; mcRenderList(); }
+  else if (code === 'Enter' || code === 'KeyF') mcStart();
+  else if (code === 'Escape') { closeMarkerCard(); prevM = null; }
 }
 
 // §10: route a `?screen=` value to the matching screen. The results + full-map
@@ -805,6 +869,18 @@ function simStep(dt) {
       followCam.update(dt, simTime, camTgt, camLook);
     }
   }
+  // M12a.1: free-roam proximity to a mission / locker / side marker opens its
+  // card (edge-triggered on the marker id changing, so leaving + re-entering
+  // re-opens it, but a standing-still card doesn't flap).
+  if (player && markers && !mission && !delivery && !menuGate()) {
+    const nearM = markers.nearest(player.pos.x, player.pos.z, MARKER_RADIUS);
+    if (nearM !== prevM) {
+      prevM = nearM;
+      if (nearM === 'locker') screens.show('selectCourier');
+      else if (nearM) openMarkerCard(nearM);
+      else closeMarkerCard();
+    }
+  }
   if (delivery) {
     delivery.handleInput();
     delivery.updateDoorstep(dt);
@@ -868,6 +944,7 @@ function update(dt) {
   if (bustedEl && simTime >= bustedUntil) { bustedEl.remove(); bustedEl = null; }
   if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
   if (world && world.flag) world.flag.rotation.y = Math.sin(simTime * 2.0) * 0.3;
+  if (markers) markers.tick(dt); // M12a.1: the marker icons keep spinning (even while paused)
   // Distance-scaled fog + far clip (§7.3 plan change): near/far track the
   // camera's distance d to its look target, updated every frame with no
   // allocation. updateProjectionMatrix only when far actually changes.
@@ -1092,6 +1169,10 @@ window.__pb = {
   },
   setGolden(n) { for (let i = 0; i < (n | 0); i++) progress.foundGolden(i); refreshGolden(); return progress.totalGolden(); },
   collectGolden(i) { if (collectibles) { collectibles.collect(i | 0); refreshGolden(); } return progress.totalGolden(); },
+  // M12a.1: place the player at a marker (the "walked up to it" position) so the
+  // next sim step's proximity edge opens the card; or open the card directly.
+  nearMarker(id) { const m = markers && markers.byId[id]; if (m && player) { player.pos.x = m.x; player.pos.z = m.z; prevM = null; } return m ? id : null; },
+  openMarker(id) { if (markers && markers.byId[id]) { if (id === 'locker') { screens.show('selectCourier'); } else { openMarkerCard(id); } prevM = id; } return mcMarker || id; },
   setTod(i, frac) { if (dayCycle) dayCycle.setPhase(i | 0, frac == null ? 0 : frac); return dayCycle ? dayCycle.phase : null; },
   debugGolden() {
     if (!collectibles || !world) return null;

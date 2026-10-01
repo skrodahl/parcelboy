@@ -248,5 +248,6 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .pause-bowled { font: 700 14px/1 inherit; color: #ff7b9c; margin-bottom: 4px; }
 .pause-item { font: 700 15px/1 inherit; color: #fff; padding: 6px 8px; border-radius: 7px; }
 .pause-item:hover { background: rgba(255, 255, 255, 0.1); }
+.pause-item.clickable { cursor: pointer; }
 /* M9: the ?debug=1 last-sound readout (bottom-left, above the ability button) */
 .audio-debug { position: absolute; left: 10px; bottom: 92px; font: 700 13px/1 inherit; color: #7cc4ff; background: rgba(0, 0, 0, 0.5); padding: 4px 9px; border-radius: 6px; letter-spacing: 0.04em; }

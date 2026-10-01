@@ -222,7 +222,7 @@ export function createScreens(ctx) {
       if (code === 'ArrowLeft' || code === 'KeyA') { selVeh = shiftIdx(VEHICLES, selVeh, -1); showroom(selChar, selVeh); renderVehPanel(); }
       else if (code === 'ArrowRight' || code === 'KeyD') { selVeh = shiftIdx(VEHICLES, selVeh, 1); showroom(selChar, selVeh); renderVehPanel(); }
       else if (code === 'Enter') { confirmVeh(); }
-      else if (code === 'Escape') { gotoFreeRoam(); }
+      else if (code === 'Escape') { show('selectCourier'); } // §5.3: back to the courier, not free roam
     } else if (activeName === 'title') {
       if (code === 'Enter') gotoFreeRoam();
       else if (code === 'Escape') show('selectCourier');
@@ -237,7 +237,10 @@ export function createScreens(ctx) {
     let i = 0; for (let k = 0; k < list.length; k++) if (list[k].id === id) i = k;
     return list[(i + dir + list.length) % list.length].id;
   }
-  function confirmChar() { pickChar(selChar); gotoFreeRoam(); }
+  // §5.3 / M12a.1: the locker flow is selectCourier → selectVehicle → freeRoam.
+  // Confirming a courier advances to the vehicle screen; confirming a vehicle
+  // (or ESC from the vehicle screen back to the courier, then ENTER) ends it.
+  function confirmChar() { pickChar(selChar); show('selectVehicle'); }
   function confirmVeh() { pickVeh(selVeh); gotoFreeRoam(); }
 
   buyBtn.addEventListener('click', () => {
@@ -286,16 +289,20 @@ export function createScreens(ctx) {
   }
 
   // -- pause rows -----------------------------------------------------------
-  function buildPause(resume, quit) {
+  function buildPause() {
     pauseList.textContent = '';
-    const bowled = getBowled();
-    pauseList.append(
-      el('div', 'pause-bowled', 'People bowled: ' + bowled),
-      el('div', 'pause-item', '▶  Resume (ESC)'),
-      el('div', 'pause-item', '↻  Restart shift'),
-      el('div', 'pause-item', '⎋  Quit to free roam'),
-    );
-    void resume; void quit;
+    const inMission = ctx.isInMission && ctx.isInMission();
+    const item = (label, fn) => {
+      const it = el('div', 'pause-item' + (fn ? ' clickable' : ''), label);
+      if (fn) it.addEventListener('click', fn);
+      return it;
+    };
+    pauseList.append(el('div', 'pause-bowled', 'People bowled: ' + getBowled()));
+    pauseList.append(item('▶  Resume (ESC)', () => ctx.resumePause && ctx.resumePause()));
+    if (inMission) {
+      pauseList.append(item('↻  Restart shift', () => ctx.restartShift && ctx.restartShift()));
+      pauseList.append(item('⎋  Abandon shift (clock out)', () => ctx.abandonShift && ctx.abandonShift()));
+    }
   }
 
   function tick(dt) {
