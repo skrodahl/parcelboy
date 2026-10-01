@@ -22,7 +22,9 @@ You are building **Parcelboy**, a friendly, colorful arcade game in the browser,
    - **Don't write a summary, a status report or a question to the user** until every milestone is DONE. In your agent a plain text reply ends your turn, which stops the work. Keep calling tools instead; your progress report is `PROGRESS.md` and the git log.
    - If something is blocked (a tool fails, a fix doesn't work after two serious attempts, the plan contradicts itself), record it under *Known issues* in `PROGRESS.md` with exactly what you found, pick the simplest workaround or skip that one item, and **keep going** with the rest. Never break a hard rule to get unblocked; skip the item instead.
    - If your context fills up or the session restarts, resume from `PROGRESS.md` and `git log` and continue where you left off.
+   - **Auto-continue hook** (`.opencode/plugin/autocontinue.js`): a plugin re-prompts "please continue" whenever a turn ends, so a plain-text reply no longer stalls the run. **If your reply actually stops the work — you're done, or you need a decision from the user — append the token `[pb-done]`**; the hook reads it and stops pinging. If there is still pending work, do **not** append it (the hook will nudge you to continue). Don't end a "done / waiting" reply without it.
 7. **No narration between steps.** Run each milestone as one uninterrupted flow: read the PLAN section → implement → run the shot tool → confirm **0 console errors + ≤150 draw calls** → open and look at the PNGs → update `PROGRESS.md` → `git commit -am "M<n>: <title>"` → `git push origin main` → next milestone. Chain tool calls silently.
+   - **Never end a reply with an announcement** like "Now I'll implement the lockers…". If you say what you'll do next, make that tool call in the same reply. A reply without a tool call ends your turn and stops the work.
 
 ## Hard rules
 
