@@ -55,7 +55,7 @@ const preset = todRegistry.get(params.tod || 'morning');
 
 const canvas = document.getElementById('game');
 // §2.11: a `?quality=` param overrides the persisted quality setting.
-const { renderer, quality, name: qualityName, targetFps } = createRenderer(canvas, params.quality || saveData.settings.quality || 'high');
+const { renderer, quality, name: qualityName, targetFps } = createRenderer(canvas, params.quality || saveData.settings.quality || 'balanced');
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 220);
@@ -281,7 +281,7 @@ if (params.scene === 'test') {
       pickVeh: (id) => changeCourier(activeChar.id, id),
       getBowled: () => (ambient ? ambient.bowledTotal : 0),
        startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
-       activeCharId: charDef.id, activeVehId: vehDef.id, qualityName,
+       activeCharId: charDef.id, activeVehId: vehDef.id, qualityName, setQuality: applyQuality,
         resumePause: () => { simPaused = false; if (screens) screens.close(); },
         audio,
         persistSetting: (k, v) => progress.setSetting(k, v), // §2.11: persist the settings screen changes
@@ -630,6 +630,15 @@ function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, f
   return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
 }
 resizeRenderer(renderer, camera);
+
+// §2.11: apply a quality preset chosen on the Settings screen. The WebGL
+// antialias flag + the renderer/loop/shadow maps are built at boot, so the
+// choice is persisted and the page reloaded to rebuild them with the preset.
+function applyQuality(name) {
+  if (!name || name === qualityName) return;
+  progress.setSetting('quality', name);
+  location.reload();
+}
 
 // Menu / screenshot camera presets (§7.9). Full follow-cam lands in M4.
 // Every path records the look target in camLook so the distance-scaled fog

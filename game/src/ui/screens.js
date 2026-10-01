@@ -167,7 +167,7 @@ export function createScreens(ctx) {
   // -- settings screen -------------------------------------------------------
   const settings = el('div', 'screen screen-settings');
   const setList = el('div', 'settings-list');
-  const setNote = el('div', 'settings-note', 'Antialias needs a page reload to apply.');
+  const setNote = el('div', 'settings-note', 'A preset change reloads the page to apply (the antialias flag is set when the WebGL context is created).');
   settings.append(el('h3', null, 'Settings'), setList, setNote, el('div', 'select-hint', 'ESC back'));
   root.append(settings);
 

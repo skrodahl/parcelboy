@@ -12,7 +12,7 @@ export function defaultSave() {
     best: {},
     goldenParcels: [],
     last: { character: 'pip', vehicle: 'feet' },
-    settings: { quality: 'high', musicVol: 0.35, sfxVol: 0.8, showFps: false },
+    settings: { quality: 'balanced', musicVol: 0.35, sfxVol: 0.8, showFps: false },
   };
 }
 
