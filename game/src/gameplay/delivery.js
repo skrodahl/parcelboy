@@ -44,6 +44,7 @@ function tileRect(world, tiles) {
 // targets, seed, ui, packageMix }.
 export function createDelivery(env) {
   const { world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetIds, seed, ui, packageMix } = env;
+  const events = env.events; // §9: audio listens to these; gameplay never imports audio
   const hazards = env.hazards; // M7: anger a bee swarm when a parcel lands on its tree (§2.7)
   const mailboxes = world.mailboxes || [];
   const std = PACKAGES.find((p) => p.id === 'standard');
@@ -108,6 +109,12 @@ export function createDelivery(env) {
     if (parcel.trick && target && (zoneOutcome === 'perfect' || zoneOutcome === 'nice' || zoneOutcome === 'sloppy')) zoneOutcome = 'perfect';
     const res = scoring.judge(pkg, zoneOutcome, { dist: parcel.dist, impact: parcel.impact, airMail: parcel.airMail, timeFrac: 0 });
     s.lastResult = res;
+    // §9: audio listens to the delivery result + the landing (never imported by gameplay).
+    if (events) {
+      events.emit('land');
+      events.emit('delivery', res);
+      if (res.streakAfter > res.streak) events.emit('streak', { multiplier: res.multiplier });
+    }
     const wx = parcel.mesh.position.x, wy = parcel.mesh.position.y, wz = parcel.mesh.position.z;
     res.rest = { x: wx, z: wz };
     // §2.7: a parcel that lands on the beehive or its tree angers the swarm.
@@ -158,6 +165,7 @@ export function createDelivery(env) {
     const d = Math.hypot(dx, dz);
     if (d > maxDist) { const f = maxDist / d; ax = player.pos.x + dx * f; az = player.pos.z + dz * f; }
     s.parcels.throwParcel({ x: player.pos.x, y: PARCEL.throwHeight, z: player.pos.z }, { x: ax, z: az }, { pkg: target.pkg, target, airMail: player.pos.y > 0.05, trick });
+    if (events) events.emit('throw');
   }
   s.doThrow = doThrow;
 

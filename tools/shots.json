@@ -49,5 +49,6 @@
   { "name": "m8-results", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=results", "eval": [] },
   { "name": "m8-settings", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=settings", "eval": [] },
   { "name": "m8-select-courier-640", "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier", "width": 1024, "height": 640, "eval": [] },
-  { "name": "m8-title-640", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title", "width": 1024, "height": 640, "eval": [] }
+  { "name": "m8-title-640", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title", "width": 1024, "height": 640, "eval": [] },
+  { "name": "m9-audio-debug", "url": "/?char=pip&veh=bike&mute=1&debug=1&paused=1", "eval": ["__pb.debugAudio();"] }
 ]

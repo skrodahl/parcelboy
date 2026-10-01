@@ -214,6 +214,28 @@ export function createScreens(ctx) {
       row.addEventListener('click', () => ctx.setQuality && ctx.setQuality(p));
       setList.append(row);
     }
+    // M9: audio controls (mute toggle + music/SFX volume sliders).
+    if (ctx.audio) {
+      const muteVal = el('div', 'setting-desc', ctx.audio.muted ? 'ON' : 'OFF');
+      const muteRow = el('div', 'setting-row');
+      muteRow.append(el('div', 'setting-lbl', 'Mute'), muteVal);
+      muteRow.addEventListener('click', () => { const m = !ctx.audio.muted; ctx.audio.setMuted(m); muteVal.textContent = m ? 'ON' : 'OFF'; });
+      setList.append(muteRow);
+      for (const which of ['music', 'sfx']) {
+        const base = which === 'music' ? ctx.audio.musicVol : ctx.audio.sfxVol;
+        const slider = el('input', 'setting-slider');
+        slider.type = 'range'; slider.min = '0'; slider.max = '100'; slider.value = Math.round(base * 100);
+        const valEl = el('div', 'setting-desc', slider.value);
+        slider.addEventListener('input', () => {
+          valEl.textContent = slider.value;
+          const v = Number(slider.value) / 100;
+          if (which === 'music') ctx.audio.setMusicVol(v); else ctx.audio.setSfxVol(v);
+        });
+        const volRow = el('div', 'setting-row audio');
+        volRow.append(el('div', 'setting-lbl', which === 'music' ? 'Music' : 'SFX'), slider, valEl);
+        setList.append(volRow);
+      }
+    }
   }
 
   // -- pause rows -----------------------------------------------------------

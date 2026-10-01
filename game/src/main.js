@@ -34,6 +34,8 @@ import { createAmbient } from './entities/ambient.js';
 import { createWatch } from './gameplay/watch.js';
 import { createAbilitySystem } from './gameplay/abilities.js';
 import { createScreens } from './ui/screens.js';
+import { createEvents } from './core/events.js';
+import { createAudio } from './audio/audio.js';
 import { mulberry32 } from './core/rng.js';
 
 const params = parseParams();
@@ -48,6 +50,12 @@ const { renderer, quality, name: qualityName, targetFps } = createRenderer(canva
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 220);
 window.addEventListener('resize', () => resizeRenderer(renderer, camera));
+
+// §9: the event bus (gameplay emits; audio/subsystems listen) + the audio
+// manager. The AudioContext itself is created on the first user input (unlock).
+const events = createEvents();
+let audio = createAudio({ events, muted: !!params.mute });
+let audioDebugEl = null; // §9: the ?debug=1 last-sound readout
 
 // One shared Lambert material for all opaque world geometry (§7.3).
 // FrontSide: VoxelBuilder now emits CCW-wound triangles, so back-face
@@ -107,6 +115,7 @@ const gameState = { name: 'boot' };
 // Fog + far clip scale with the distance from the camera to this point (§7.3).
 const camLook = new THREE.Vector3(0, 0, 0);
 let simPaused = params.paused; // M6b: also toggled while the full-screen map is open
+let musicPaused = !!params.paused; // §9: keep the music state in sync with the sim
 let radar = null, fullMap = null; // M6b: the corner radar + full-screen map
 // M6b: live refs the radar/full-map read each tick (kept current in main).
 const radarState = { player: null, delivery: null, hazards: null, world: null, waypoint: null, mischief: null, heat: null, watch: null };
@@ -251,8 +260,9 @@ if (params.scene === 'test') {
       pickVeh: (id) => changeCourier(activeChar.id, id),
       getBowled: () => (ambient ? ambient.bowledTotal : 0),
       startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
-      activeCharId: charDef.id, activeVehId: vehDef.id,
-      resumePause: () => { simPaused = false; if (screens) screens.close(); },
+       activeCharId: charDef.id, activeVehId: vehDef.id,
+       resumePause: () => { simPaused = false; if (screens) screens.close(); },
+       audio,
     });
     window.addEventListener('keydown', (e) => { if (screens && screens.active) screens.handleKey(e); });
     if (params.showCard && !params.screen) showShiftCard();
@@ -356,6 +366,7 @@ function onBusted(level) {
     el('div', 'busted-pen', (inMission ? 'Score ' : '−') + penalty + (inMission ? '' : ' coins')),
   );
   document.getElementById('ui').append(bustedEl);
+  if (events) events.emit('busted');
   void level;
 }
 
@@ -366,6 +377,7 @@ function onStrike() {
   sharedFloatText.pop('STRIKE!', p.x, 3, p.z, { color: '#ffd166', burst: true });
   if (sharedEffects) sharedEffects.confetti(p.x, 2, p.z);
   if (delivery) delivery.addScore(100);
+  if (events) events.emit('strike');
 }
 
 // M7: (re)create the hazard manager for a set of counts. Free roam uses the
@@ -379,7 +391,7 @@ function setHazards(counts) {
     onKnockdown, parcels: delivery ? delivery.parcels : null,
     onDogSteal: () => { if (delivery) delivery.dropParcel(true); },
     onDogRecover: () => { if (delivery) delivery.recoverParcel(); },
-    onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } },
+      onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } if (events) events.emit('hop'); },
   });
   radarState.hazards = hazards;
 }
@@ -391,7 +403,7 @@ function onKnockdown(kind) {
   hitStopUntil = simTime + (CARTOON.enabled ? CARTOON.hitStopMs : 0) / 1000;
   if (delivery) delivery.dropParcel(false);
   sharedEffects.dust(player.pos.x, 0.6, player.pos.z);
-  void kind;
+  if (events) events.emit(kind === 'grump' ? 'grumble' : 'knockdown');
 }
 
 // §2.10: start a shift by id. Builds the mission (targets + timer) and a
@@ -509,6 +521,7 @@ function showResults(res) {
   endShift(false);
   // §10: the shift pays out coins + its best star count (unlocks later shifts).
   progress.earn(res.coins || 0);
+  if (events) events.emit('results');
   starsEarned = Math.max(starsEarned, res.stars || 0);
   if (resultsEl) { resultsEl.remove(); resultsEl = null; }
   resultsEl = el('div', 'results');
@@ -565,7 +578,7 @@ function routeScreen(name, params) {
 // and the M5 interim both go through this). `charDef`/`vehDef` come from the
 // currently-spawned courier.
 function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, onParcelRest: (x, y, z) => { if (mischief) mischief.grumpHit(x, z, y); } });
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
 }
 resizeRenderer(renderer, camera);
 
@@ -685,6 +698,9 @@ function update(dt) {
   if (radar) radar.tick(dt); // M6b: the corner radar stays live (also while paused)
   if (fullMap) fullMap.tick(dt);
   updateAbilityBtn(); // §10: the ability button's ring reflects the live cooldown
+  if (simPaused !== musicPaused) { musicPaused = simPaused; if (musicPaused) audio.stopMusic(); else audio.startMusic(false); }
+  if (input.consume('mute')) audio.setMuted(!audio.muted);
+  if (audioDebugEl) audioDebugEl.textContent = 'SFX ' + audio.lastSounds().join(' ');
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
@@ -702,6 +718,24 @@ function render() {
 
 const loop = createLoop({ update, render, targetFps });
 
+// §9: the AudioContext is created + resumed on the first user gesture (browsers
+// block audio otherwise); the light ambience + the music loop start there too.
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  audio.unlock();
+  audio.beginAmbience();
+}
+window.addEventListener('keydown', unlockAudio);
+window.addEventListener('mousedown', unlockAudio);
+// A hidden tab suspends the whole context (and stops the music); a visible tab
+// resumes it. The rAF loop is separately paused/started by createLoop.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { audio.suspend(); audio.stopMusic(); }
+  else { audio.resume(); if (!simPaused) audio.startMusic(false); }
+});
+
 function stats() {
   return {
     fps: loop.fps(),
@@ -716,11 +750,26 @@ function stats() {
   };
 }
 
-if (params.debug) createDebugOverlay(stats);
+if (params.debug) {
+  createDebugOverlay(stats);
+  audioDebugEl = el('div', 'audio-debug', 'SFX —');
+  document.getElementById('ui').append(audioDebugEl);
+}
 
 window.__pb = {
   ready: false,
   stats,
+  audio() { return { muted: audio.muted, lastSounds: audio.lastSounds(), musicVol: audio.musicVol, sfxVol: audio.sfxVol }; },
+  setAudioVol(musicVol, sfxVol) { if (musicVol != null) audio.setMusicVol(musicVol); if (sfxVol != null) audio.setSfxVol(sfxVol); },
+  debugAudio() {
+    events.emit('throw');
+    events.emit('land');
+    events.emit('delivery', { outcome: 'perfect', streak: 2, streakAfter: 3, multiplier: 2 });
+    events.emit('streak', { multiplier: 2 });
+    events.emit('restock');
+    events.emit('results');
+    return audio.lastSounds();
+  },
   state() {
     return {
       gameState: gameState.name,

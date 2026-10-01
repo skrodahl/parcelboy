@@ -195,6 +195,8 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .setting-row.active { background: rgba(255, 190, 11, 0.28); outline: 2px solid #ffbe0b; }
 .setting-lbl { text-transform: uppercase; letter-spacing: 1px; }
 .setting-desc { color: #9fb4c9; font: 600 12px/1 inherit; }
+.setting-slider { width: 150px; accent-color: #ffbe0b; cursor: pointer; }
+.setting-row.audio { cursor: default; }
 .settings-note { font: 600 12px/1 inherit; color: #9fb4c9; }
 /* pause */
 .screen-pause h3 { font: 800 26px/1 inherit; color: #ffbe0b; margin: 0; }
@@ -202,3 +204,5 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .pause-bowled { font: 700 14px/1 inherit; color: #ff7b9c; margin-bottom: 4px; }
 .pause-item { font: 700 15px/1 inherit; color: #fff; padding: 6px 8px; border-radius: 7px; }
 .pause-item:hover { background: rgba(255, 255, 255, 0.1); }
+/* M9: the ?debug=1 last-sound readout (bottom-left, above the ability button) */
+.audio-debug { position: absolute; left: 10px; bottom: 92px; font: 700 13px/1 inherit; color: #7cc4ff; background: rgba(0, 0, 0, 0.5); padding: 4px 9px; border-radius: 6px; letter-spacing: 0.04em; }
