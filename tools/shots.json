@@ -42,6 +42,7 @@
   { "name": "m7b-watch-chase", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.heat(8); __pb.teleport(30,17,0); __pb.step(24); var p=__pb.state().player, w=__pb.debugMischief().watchPos[0]; if(w) __pb.aimAt((w[0]+p.x)/2, (w[1]+p.z)/2, (w[0]+p.x)/2 - 3, (w[1]+p.z)/2, 4.5);"] },
   { "name": "m7b-busted", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.heat(6); __pb.step(30); __pb.bust(); __pb.step(3);"] },
   { "name": "m8-title", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title", "eval": [] },
+  { "name": "m8-howto", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=howTo", "eval": [] },
   { "name": "m8-select-courier", "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier", "eval": [] },
   { "name": "m8-select-vehicle", "url": "/?char=pip&veh=cargo&mute=1&paused=1&screen=selectVehicle", "eval": [] },
   { "name": "m8-mission-card-locked", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=missionCard:golden", "eval": [] },

@@ -12,7 +12,7 @@ function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.c
 
 export function createScreens(ctx) {
   const { ui, scene, camera, charRegistry, vehRegistry, buildCourier, buildModel, mat,
-    progress, pickChar, pickVeh, getBowled, startShift, gotoFreeRoam, setCam } = ctx;
+    progress, pickChar, pickVeh, getBowled, startShift, gotoFreeRoam, setCam, qualityName } = ctx;
   const root = el('div', 'screens');
   ui.append(root);
 
@@ -113,13 +113,56 @@ export function createScreens(ctx) {
 
   // -- title screen ----------------------------------------------------------
   const title = el('div', 'screen screen-title');
+  const titleHow = el('button', 'title-btn', 'How to play');
+  const titleSettings = el('button', 'title-btn', 'Settings');
+  titleHow.addEventListener('click', () => show('howTo'));
+  titleSettings.addEventListener('click', () => { buildSettings(qualityName); show('settings'); });
+  const titleMenu = el('div', 'title-menu');
+  titleMenu.append(titleHow, titleSettings);
   title.append(
     el('div', 'title-logo', 'Parcelboy'),
     el('div', 'title-co', 'QUICKBOX · suburban delivery, with attitude'),
     el('div', 'title-cta', 'Press ENTER to clock in'),
     el('div', 'title-sub', 'or ESC for the courier locker'),
+    titleMenu,
+    el('div', 'title-credits', 'a Quickbox production · built with Three.js'),
   );
   root.append(title);
+
+  // -- how-to-play screen ----------------------------------------------------
+  const howTo = el('div', 'screen screen-howto');
+  const hcard = (head, rows) => {
+    const card = el('div', 'howto-card');
+    card.append(el('h4', null, head));
+    for (const [k, v] of rows) {
+      const row = el('div', 'howto-row');
+      row.append(el('span', 'howto-key', k), el('span', null, v));
+      card.append(row);
+    }
+    return card;
+  };
+  const hnote = (head, txt) => {
+    const card = el('div', 'howto-card');
+    card.append(el('h4', null, head), el('div', 'howto-note', txt));
+    return card;
+  };
+  const howToCols = el('div', 'howto-cols');
+  howToCols.append(
+    hcard('Move & hop', [
+      ['WASD', 'drive or walk (the arrow keys work too)'],
+      ['SPACE', 'hop — you can\'t be knocked down mid-air'],
+      ['M · TAB', 'mute · open the full map'],
+    ]),
+    hcard('Throw & deliver', [
+      ['Q / E', 'toss the next parcel to your left / right'],
+      ['CLICK', 'toss a parcel at the ground under the cursor'],
+      ['F', 'hold on a porch to doorstep — always safe'],
+    ]),
+    hnote('The loop', 'Free roam: explore, hunt the 12 Golden Parcels, and restock at the Quickbox depot (the Q blip on the radar). Enter a shift at the teal dispatch marker and deliver every parcel before the clock runs out — more + a time bonus means more stars and coins.'),
+    hnote('Mischief', 'Bowl pedestrians over and smash the "NO QUICKBOX!" Grump houses — it\'s all cartoon, so everyone pops back up. Keep the Neighborhood Watch\'s heat under three whistles or you get BUSTED.'),
+  );
+  howTo.append(el('h3', null, 'How to play'), howToCols, el('div', 'select-hint', 'ESC back'));
+  root.append(howTo);
 
   // -- settings screen -------------------------------------------------------
   const settings = el('div', 'screen screen-settings');
@@ -157,6 +200,7 @@ export function createScreens(ctx) {
       renderVehPanel();
     }
     else if (name === 'settings') { settings.classList.remove('hidden'); setCam('overview'); }
+    else if (name === 'howTo') { howTo.classList.remove('hidden'); }
     else if (name === 'pause') { pause.classList.remove('hidden'); }
   }
 
@@ -182,6 +226,8 @@ export function createScreens(ctx) {
     } else if (activeName === 'title') {
       if (code === 'Enter') gotoFreeRoam();
       else if (code === 'Escape') show('selectCourier');
+    } else if (activeName === 'howTo' || activeName === 'settings') {
+      if (code === 'Escape') show('title');
     } else if (activeName === 'pause') {
       if (code === 'Escape') ctx.resumePause && ctx.resumePause();
     }

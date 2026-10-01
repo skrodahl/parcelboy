@@ -280,8 +280,8 @@ if (params.scene === 'test') {
       pickChar: (id) => changeCourier(id, activeVeh.id),
       pickVeh: (id) => changeCourier(activeChar.id, id),
       getBowled: () => (ambient ? ambient.bowledTotal : 0),
-      startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
-       activeCharId: charDef.id, activeVehId: vehDef.id,
+       startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
+       activeCharId: charDef.id, activeVehId: vehDef.id, qualityName,
         resumePause: () => { simPaused = false; if (screens) screens.close(); },
         audio,
         persistSetting: (k, v) => progress.setSetting(k, v), // §2.11: persist the settings screen changes
@@ -291,6 +291,9 @@ if (params.scene === 'test') {
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
     // §10: route `?screen=` to the matching screen (screenshots + the DoD flow).
     routeScreen(params.screen, params);
+    // §10: a plain load (no query params) lands on the Title instead of free-roam.
+    // Param-driven loads (?screen / ?autostart / ?paused / ?char / ...) skip it.
+    if (!location.search) screens.show('title');
   }
 }
 
@@ -614,6 +617,7 @@ function routeScreen(name, params) {
   else if (name === 'selectVehicle') { screens.show('selectVehicle', { veh: params.veh }); }
   else if (name === 'results') { showResults({ shift: 'morning', success: true, score: 3420, stars: 3, coins: 340, timeBonus: 120, delivered: 10, total: 10 }); }
   else if (name === 'settings') { screens.show('settings'); screens.buildSettings(qualityName); }
+  else if (name === 'howTo') { screens.show('howTo'); }
   else if (name === 'pause') { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; }
   else if (name.startsWith('missionCard:')) { showShiftCard(name.slice(12)); }
   else if (name === 'fullMap') { fullMap.open(); }
@@ -721,6 +725,10 @@ function applyCamPreset(cam, name) {
 // One fixed sim step for the playing core: player kinematics + visuals, the
 // follow cam, and the blob shadow. Called by update() each fixed step, or
 // manually by __pb.step() while paused.
+// §10: while a non-pause menu is up, the player is locked (no movement) but the
+// rest of the world stays live behind it. The pause screen freezes the whole sim.
+function menuGate() { return !!(screens && screens.active && screens.active !== 'pause'); }
+
 function simStep(dt) {
   // §2.12 hit-stop: on a knockdown the world freezes ~70 ms (dramatic beat).
   if (simTime < hitStopUntil) return;
@@ -743,7 +751,7 @@ function simStep(dt) {
   // day cycle (a mission holds its own time of day, so it only ticks in free roam).
   if (collectibles && player) collectibles.tick(dt, simTime, player);
   if (dayCycle && !mission && !delivery) { dayCycle.tick(dt); setCricketsForPreset(TIMES_OF_DAY[dayCycle.phase]); }
-  if (player) {
+  if (player && !menuGate()) {
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
     // §2.12 speed lines: while Sprint/Turbo raise the top speed, a short white
