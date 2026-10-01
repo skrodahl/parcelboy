@@ -180,7 +180,7 @@ export function createDelivery(env) {
   s.stolen = false;
   s.dropParcel = (stolen) => { s.carried = Math.max(0, s.carried - 1); player.setCarried(s.carried); scoring.breakStreak(); if (stolen) s.stolen = true; };
   s.recoverParcel = () => { if (s.stolen) { s.stolen = false; s.carried++; player.setCarried(s.carried); floatText.pop('Got it back!', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } };
-  s.addScore = (n) => { scoring.score += n; };
+  s.addScore = (n) => { scoring.add(n); };
   s.updateDoorstep = (dt) => {
     if (!input.isHeld('doorstep')) { s.doorstepT = 0; s.doorstepHouse = null; return; }
     let on = null;

@@ -99,6 +99,10 @@ export function createScoring() {
     return judge(pkg, 'doorstep', info || {});
   }
 
+  // A raw points award (gags like STRIKE! / Hop! / the mischief bounces add a
+  // flat amount outside the normal judging pipeline).
+  function add(n) { score += n; }
+
   function reset() { score = 0; streak = 0; }
   // A lost parcel (a knockdown drop or a dog steal) breaks the streak (§2.6/§2.12).
   function breakStreak() { streak = 0; }
@@ -106,6 +110,7 @@ export function createScoring() {
   return {
     judge,
     doorstep,
+    add,
     reset,
     breakStreak,
     get score() { return score; },

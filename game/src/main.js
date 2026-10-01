@@ -33,6 +33,7 @@ import { createMischief } from './gameplay/mischief.js';
 import { createAmbient } from './entities/ambient.js';
 import { createWatch } from './gameplay/watch.js';
 import { createAbilitySystem } from './gameplay/abilities.js';
+import { createScreens } from './ui/screens.js';
 import { mulberry32 } from './core/rng.js';
 
 const params = parseParams();
@@ -63,12 +64,34 @@ let player = null;
 let vehicleMesh = null;
 let blobs = null;
 let followCam = null;
+let courierRig = null, courierVehMesh = null; // the current courier's rig + vehicle (removed on re-spawn)
 let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
 let mission = null; // M6 active shift runner (null in free roam)
 let hud = null; // M6 HUD (free-roam chip + mission timer/score)
 let activeChar = null, activeVeh = null; // the spawned courier/vehicle
 let abilities = null; // §11.6: the active courier's ability system (Modifier stack)
 let abilityBtn = null, abilityRing = null, abilityName = null; // the HUD ability button (§10)
+let screens = null; // §10: the menu / select / pause / settings screens
+let charRegistry = null, vehRegistry = null; // filled at boot; reused by the locker
+
+// §10: coins buy locked couriers/vehicles; stars (from shifts) unlock shifts.
+// Fresh save = 0 coins / 0 stars / nothing bought. `?coins=` seeds a balance
+// for the screenshots. (Real persistence lands in M10 save.js.)
+let coins = parseInt(params.coins || '0', 10) || 0;
+let starsEarned = 0;
+const bought = new Set();
+const progress = {
+  get coins() { return coins; },
+  get stars() { return starsEarned; },
+  canBuy(def) { return def.unlockCost === 0 || bought.has(def.id); },
+  canStart(shift) { return starsEarned >= (shift.unlockStars || 0); },
+  buy(def) {
+    if (def.unlockCost === 0 || bought.has(def.id) || coins < def.unlockCost) return false;
+    coins -= def.unlockCost; bought.add(def.id); refreshCoins(); return true;
+  },
+  earn(n) { coins += n; refreshCoins(); },
+};
+function refreshCoins() { if (hud) hud.coins.textContent = coins; }
 let resultsEl = null; // the results-screen DOM (M6)
 let shiftCardEl = null; // the dispatch mission-card DOM (M6)
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
@@ -191,9 +214,9 @@ if (params.scene === 'test') {
   sky.update(0, 0);
 
   // M4: dynamic actors (courier + vehicle) on top of the static world.
-  const charRegistry = new Registry('character', ['id', 'name', 'build', 'colors', 'stats', 'ability']);
+  charRegistry = new Registry('character', ['id', 'name', 'build', 'colors', 'stats', 'ability']);
   for (const c of CHARACTERS) charRegistry.add(c);
-  const vehRegistry = new Registry('vehicle', ['id', 'name', 'model', 'riding', 'stats', 'canJump']);
+  vehRegistry = new Registry('vehicle', ['id', 'name', 'model', 'riding', 'stats', 'canJump']);
   for (const v of VEHICLES) vehRegistry.add(v);
   followCam = null;
   if (params.lineup) {
@@ -219,20 +242,38 @@ if (params.scene === 'test') {
     const vehDef = vehRegistry.get(params.veh || 'feet');
     spawnCourier(charDef, vehDef);
     buildHUD();
-    if (params.screen === 'results') showResults({ shift: 'morning', success: true, score: 3420, stars: 2, coins: 340, timeBonus: 120, delivered: 10, total: 10 });
-    else if (params.showCard) showShiftCard();
+    refreshCoins();
+    // §10: the menu / select / pause / settings screens + keyboard navigation.
+    screens = createScreens({
+      ui: document.getElementById('ui'), scene, camera, charRegistry, vehRegistry,
+      buildCourier, buildModel, mat: world.worldMat, progress,
+      pickChar: (id) => changeCourier(id, activeVeh.id),
+      pickVeh: (id) => changeCourier(activeChar.id, id),
+      getBowled: () => (ambient ? ambient.bowledTotal : 0),
+      startShift, gotoFreeRoam, setCam: (n) => applyCamPreset(camera, n),
+      activeCharId: charDef.id, activeVehId: vehDef.id,
+      resumePause: () => { simPaused = false; if (screens) screens.close(); },
+    });
+    window.addEventListener('keydown', (e) => { if (screens && screens.active) screens.handleKey(e); });
+    if (params.showCard && !params.screen) showShiftCard();
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
-    if (params.screen === 'fullMap') fullMap.open(); // M6b: open the full-screen map (pauses the sim)
+    // §10: route `?screen=` to the matching screen (screenshots + the DoD flow).
+    routeScreen(params.screen, params);
   }
 }
 
 // M6: spawn the courier + vehicle + follow cam at the depot, free roam.
 function spawnCourier(charDef, vehDef) {
   activeChar = charDef; activeVeh = vehDef;
+  // §10 locker: re-spawn removes the previous courier's rig + vehicle + shadows.
+  if (courierRig) { scene.remove(courierRig.group); courierRig = null; }
+  if (courierVehMesh) { scene.remove(courierVehMesh); courierVehMesh = null; }
   const rig = buildCourier(charDef, world.worldMat);
+  courierRig = rig;
   scene.add(rig.group);
   const vehicleMesh = buildModel(vehDef.model, world.worldMat);
   if (vehicleMesh) scene.add(vehicleMesh);
+  courierVehMesh = vehicleMesh;
   blobs = createBlobShadows(16, world.poolTexture);
   scene.add(blobs.mesh);
   player = createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk: (amount) => { if (followCam) followCam.shake(amount); } });
@@ -390,6 +431,16 @@ function endShift(retry) {
   else { if (heat) heat.reset(); setupGrumps(FREE_ROAM.grumps, []); } // §2.15: back to the free-roam Grumps
 }
 
+// §10: the locker — swap the active courier / vehicle (a re-spawn) and return to
+// free roam. Used by the select screens + the distribution-center locker.
+function changeCourier(charId, vehId) {
+  if (mission) endShift(false);
+  if (screens) screens.close();
+  spawnCourier(charRegistry.get(charId), vehRegistry.get(vehId));
+  gameState.name = 'freeRoam';
+}
+function gotoFreeRoam() { if (mission) endShift(false); if (screens) screens.close(); }
+
 function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.className = cls; if (txt) n.textContent = txt; return n; }
 
 // §2.13 + §10: the free-roam chip + the mission HUD (timer / targets / next /
@@ -456,6 +507,9 @@ function updateAbilityBtn() {
 // §2.1 / §10: the results screen (functional; polished in M8).
 function showResults(res) {
   endShift(false);
+  // §10: the shift pays out coins + its best star count (unlocks later shifts).
+  progress.earn(res.coins || 0);
+  starsEarned = Math.max(starsEarned, res.stars || 0);
   if (resultsEl) { resultsEl.remove(); resultsEl = null; }
   resultsEl = el('div', 'results');
   const stars = '★'.repeat(res.stars) + '☆'.repeat(Math.max(0, 3 - res.stars));
@@ -474,19 +528,37 @@ function showResults(res) {
 }
 
 // §2.10: the dispatch card, paged through the main shifts. Shown at the
-// dispatch marker in free roam; `?showCard=1` forces it for the m6-card shot.
-function showShiftCard() {
-  if (shiftCardEl) { shiftCardEl.remove(); shiftCardEl = null; return; }
+// dispatch marker in free roam; `?showCard=1` forces it, and
+// `?screen=missionCard:<id>` focuses a specific shift (locked on a fresh save).
+function showShiftCard(focusId) {
+  if (shiftCardEl) { shiftCardEl.remove(); shiftCardEl = null; }
   shiftCardEl = el('div', 'shift-card');
   shiftCardEl.append(el('h3', null, 'Quickbox Dispatch'));
-  const list = el('div');
+  const list = el('div', 'sc-list');
   for (const s of MAIN_SHIFTS) {
-    const row = el('div');
-    row.textContent = s.name + ' — ' + s.deliveries + ' drops · ' + s.duration + 's' + (s.unlockStars ? ' · ' + s.unlockStars + '★' : '');
+    const locked = !progress.canStart(s);
+    const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (s.id === focusId ? ' focus' : ''));
+    row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', s.deliveries + ' drops · ' + s.duration + 's'));
+    if (locked) row.append(el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★ to unlock'));
+    else row.append(el('div', 'sc-row-go', 'Ready'));
     list.append(row);
   }
   shiftCardEl.append(list, el('div', 'sc-cta', 'Press ENTER to start a shift'));
   document.getElementById('ui').append(shiftCardEl);
+}
+
+// §10: route a `?screen=` value to the matching screen. The results + full-map
+// screens have their own handlers; the rest go through the screens module.
+function routeScreen(name, params) {
+  if (!name) return;
+  if (name === 'title') { screens.show('title'); }
+  else if (name === 'selectCourier') { screens.show('selectCourier', { char: params.char }); }
+  else if (name === 'selectVehicle') { screens.show('selectVehicle', { veh: params.veh }); }
+  else if (name === 'results') { showResults({ shift: 'morning', success: true, score: 3420, stars: 3, coins: 340, timeBonus: 120, delivered: 10, total: 10 }); }
+  else if (name === 'settings') { screens.show('settings'); screens.buildSettings(qualityName); }
+  else if (name === 'pause') { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; }
+  else if (name.startsWith('missionCard:')) { showShiftCard(name.slice(12)); }
+  else if (name === 'fullMap') { fullMap.open(); }
 }
 
 // Setup a delivery session for an explicit target list + package mix (M6 shifts
@@ -770,7 +842,13 @@ window.__pb = {
   strike() { onStrike(); },
   bust() { onBusted(0); },
   crashGrump() { if (mischief && mischief.grumps[0]) mischief.forceBreak(mischief.grumps[0], 'window'); },
-  goto() {},
+  goto(name) { routeScreen(name, params); },
+  openScreen(name, opts) { if (screens) screens.show(name, opts); },
+  openPause() { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; },
+  closeScreens() { if (screens) screens.close(); },
+  buyChar(id) { return progress.buy(charRegistry.get(id)); },
+  buyVeh(id) { return progress.buy(vehRegistry.get(id)); },
+  setCoins(n) { coins = n | 0; refreshCoins(); },
   autoplay() {},
   nextTarget() {
     if (!delivery) return null;

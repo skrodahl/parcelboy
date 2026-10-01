@@ -12,6 +12,7 @@ const KEYS = {
   Space: 'jump',
   KeyF: 'doorstep',
   ShiftLeft: 'ability', ShiftRight: 'ability',
+  Enter: 'confirm',
   Escape: 'pause', KeyP: 'pause',
   KeyM: 'mute',
   Tab: 'map',
