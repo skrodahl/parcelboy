@@ -22,7 +22,7 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .pb-float.pb-text { color: inherit; }
 .pb-float.pb-burst {
   color: #22223b; background: #ffbe0b;
-  padding: 4px 12px;
+  padding: 8px 22px;
   -webkit-text-stroke: 0;
   clip-path: polygon(0% 45%, 8% 25%, 3% 8%, 20% 12%, 30% 0%, 40% 14%, 55% 4%, 62% 18%, 78% 8%, 84% 24%, 100% 20%, 92% 42%, 100% 58%, 86% 60%, 92% 80%, 74% 74%, 66% 92%, 54% 78%, 40% 90%, 34% 74%, 18% 82%, 22% 62%, 6% 66%);
 }
@@ -44,6 +44,29 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
   font: 800 13px ui-rounded, system-ui, sans-serif; color: #ffd24a;
   background: rgba(0, 0, 0, 0.5); padding: 4px 10px; border-radius: 8px;
   letter-spacing: 0.03em;
+}
+.hud-golden.pulse { animation: goldPulse 0.5s ease-out; }
+@keyframes goldPulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+/* §2.13 / M12a.0: the golden-parcel banner (top-center, reused element). */
+.pb-banner {
+  position: fixed; top: 44px; left: 50%; z-index: 6;
+  transform: translateX(-50%);
+  display: none; text-align: center; color: #22223b;
+  background: #ffd24a; padding: 12px 30px; border-radius: 14px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+.pb-banner.show { animation: pbBannerPop 0.3s ease-out; }
+.pb-banner.fade { opacity: 0; transition: opacity 0.4s; }
+.pb-banner-title {
+  font: 900 27px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  letter-spacing: 0.5px;
+}
+.pb-banner-sub { font: 700 15px ui-rounded, "SF Pro Rounded", system-ui, sans-serif; margin-top: 2px; }
+@keyframes pbBannerPop {
+  0% { transform: translateX(-50%) scale(0); }
+  70% { transform: translateX(-50%) scale(1.15); }
+  100% { transform: translateX(-50%) scale(1); }
 }
 .hud-mission {
   position: fixed; top: 12px; left: 50%; transform: translateX(-50%);

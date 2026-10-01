@@ -39,7 +39,9 @@ export function createCollectibles({ scene, world, mat, progression, floatText, 
     sp.found = true;
     const total = progression.foundGolden(i);
     progression.earn(50);
-    if (floatText) floatText.pop('GOLDEN PARCEL ' + total + '/' + count, sp.x, 2.4, sp.z, { color: '#ffd24a', burst: true });
+    // Small world popup at the parcel; the count + "GOLDEN PARCEL!" banner are
+    // a separate screen-space banner (main.js, on the `golden` event).
+    if (floatText) floatText.pop('+50', sp.x, 2.4, sp.z, { color: '#ffd24a', burst: true });
     if (events) events.emit('golden', { total, count });
   }
 

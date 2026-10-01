@@ -27,11 +27,18 @@ export function createFloatText(container, camera, renderer) {
     const el = it.el;
     it.active = true;
     it.wx = wx; it.wy = wy; it.wz = wz;
-    it.life = 0; it.max = 0.9;
+    it.life = 0; it.max = (opts && opts.life) || 0.9;
     it.burst = !!opts && opts.burst;
     el.className = 'pb-float ' + (it.burst ? 'pb-burst' : 'pb-text');
     el.textContent = text;
-    if (opts && opts.color) el.style.color = opts.color;
+    // The elements are pooled: reset both inline colors so a reused slot can't
+    // carry the previous pop's style. For a burst, opts.color is the badge
+    // *background* (the text stays the dark #22223b from CSS, so it reads on
+    // any badge color); for plain text it's the text color.
+    el.style.color = '';
+    el.style.backgroundColor = '';
+    if (it.burst) { if (opts && opts.color) el.style.backgroundColor = opts.color; }
+    else if (opts && opts.color) el.style.color = opts.color;
     el.style.opacity = '1';
     el.style.display = 'block';
     return it;

@@ -101,6 +101,26 @@ let charRegistry = null, vehRegistry = null; // filled at boot; reused by the lo
 // persists via progression.save(). `saveData` is loaded at the top of the file.
 function refreshCoins() { if (hud) hud.coins.textContent = progress.coins; }
 function refreshGolden() { if (hud) hud.golden.textContent = progress.data.goldenParcels.length + '/12'; }
+
+// §2.13 / M12a.0: the golden-parcel banner — a reused top-center DOM element
+// (pop-in, held, fade; no per-frame work). The HUD golden counter pulses too.
+let goldenBanner = null, goldenBannerTitle = null, goldenBannerSub = null, goldenT1 = 0, goldenT2 = 0;
+function showGoldenBanner(total, count) {
+  if (!goldenBanner) return;
+  const all = total >= count;
+  goldenBannerTitle.textContent = all ? 'ALL 12 FOUND!' : 'GOLDEN PARCEL!';
+  goldenBannerSub.textContent = all ? 'Golden Bike unlocked!' : total + ' / ' + count + ' found · +50 coins';
+  goldenBanner.style.display = 'block';
+  goldenBanner.classList.remove('fade');
+  goldenBanner.classList.add('show');
+  const hold = all ? 4000 : 2500;
+  clearTimeout(goldenT1); clearTimeout(goldenT2);
+  goldenT1 = setTimeout(() => goldenBanner.classList.add('fade'), hold);
+  goldenT2 = setTimeout(() => { goldenBanner.style.display = 'none'; goldenBanner.classList.remove('show', 'fade'); }, hold + 400);
+}
+function pulseGolden() { if (hud && hud.golden) { const g = hud.golden; g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse'); } }
+events.on('golden', (d) => { pulseGolden(); showGoldenBanner(d.total, d.count); });
+
 const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
@@ -523,8 +543,13 @@ function buildHUD() {
   const abKey = el('div', 'ability-key', 'Shift');
   ab.append(abRing, abName, abKey);
   ab.style.display = 'none';
-  ui.append(chip, coins, golden, panel, ab);
+  const banner = el('div', 'pb-banner');
+  const bannerTitle = el('div', 'pb-banner-title');
+  const bannerSub = el('div', 'pb-banner-sub');
+  banner.append(bannerTitle, bannerSub);
+  ui.append(chip, coins, golden, panel, ab, banner);
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
+  goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
   hud = {
     chip, coins, golden, panel, pName, pTimer, pTargets, pNext, pScore,
     missionStart(session, shift) {
