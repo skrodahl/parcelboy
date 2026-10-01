@@ -92,8 +92,10 @@ export function createAmbient(env) {
   scene.add(birdMesh);
   const birds = [];
   for (let i = 0; i < BIRDS; i++) {
-    const x = 4 + rng() * (tm.width - 8) * tm.tileSize / 4;
-    const z = 4 + rng() * (tm.height - 8) * tm.tileSize / 4;
+    // M12a.4: perch on a lawn tile spread across the whole map (like the
+    // walkers), not just the north-west quarter.
+    const t = cand.length ? cand[(i * 7919 + 13) % cand.length] : [2, 2];
+    const x = tm.cx(t[0]), z = tm.cz(t[1]);
     birds.push({ x, z, y: 0.3, hx: x, hz: z, hy: 0.3, state: 'perched', t: rng() * 3, vx: 0, vz: 0, flap: rng() * 6 });
   }
 
