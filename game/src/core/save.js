@@ -13,6 +13,7 @@ export function defaultSave() {
     goldenParcels: [],
     last: { character: 'pip', vehicle: 'feet' },
     settings: { quality: 'balanced', musicVol: 0.35, sfxVol: 0.8, showFps: false },
+    clock: 360, // §2.20: the world day clock (game minutes since 00:00), persisted
   };
 }
 
@@ -33,6 +34,7 @@ export function loadSave() {
   }
   if (data.best && typeof data.best === 'object') d.best = data.best; // shape checked at read sites
   if (Array.isArray(data.goldenParcels)) d.goldenParcels = data.goldenParcels.filter((x) => typeof x === 'number');
+  if (typeof data.clock === 'number' && isFinite(data.clock)) d.clock = ((data.clock % 1440) + 1440) % 1440; // §2.20
   if (data.last && typeof data.last === 'object') {
     if (typeof data.last.character === 'string') d.last.character = data.last.character;
     if (typeof data.last.vehicle === 'string') d.last.vehicle = data.last.vehicle;

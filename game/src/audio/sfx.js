@@ -83,6 +83,8 @@ export function createSfx(mgr) {
     uiClick: () => tone({ freq: 700, type: 'square', atk: 0.005, dec: 0.05, gain: 0.12 }),
     hop: () => tone({ freq: 700, type: 'triangle', atk: 0.01, dec: 0.1, gain: 0.18, slideTo: 1100 }),
     golden: () => arp([N.C6, N.G6, N.E6, N.C7, N.E6, N.C7], 0.05, 'triangle', 0.28),
+    // §2.20: the Quickbox bench's fast-forward ticking-clock blip.
+    tick: () => tone({ freq: 1900, type: 'sine', atk: 0.004, dec: 0.06, gain: 0.12 }),
   };
 
   function play(name, data) {

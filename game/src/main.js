@@ -43,6 +43,7 @@ import { loadSave, defaultSave } from './core/save.js';
 import { createProgression } from './gameplay/progression.js';
 import { createCollectibles } from './gameplay/collectibles.js';
 import { createDayCycle } from './gameplay/dayCycle.js';
+import { createDayClock, setNextOpen } from './gameplay/dayClock.js';
 import { createMissionMarkers } from './gameplay/missionMarkers.js';
 import { createDebugHooks } from './core/debugHooks.js';
 import { createShiftFlow } from './gameplay/shiftFlow.js';
@@ -162,6 +163,12 @@ function updateHeatRow() {
 const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
+// §2.20 (M12b): the world day clock (drives the time-of-day look + shift windows).
+let dayClock = null, clockSaveGap = 0;
+// §2.20: the Quickbox bench (next to the dispatch marker) — sitting + holding F
+// fast-forwards the clock to the next shift window opening. `benchIn` tracks whether
+// the courier is in the bench zone (so the fast-forward + its prompt show only there).
+let benchZone = null, benchIn = false, benchFF = false, benchMesh = null, benchPromptEl = null, benchFFTarget = -1;
 // M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
 let markers = null, prevM = null;
 let MARKER_RADIUS = 8; // ~2 tiles; set from the tilemap's tile size at boot
@@ -177,7 +184,9 @@ const flow = createShiftFlow({
   setPrevM: (v) => { prevM = v; },
   getSharedEffects: () => sharedEffects,
   getPlayer: () => player,
-  getCapacity: () => activeChar ? activeChar.stats.capacity + (activeVeh ? activeVeh.stats.capacityBonus : 0) : null,
+   getCapacity: () => activeChar ? activeChar.stats.capacity + (activeVeh ? activeVeh.stats.capacityBonus : 0) : null,
+   getClock: () => dayClock,
+   fmtMin: (m) => minToTime(m),
 });
 const { openMarkerCard, closeMarkerCard, mcKey, showShiftCard, showResults, getMarkerState } = flow;
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
@@ -352,6 +361,15 @@ if (params.scene === 'test') {
     dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
     dayCycle.startAt(preset.id); // sync the cycle to the boot time of day
     setCricketsForPreset(preset);
+    // §2.20: the world clock (restored from the save; drives the time-of-day look +
+    // shift windows). Its preset blend feeds the day cycle each frame in free roam.
+    dayClock = createDayClock(saveData);
+    dayClock.min = saveData.clock != null ? saveData.clock : 360; // 06:00 default
+    // Register the main shifts' window openings so the bench knows where to fast-forward.
+    setNextOpen(MAIN_SHIFTS.map((s) => s.window[0]));
+    // §2.20: the Quickbox bench — a small seat next to the dispatch marker. Sitting
+    // in its zone + holding F fast-forwards the clock to the next window opening.
+    createBench();
     // §2.13: a `?cam=` param frames the screenshots (street / overview / golden).
     if (params.cam) camPreset(params.cam);
     // §10: the menu / select / pause / settings screens + keyboard navigation.
@@ -541,7 +559,7 @@ function startShift(shiftId) {
   activeShiftId = shiftId;
   const seed = params.seed || 1;
   setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
-  mission = createMission({ def: world.def, shift, seed, onResults: (r) => showResults(r) });
+  mission = createMission({ def: world.def, shift, seed, clock: dayClock, onResults: (r) => showResults(r) });
   // §2.15: a shift picks its own Grumps (seeded, excluding delivery targets);
   // heat + Watch start clean for the shift.
   if (heat) heat.reset();
@@ -592,6 +610,30 @@ function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.c
 
 // §2.13 + §10: the free-roam chip + the mission HUD (timer / targets / next /
 // score). Built once; `tick` refreshes the live values each sim step.
+// §2.20: the Quickbox bench — a small seat next to the dispatch marker + a zone.
+// Sitting in the zone + holding F fast-forwards the clock to the next shift
+// window opening. `benchZone` (the AABB) + `benchMesh` (a seat + post) + a DOM
+// prompt ("Sit + hold F to fast-forward to the next shift").
+function createBench() {
+  const T = world.tilemap.tileSize;
+  const disp = (world.def.missionMarkers || []).find((m) => m.id === 'dispatch');
+  if (!disp) return;
+  // Placed just outside the dispatch marker's ~2-tile proximity radius, so the
+  // dispatch card doesn't auto-open here (F at the bench fast-forwards, not start).
+  const bx = (disp.x + 3.0) * T, bz = (disp.z + 0.0) * T; // next to, but beside, the marker
+  benchZone = { minX: bx - 2.2, maxX: bx + 2.2, minZ: bz - 2.2, maxZ: bz + 2.2, x: bx, z: bz };
+  const mat = new THREE.MeshStandardMaterial({ color: 0x00b4a6 });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, 1.1), mat);
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.35, 2.0, 0.35), mat);
+  seat.position.set(bx, 0.5, bz); seat.rotation.y = 0.4;
+  post.position.set(bx - 1.0, 1.0, bz - 0.5); post.rotation.y = 0.4;
+  scene.add(seat, post);
+  benchMesh = { seat, post };
+  benchPromptEl = el('div', 'bench-prompt', 'Sit · hold F to fast-forward to the next shift');
+  benchPromptEl.style.display = 'none';
+  document.getElementById('ui').append(benchPromptEl);
+}
+
 function buildHUD() {
   if (hud) return;
   const ui = document.getElementById('ui');
@@ -610,6 +652,9 @@ function buildHUD() {
   pRestock.append(el('span', 'hud-restock-lbl', 'Restock'), el('div', 'hud-restock-bar'), pRestockFill);
   pRestock.style.display = 'none';
   panel.append(pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock);
+  // §2.20 / §10: the world clock readout (free roam + missions: "10:24 · shift
+  // ends 11:00", orange in the last game hour). Always visible.
+  const clockEl = el('div', 'hud-clock');
   panel.style.display = 'none';
   // §10: the ability button (bottom-right) + its cooldown ring.
   const ab = el('div', 'ability-btn');
@@ -631,12 +676,12 @@ function buildHUD() {
   const watchPopup = el('div', 'watch-popup');
   watchPopup.append(el('div', 'watch-popup-title', 'Neighborhood Watch'), el('div', 'watch-popup-sub', 'is on to you!'));
   watchPopup.style.display = 'none';
-  ui.append(chip, coins, golden, panel, ab, banner, heatRow, watchPopup);
+  ui.append(chip, coins, golden, clockEl, panel, ab, banner, heatRow, watchPopup);
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
   heatRowEl = heatRow; heatWhistles = heatWh; watchPopupEl = watchPopup;
     hud = {
-      chip, coins, golden, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
+      chip, coins, golden, clockEl, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
     missionStart(session, shift) {
       this.panel.style.display = ''; this.chip.style.display = 'none';
       this.pName.textContent = shift.name; this.pNext.textContent = 'next: ' + (session.targets[0] ? session.targets[0].pkg.name : '—');
@@ -644,8 +689,11 @@ function buildHUD() {
     missionEnd() { this.panel.style.display = 'none'; this.chip.style.display = ''; },
     tick(mission2, session) {
       if (!session) return;
-      const m = Math.max(0, mission2.timer);
-      this.pTimer.textContent = Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0');
+      // §2.20: the pTimer (where the old countdown was) now shows the shift's end
+      // time on the world clock ("shift ends 11:00"), orange in the last game hour.
+      const endMin = mission2.tipByMin > 0 ? mission2.tipByMin : mission2.deadlineMin;
+      this.pTimer.textContent = 'shift ends ' + minToTime(endMin);
+      this.pTimer.classList.toggle('urgent', !!dayClock && dayClock.min >= endMin - 60 && dayClock.min < endMin);
       this.pTargets.textContent = (session.targets.length - session.remaining()) + '/' + session.targets.length + ' delivered';
       // M12a.7: the live parcel counter "📦 carried / capacity"; red + pulsing
       // with a Restock! nudge when the stack is empty (but targets still remain).
@@ -681,6 +729,29 @@ function updateAbilityBtn() {
   abilityBtn.classList.toggle('active', !!abilities.active);
   abilityBtn.classList.toggle('ready', abilities.ready);
   abilityRing.style.background = 'conic-gradient(' + color + ' ' + deg + 'deg, rgba(255,255,255,0.16) 0deg)';
+}
+
+// §2.20 / §10: the world clock readout. Free roam shows the clock; a running
+// shift appends " · shift ends HH:MM" and turns orange in the last game hour.
+function minToTime(min) {
+  const m = ((min % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60), mm = Math.floor(m % 60);
+  return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' + mm : mm);
+}
+function updateHudClock() {
+  if (!hud || !hud.clockEl || !dayClock) return;
+  let txt = dayClock.timeStr();
+  let urgent = false;
+  if (mission && mission.active) {
+    const endMin = mission.tipByMin > 0 ? mission.tipByMin : mission.deadlineMin;
+    txt += ' · shift ends ' + minToTime(endMin);
+    // §2.20: orange in the last game hour of the window.
+    urgent = dayClock.min >= endMin - 60 && dayClock.min < endMin;
+  }
+  hud.clockEl.textContent = txt;
+  hud.clockEl.classList.toggle('urgent', !!urgent);
+  // §2.20: the bench prompt shows when the courier is sitting in the bench zone.
+  if (benchPromptEl) benchPromptEl.style.display = benchIn && !mission ? '' : 'none';
 }
 
 // M12a.5: the results screen, the dispatch card and the free-roam marker card
@@ -770,7 +841,33 @@ function simStep(dt) {
   // M10: the hidden Golden Parcels (spin/bob + collect on contact) + the free-roam
   // day cycle (a mission holds its own time of day, so it only ticks in free roam).
   if (collectibles && player) collectibles.tick(dt, simTime, player);
-  if (dayCycle && !mission && !delivery) { dayCycle.tick(dt); setCricketsForPreset(TIMES_OF_DAY[dayCycle.phase]); }
+  // §2.20: the Quickbox bench — sitting in its zone + holding F (in free roam, no
+  // dispatch card open) fast-forwards the clock ×20 to the next shift window's
+  // opening; walking off or releasing F stops it.
+  benchIn = !!(benchZone && player && !mission && !delivery && !menuGate()
+    && player.pos.x >= benchZone.minX && player.pos.x <= benchZone.maxX
+    && player.pos.z >= benchZone.minZ && player.pos.z <= benchZone.maxZ);
+  benchFF = benchIn && !menuGate() && !!input.isHeld('doorstep');
+  // §2.20: the world clock always advances (the HUD + shift windows follow it);
+  // the time-of-day look is clock-driven in free roam, held at the shift's preset
+  // while a shift is running (snapped at its start).
+  if (dayClock) {
+    if (benchFF) {
+      // §2.20: fast-forward ×20 to the next window opening, stopping there (the
+      // target is captured on the first frame of the fast-forward, then clamped).
+      if (benchFFTarget < 0) benchFFTarget = dayClock.nextWindowOpen();
+      if (benchFFTarget > 0) dayClock.min = Math.min(dayClock.min + dt * 20, benchFFTarget);
+      if (audio && simTime % 0.12 < dt) audio.tickFast(); // a ticking-clock blip
+    } else {
+      benchFFTarget = -1;
+      dayClock.tick(dt);
+    }
+  }
+  if (dayClock && dayCycle && !mission && !delivery) {
+    const pb = dayClock.presetBlend();
+    dayCycle.setPhase(pb.idx, pb.frac);
+    setCricketsForPreset(TIMES_OF_DAY[pb.idx]);
+  }
   if (player && !menuGate()) {
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
@@ -826,6 +923,18 @@ function simStep(dt) {
 // the time bonus stays realistic), then throws a slightly-off parcel — a
 // decent-but-imperfect game. Its score is the ~1-star baseline that a careful
 // human (perfect throws, no knockdowns) is expected to beat for 2–3 stars.
+// M12a.6 / M12b: the autoplayer refills its parcel stack at the pickup zone (the
+// depot for main shifts, the shop front for side missions) like a real courier.
+function autoplayerRestock() {
+  const shift = SHIFTS.find((s) => s.id === activeShiftId) || {};
+  const rz = restockZoneFor(shift);
+  if (!rz) return;
+  const cx = (rz.minX + rz.maxX) / 2, cz = (rz.minZ + rz.maxZ) / 2;
+  const TS = world.tilemap.tileSize;
+  player.teleport(Math.floor(cx / TS), Math.floor(cz / TS), 0);
+  for (let r = 0; r < 75; r++) simStep(1 / 60); // ~1.25 s: the 1.0 s restock ring fills
+}
+
 function autoplayRun() {
   if (!delivery || !player || !mission) return null;
   const m = mission, d = delivery; // endShift (on the auto-end) nulls the module vars; keep refs
@@ -839,6 +948,8 @@ function autoplayRun() {
     const tid = String(t.house.id);
     if (tid === lastTid) retries++; else { retries = 0; lastTid = tid; }
     if (retries >= 3) break; // give up on a stubborn target (the shift ends short)
+    // M12a.6: when the stack is empty + parcels remain, refill at the pickup zone first.
+    if (d.carried <= 0 && d.remaining() > 0) autoplayerRestock();
     const dx = t.doormat.x, dz = t.doormat.z;
     // Teleport to the target's porch (the doormat tile) + doorstep it (safe + reliable).
     const TS = world.tilemap.tileSize;
@@ -853,9 +964,9 @@ function autoplayRun() {
     input.forceHeld('doorstep', false);
     if (m.lastResult) { lastRes = m.lastResult; break; }
     if (d.lastResult) outcomes.push(d.lastResult.outcome);
-    // A "reposition / look for the next target" pause burns ~45% of the shift clock
-    // spread across the deliveries, so the autoplayer plays at a real-courier pace.
-    const reposition = Math.floor((m.duration * 0.45) / T / Math.max(1, d.targets.length));
+    // A "reposition / look for the next target" pause burns ~45% of the shift's
+    // window spread across the deliveries, so the autoplayer plays at a real-courier pace.
+    const reposition = Math.floor((m.shiftSpanMin * 0.45) / T / Math.max(1, d.targets.length));
     for (let p = 0; p < reposition && !m.lastResult; p++) simStep(T);
   }
   if (!lastRes) { m.end(); lastRes = m.lastResult; }
@@ -879,7 +990,10 @@ function update(dt) {
   if (radar) radar.tick(dt); // M6b: the corner radar stays live (also while paused)
   if (fullMap) fullMap.tick(dt);
   updateAbilityBtn(); // §10: the ability button's ring reflects the live cooldown
+  updateHudClock(); // §2.20: the world clock readout (free roam + shift end)
   updateHeatRow(); // §2.15 / M12a.9: the heat-whistle row above the radar
+  // §2.20: persist the world clock ~every 4 s so it survives a reload.
+  if (dayClock && (clockSaveGap -= dt) <= 0) { clockSaveGap = 4; saveData.clock = dayClock.min; progress.save(); }
   if (simPaused !== musicPaused) { musicPaused = simPaused; if (musicPaused) audio.stopMusic(); else audio.startMusic(false); }
   if (input.consume('mute')) audio.setMuted(!audio.muted);
   // M12a.8: Tab opens / closes the full map (in free roam + missions, not menus).
@@ -968,6 +1082,11 @@ const debugCtx = {
   get markers() { return markers; },
   get mcMarker() { return getMarkerState(); },
   get dayCycle() { return dayCycle; },
+  get dayClock() { return dayClock; },
+  get shifts() { return SHIFTS; },
+  get benchZone() { return benchZone; },
+  setClock(min) { if (dayClock) dayClock.min = min; },
+  get benchState() { return { in: benchIn, ff: benchFF, zone: !!benchZone, isHeldF: input.isHeld('doorstep'), menuGate: menuGate() }; },
   get simTime() { return simTime; },
   events, gameState, M5_TARGETS, input, camTgt, camLook, camera, scene, renderer, progress, params,
   stats, camPreset, startShift, gotoFreeRoam, endShift, routeScreen, openMarkerCard,

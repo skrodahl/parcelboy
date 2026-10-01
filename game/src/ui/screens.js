@@ -272,7 +272,7 @@ export function createScreens(ctx) {
     pauseList.append(item('▶  Resume (ESC)', () => ctx.resumePause && ctx.resumePause()));
     if (inMission) {
       pauseList.append(item('↻  Restart shift', () => ctx.restartShift && ctx.restartShift()));
-      pauseList.append(item('⎋  Abandon shift (clock out)', () => ctx.abandonShift && ctx.abandonShift()));
+      pauseList.append(item('⎋  Clock out early', () => ctx.abandonShift && ctx.abandonShift()));
     }
   }
 

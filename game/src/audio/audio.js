@@ -130,6 +130,8 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     // the ambience chirp loop starts after the first unlock.
     beginAmbience() { if (!ambTimer) chirp(); },
     setCrickets(on) { toggleCrickets(on); },
+    // §2.20: the bench fast-forward's ticking-clock blip (called, throttled, by main).
+    tickFast() { sfx.play('tick'); },
     dispose() { for (const h of hooks) events.off(h.type, h.fn); if (ambTimer) clearTimeout(ambTimer); if (cricketTimer) clearTimeout(cricketTimer); music.stop(); },
   };
 }

@@ -8,16 +8,24 @@ import { MAIN_SHIFTS, SIDE_SHIFTS } from '../data/shifts.js';
 // DOM helper, the registries/data, the shift-start functions, and the prevM
 // edge the free-roam proximity uses.
 export function createShiftFlow(ctx) {
-  const { el, progress, startShift, endShift, events, setPrevM, getSharedEffects, getPlayer } = ctx;
+  const { el, progress, startShift, endShift, events, setPrevM, getSharedEffects, getPlayer, getClock, fmtMin } = ctx;
   let markerCardEl = null, mcList = null, mcMarker = null, mcIdx = 0;
   let shiftCardEl = null, resultsEl = null;
 
   function mcShifts(id) { return id === 'dispatch' ? MAIN_SHIFTS : SIDE_SHIFTS.filter((s) => s.giver === id); }
-  // M12a.7: the card row's meta — how many drops the shift has + how many you
-  // can carry (the current courier + vehicle capacity).
+  // §2.20: the card row's meta — the drops, your carry capacity, and the shift's
+  // window (main, "07:00–11:00") or soft deliver-by (side, "by 12:00").
   function meta(s) {
     const cap = ctx.getCapacity ? ctx.getCapacity() : null;
-    return s.deliveries + ' drops' + (cap != null ? ' · ' + cap + ' on your back' : '') + ' · ' + s.duration + 's';
+    const when = s.kind === 'side' ? 'by ' + fmtMin(clockMin() + s.deliverBy) : fmtMin(s.window[0]) + '–' + fmtMin(s.window[1]);
+    return s.deliveries + ' drops' + (cap != null ? ' · ' + cap + ' on your back' : '') + ' · ' + when;
+  }
+  function clockMin() { return getClock() ? getClock().min : 0; }
+  // §2.20: is this shift's window open on the world clock right now?
+  function windowOpen(s) {
+    const c = getClock();
+    if (!c || s.kind === 'side') return s.kind !== 'side';
+    return c.min >= s.window[0] && c.min < s.window[1];
   }
   function mcRenderList() {
     if (!mcList) return;
@@ -25,9 +33,12 @@ export function createShiftFlow(ctx) {
     mcList.textContent = '';
     for (let i = 0; i < list.length; i++) {
       const s = list[i], locked = !progress.canStart(s);
+      const open = windowOpen(s);
       const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (i === (mcIdx % list.length) ? ' focus' : ''));
       row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', meta(s)));
-      row.append(locked ? el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★') : el('div', 'sc-row-go', 'Ready'));
+      if (locked) row.append(el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★'));
+      else if (s.kind === 'main' && !open) row.append(el('div', 'sc-row-wait', 'Opens at ' + fmtMin(s.window[0])));
+      else row.append(el('div', 'sc-row-go', 'Ready'));
       mcList.append(row);
     }
   }
@@ -54,7 +65,8 @@ export function createShiftFlow(ctx) {
   function mcStart() {
     const list = mcShifts(mcMarker);
     const s = list[(mcIdx % list.length) | 0];
-    if (s && progress.canStart(s)) { const id = s.id; closeMarkerCard(); setPrevM(null); startShift(id); }
+    // §2.20: a main shift can only be started while its window is open.
+    if (s && progress.canStart(s) && windowOpen(s)) { const id = s.id; closeMarkerCard(); setPrevM(null); startShift(id); }
   }
   function mcKey(e) {
     if (!markerCardEl || mcMarker === 'locker') return;
@@ -75,9 +87,11 @@ export function createShiftFlow(ctx) {
     const list = el('div', 'sc-list');
     for (const s of MAIN_SHIFTS) {
       const locked = !progress.canStart(s);
+      const open = windowOpen(s);
       const row = el('div', 'sc-row' + (locked ? ' locked' : '') + (s.id === focusId ? ' focus' : ''));
       row.append(el('div', 'sc-row-name', s.name), el('div', 'sc-row-meta', meta(s)));
       if (locked) row.append(el('div', 'sc-row-lock', 'LOCKED · earn ' + s.unlockStars + '★ to unlock'));
+      else if (!open) row.append(el('div', 'sc-row-wait', 'Opens at ' + fmtMin(s.window[0])));
       else row.append(el('div', 'sc-row-go', 'Ready'));
       list.append(row);
     }
@@ -98,12 +112,18 @@ export function createShiftFlow(ctx) {
     if (se && p && res.success) se.celebrate(p.pos.x, 1, p.pos.z);
     if (resultsEl) { resultsEl.remove(); resultsEl = null; }
     resultsEl = el('div', 'results');
+    // §2.20: no failure wording ever. A full clear is "Shift complete!"; a
+    // partial shift (window closed / clocked out early) is a plain shift report
+    // of what you delivered + earned. Undelivered parcels just go back to the depot.
+    const title = res.success ? 'Shift complete!' : 'Shift report';
     const stars = '★'.repeat(res.stars) + '☆'.repeat(Math.max(0, 3 - res.stars));
+    const bonus = res.timeBonus ? ' (+' + res.timeBonus + (res.tip ? ' early tip' : ' early-finish') + ')' : '';
+    const backNote = (!res.success && res.delivered < res.total) ? ' · the rest goes back to the depot' : '';
     resultsEl.append(
-      el('h2', 'results-title', res.success ? 'Shift complete!' : "Time's up"),
+      el('h2', 'results-title', title),
       el('div', 'results-stars', stars),
-      el('div', 'results-score', 'Score ' + res.score + (res.timeBonus ? ' (+' + res.timeBonus + ' time bonus)' : '')),
-      el('div', 'results-detail', res.delivered + '/' + res.total + ' delivered · +' + res.coins + ' coins'),
+      el('div', 'results-score', 'Score ' + res.score + bonus),
+      el('div', 'results-detail', res.delivered + '/' + res.total + ' delivered · +' + res.coins + ' coins' + backNote),
     );
     const btnC = el('button', 'results-btn', 'Continue');
     const btnR = el('button', 'results-btn', 'Retry');
