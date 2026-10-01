@@ -83,3 +83,32 @@ export const HAZARD = {
   puffyTime: 5,         // §2.7: the bee-stung puffy face lasts 5 s
   maxActiveSwarms: 2,   // §2.7: up to 2 bee swarms at once
 };
+
+// §2.15: GTA-lite mischief tuning. Levels, decay, Watch-unit + BUSTED numbers,
+// bowling speed thresholds and Grump chase. All values from §2.15 live here.
+export const MISCHIEF = {
+  // 0–3 whistle icons; level = number of thresholds (3 / 6 / 10) heat has passed.
+  heatThresholds: [3, 6, 10],
+  heatDecayPerSec: 0.05,   // ~0.5 heat per 10 s
+  charmDrops: 1,           // Marlo's Charm: drop one level instantly
+  // Neighborhood Watch. Level 2 → Deputy Doug on a Segway (8.5); level 3 →
+  // golf cart (11). A unit despawns when you stay clear for `loseAfterSec`.
+  watch: {
+    segway: { speed: 8.5, minLevel: 1, radius: 1.0 },
+    cart: { speed: 11, minLevel: 2, radius: 1.0 },
+    loseAfterSec: 8,
+    loseRadius: 25,
+    bustedFreezeSec: 2,
+  },
+  bustedPenalty: { freeRoamCoinPct: 0.10, freeRoamMin: 10, freeRoamMax: 100, missionPoints: -300 },
+  // Bowling: a walker is launched when hit above these player speeds.
+  bowlVehicleSpeed: 0.4,
+  bowlFootSpeed: 0.75,
+  strikeWindowSec: 1,     // 2+ bowls within 1 s = "STRIKE!"
+  // Grump chase + shove; subscriber "Oops!".
+  grumpChaseSpeed: 5,
+  grumpChaseSec: 4,
+  grumpShoveHeat: 3,
+  grumpShoveCdSec: 2,
+  subscriberOops: { points: -50, heat: 2 },
+};

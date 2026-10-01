@@ -33,6 +33,19 @@ export const HAZARDS = [
     id: 'cone', name: 'Traffic Cone', behavior: 'static', model: 'cone', radius: 0.4, spawn: 'driveways',
     params: {}, knockdown: false,
   },
+  // §2.15: Neighborhood Watch. Spawned by the heat system, not by the per-shift
+  // counts (their "count" is the heat level). `watchChase` runs the pursuit +
+  // BUSTED logic; speed/radii come from config MISCHIEF.watch (read by the
+  // behavior). Not in the per-shift `hazards` maps, so the count table ignores
+  // them.
+  {
+    id: 'watchSegway', name: 'Deputy Doug', behavior: 'watchChase', model: 'watchSegway', radius: 1.0,
+    params: {}, knockdown: false, // touch = BUSTED (handled by the behavior), not a plain knockdown
+  },
+  {
+    id: 'watchCart', name: 'Neighborhood Watch Van', behavior: 'watchChase', model: 'watchCart', radius: 1.2,
+    params: {}, knockdown: false,
+  },
 ];
 
 export const HAZARD_BY_ID = Object.fromEntries(HAZARDS.map((h) => [h.id, h]));

@@ -19,7 +19,7 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
-import { PARCEL, FREE_ROAM, HAZARD, CARTOON } from './data/config.js';
+import { PARCEL, FREE_ROAM, HAZARD, CARTOON, MISCHIEF } from './data/config.js';
 import { SHIFTS, MAIN_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
 import { createMission } from './gameplay/mission.js';
@@ -28,6 +28,11 @@ import { createEffects } from './render/effects.js';
 import { createFloatText } from './render/floatText.js';
 import { createRadar } from './ui/radar.js';
 import { createFullMap } from './ui/fullmap.js';
+import { createHeat } from './gameplay/heat.js';
+import { createMischief } from './gameplay/mischief.js';
+import { createAmbient } from './entities/ambient.js';
+import { createWatch } from './gameplay/watch.js';
+import { mulberry32 } from './core/rng.js';
 
 const params = parseParams();
 
@@ -78,7 +83,11 @@ const camLook = new THREE.Vector3(0, 0, 0);
 let simPaused = params.paused; // M6b: also toggled while the full-screen map is open
 let radar = null, fullMap = null; // M6b: the corner radar + full-screen map
 // M6b: live refs the radar/full-map read each tick (kept current in main).
-const radarState = { player: null, delivery: null, hazards: null, world: null, waypoint: null };
+const radarState = { player: null, delivery: null, hazards: null, world: null, waypoint: null, mischief: null, heat: null, watch: null };
+// M7b: the GTA-lite mischief layer (heat + Grumps + breakables + Watch).
+let heat = null, mischief = null, ambient = null, watch = null;
+let bustedUntil = 0; // §2.15: the sim freezes for ~2 s on a BUSTED!
+const mischiefRng = mulberry32(((params.seed || 1) * 131 + 7) | 0);
 
 if (params.scene === 'test') {
   // M1 test scene: a sample cottage on a grass plate, lit by time of day.
@@ -243,6 +252,73 @@ function spawnCourier(charDef, vehDef) {
       onPause: (p) => { if (p) simPaused = true; else if (!params.paused) simPaused = false; },
     });
   }
+  setupMischief(); // M7b: heat + Grumps + breakables + Watch (free-roam Grumps)
+}
+
+// M7b: create the mischief systems once (they are session-independent) and
+// dress the free-roam Grumps. A shift re-dresses + resets on start/end.
+function setupMischief() {
+  if (mischief) return;
+  const mat = world.worldMat;
+  const unitOps = { spawn: () => null, remove: () => {} };
+  heat = createHeat({
+    charm: activeChar.ability === 'charm',
+    spawnWatch: (i) => unitOps.spawn(i), removeWatch: (i) => unitOps.remove(i),
+    onBusted: (level) => onBusted(level),
+  });
+  ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike() });
+  watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, onBusted: (i) => onBusted(i) });
+  unitOps.spawn = watch.spawn; unitOps.remove = watch.remove;
+  mischief = createMischief({
+    world, scene, mat, rng: mulberry32(mischiefRng()),
+    heat, delivery: () => delivery, effects: sharedEffects, floatText: sharedFloatText,
+    player: () => player, onGrumpShove: () => onKnockdown('grump'),
+  });
+  radarState.mischief = mischief; radarState.heat = heat; radarState.watch = watch;
+  setupGrumps(FREE_ROAM.grumps, []);
+}
+
+// Dress `count` seeded houses (excluding `excludeIds`) as Grumps.
+function setupGrumps(count, excludeIds) {
+  if (!mischief) return;
+  mischief.reset();
+  if (!count) return;
+  const houses = world.def.houses.filter((h) => excludeIds.indexOf(h.id) < 0);
+  const rng = mulberry32(mischiefRng());
+  for (let i = houses.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; const t = houses[i]; houses[i] = houses[j]; houses[j] = t; }
+  mischief.setup(houses.slice(0, count).map((h) => h.id));
+}
+
+// §2.15 BUSTED!: freeze the sim ~2 s, pop the ticket, apply the penalty.
+let bustedEl = null;
+function onBusted(level) {
+  if (!player) return;
+  bustedUntil = simTime + MISCHIEF.bustedFreezeSec;
+  const p = player.pos;
+  if (followCam) followCam.shake(0.3);
+  const inMission = !!delivery;
+  const penalty = inMission ? MISCHIEF.bustedPenalty.missionPoints : -Math.max(MISCHIEF.bustedPenalty.freeRoamMin, Math.min(MISCHIEF.bustedPenalty.freeRoamMax, 10));
+  if (inMission) delivery.addScore(MISCHIEF.bustedPenalty.missionPoints);
+  sharedFloatText.pop('BUSTED!', p.x, 2.2, p.z, { color: '#e63946', burst: true });
+  // A comic "ticket" card pops up center-screen for the freeze.
+  if (bustedEl) bustedEl.remove();
+  bustedEl = el('div', 'busted-ticket');
+  bustedEl.append(
+    el('div', 'busted-title', 'BUSTED!'),
+    el('div', 'busted-sub', 'Neighborhood Watch'),
+    el('div', 'busted-pen', (inMission ? 'Score ' : '−') + penalty + (inMission ? '' : ' coins')),
+  );
+  document.getElementById('ui').append(bustedEl);
+  void level;
+}
+
+// §2.15 STRIKE!: two pedestrians bowled within the window → comic + points.
+function onStrike() {
+  if (!player) return;
+  const p = player.pos;
+  sharedFloatText.pop('STRIKE!', p.x, 3, p.z, { color: '#ffd166', burst: true });
+  if (sharedEffects) sharedEffects.confetti(p.x, 2, p.z);
+  if (delivery) delivery.addScore(100);
 }
 
 // M7: (re)create the hazard manager for a set of counts. Free roam uses the
@@ -280,6 +356,10 @@ function startShift(shiftId) {
   const seed = params.seed || 1;
   setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
   mission = createMission({ def: world.def, shift, seed, onResults: (r) => showResults(r) });
+  // §2.15: a shift picks its own Grumps (seeded, excluding delivery targets);
+  // heat + Watch start clean for the shift.
+  if (heat) heat.reset();
+  setupGrumps(shift.grumps || 0, mission.targetDefs.map((t) => (typeof t === 'string' ? t : t.house.id)));
   delivery = setupDelivery(activeChar, activeVeh, mission.targetDefs, shift.packageMix, seed, sharedEffects, sharedFloatText);
   radarState.delivery = delivery;
   mission.start(delivery);
@@ -301,6 +381,7 @@ function endShift(retry) {
   if (hud) hud.missionEnd();
   setHazards(FREE_ROAM.hazards);
   if (retry) startShift(retry);
+  else { if (heat) heat.reset(); setupGrumps(FREE_ROAM.grumps, []); } // §2.15: back to the free-roam Grumps
 }
 
 function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.className = cls; if (txt) n.textContent = txt; return n; }
@@ -380,7 +461,7 @@ function showShiftCard() {
 // and the M5 interim both go through this). `charDef`/`vehDef` come from the
 // currently-spawned courier.
 function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards });
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, onParcelRest: (x, y, z) => { if (mischief) mischief.grumpHit(x, z, y); } });
 }
 resizeRenderer(renderer, camera);
 
@@ -404,15 +485,19 @@ function applyCamPreset(cam, name) {
        // depot + lit QUICKBOX sign as backdrop.
        showroom: { pos: [158, 6, 124], look: [158, 1.4, 140] },
     };
-    if (name.startsWith('porch:')) {
-      const id = name.slice(6);
+    if (name.startsWith('porchClose:') || name.startsWith('porch:')) {
+      const close = name.startsWith('porchClose:');
+      const id = close ? name.slice(11) : name.slice(6);
       const h = t.def.houses.find((x) => x.id === id);
       const mat = world.doormatPoints[id];
       if (h && mat) {
         const f = { N: [0, 0, -1], S: [0, 0, 1], E: [1, 0, 0], W: [-1, 0, 0] }[h.facing];
-        cam.position.set(mat.x + f[0] * 6.5, 2.8, mat.z + f[2] * 6.5);
-        cam.lookAt(mat.x, 1.4, mat.z);
-        camLook.set(mat.x, 1.4, mat.z);
+        const dist = close ? 3.4 : 6.5, up = close ? 2.0 : 2.8, lookY = close ? 1.8 : 1.4;
+        cam.position.set(mat.x + f[0] * dist, up, mat.z + f[2] * dist);
+        cam.lookAt(mat.x, lookY, mat.z);
+        camLook.set(mat.x, lookY, mat.z);
+        const dd = cam.position.distanceTo(camLook);
+        if (scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
         return;
       }
     }
@@ -434,7 +519,17 @@ function applyCamPreset(cam, name) {
 function simStep(dt) {
   // §2.12 hit-stop: on a knockdown the world freezes ~70 ms (dramatic beat).
   if (simTime < hitStopUntil) return;
+  // §2.15 BUSTED!: a ~2 s freeze on a ticket (the sim halts, not just the player).
+  if (simTime < bustedUntil) return;
   if (hazards) hazards.step(dt);
+  // M7b: the mischief layer (heat + Grump chase + Watch pursuit + bowling).
+  if (heat) heat.tick(dt);
+  if (mischief) mischief.tick(dt);
+  if (watch) watch.step(dt);
+  if (ambient) {
+    const bt = (activeVeh && activeVeh.id === 'feet') ? MISCHIEF.bowlFootSpeed : MISCHIEF.bowlVehicleSpeed;
+    ambient.step(dt, player, bt);
+  }
   if (player) {
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
@@ -469,6 +564,7 @@ function simStep(dt) {
 
 function update(dt) {
   simTime += dt;
+  if (bustedEl && simTime >= bustedUntil) { bustedEl.remove(); bustedEl = null; }
   if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
   if (world && world.flag) world.flag.rotation.y = Math.sin(simTime * 2.0) * 0.3;
   // Distance-scaled fog + far clip (§7.3 plan change): near/far track the
@@ -632,7 +728,30 @@ window.__pb = {
   freeRoam() { if (mission) endShift(false); },
   setWaypoint(tileX, tileZ) { if (radar) radar.setWaypoint(tileX, tileZ); },
   abandonMission() { if (mission) endShift(false); },
-  setHeat() {},
+  setHeat(n) { if (heat) heat.add(n); },
+  heat(n) { if (heat) heat.add(n); },
+  bowl(x, z) { if (ambient) ambient.forceBowl(x, z, 3, 2); },
+  strike() { onStrike(); },
+  bust() { onBusted(0); },
+  crashGrump() { if (mischief && mischief.grumps[0]) mischief.forceBreak(mischief.grumps[0], 'window'); },
   goto() {},
   autoplay() {},
+  nextTarget() {
+    if (!delivery) return null;
+    const t = delivery.nextUndelivered();
+    return t ? [t.doormat.x, t.doormat.z] : null;
+  },
+  debugMischief() {
+    return {
+      grumps: mischief ? mischief.grumps : [],
+      heat: heat ? +heat.heat.toFixed(2) : 0,
+      level: heat ? heat.level : 0,
+      watchActive: watch ? watch.active : 0,
+      watchPos: watch ? watch.positions.map((p) => [+p.x.toFixed(1), +p.z.toFixed(1)]) : [],
+      walkers: ambient ? ambient.walkers.slice(0, 4).map((w) => [+w.x.toFixed(1), +w.z.toFixed(1), w.state]) : [],
+      broken: mischief ? mischief.brokenCount : 0,
+      bowled: ambient ? ambient.bowledTotal : 0,
+      strikes: ambient ? ambient.strikes : 0,
+    };
+  },
 };

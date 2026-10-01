@@ -95,6 +95,8 @@ export function createDelivery(env) {
     res.rest = { x: wx, z: wz };
     // §2.7: a parcel that lands on the beehive or its tree angers the swarm.
     if (hazards) hazards.angersSwarmAt(wx, wz);
+    // §2.15: a parcel that comes to rest on a Grump's property may break it.
+    if (env.onParcelRest) env.onParcelRest(wx, wy, wz);
     // §2.6: which outcomes remove the target (delivered) vs. lose the parcel.
     const delivered = { perfect: 1, nice: 1, sloppy: 1, lucky: 1, doorstep: 1, broken: 1 };
     if (res.splat) effects.splat(wx, wy, wz);

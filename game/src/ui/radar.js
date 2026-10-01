@@ -102,6 +102,12 @@ export function createRadar({ tm, state, ui }) {
     if (!del) for (const m of wd.def.missionMarkers) push(tm.cx(m.x), tm.cz(m.z), 'marker', m.color);
     if (state.waypoint) push(state.waypoint.x, state.waypoint.z, 'waypoint', KIND_COLOR.waypoint);
     if (state.hazards && state.hazards.hiveSt) for (const h of state.hazards.hiveSt) if (h.state === 'angry') push(h.x, h.z, 'bee', KIND_COLOR.bee);
+    // §2.15: red house blips at the Grumps (mission) + flashing Watch units.
+    if (del && state.mischief && state.mischief.grumps.length) for (const id of state.mischief.grumps) {
+      const dm = wd.doormatPoints[id];
+      if (dm) push(dm.x, dm.z, 'grump', '#e63946');
+    }
+    if (state.watch) for (const w of state.watch.positions) push(w.x, w.z, 'watch', '#ff3b3b');
   }
 
   function drawBlip(wx, wz, kind, color) {
@@ -122,6 +128,19 @@ export function createRadar({ tm, state, ui }) {
     } else if (kind === 'bee') {
       ctx.fillStyle = color; ctx.beginPath(); ctx.arc(lx, ly, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+    } else if (kind === 'grump') {
+      // a red "house" blip (roofed square) at the Grump house.
+      ctx.globalAlpha = atRim ? 0.8 : 1;
+      ctx.fillStyle = color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2;
+      const r = atRim ? 2.5 : 3.5;
+      ctx.fillRect(lx - r, ly - r, r * 2, r * 2); ctx.strokeRect(lx - r, ly - r, r * 2, r * 2);
+      ctx.beginPath(); ctx.moveTo(lx - r, ly - r); ctx.lineTo(lx, ly - r - 3); ctx.lineTo(lx + r, ly - r); ctx.closePath(); ctx.fill(); // roof
+    } else if (kind === 'watch') {
+      // a flashing red ring (the Neighborhood Watch), clamped to the disc.
+      ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(rt * 5));
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(lx, ly, atRim ? 4 : 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(lx, ly, 1.5, 0, Math.PI * 2); ctx.fill();
     } else {
       // parcel-style marker (targets / pickup) with a white outline
       const r = atRim ? 3 : 5;
@@ -166,11 +185,27 @@ export function createRadar({ tm, state, ui }) {
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#22223b'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(C, C - 8); ctx.lineTo(C - 5, C + 6); ctx.lineTo(C + 5, C + 6); ctx.closePath();
     ctx.fill(); ctx.stroke();
+
+    // §2.15: the 3-whistle heat meter just above the disc (fills with the level).
+    const level = state.heat ? state.heat.level : 0;
+    ctx.save();
+    for (let i = 0; i < 3; i++) {
+      const wx = C - 18 + i * 18, wy = 12;
+      const on = i < level;
+      ctx.fillStyle = on ? '#ff3b3b' : 'rgba(255,255,255,0.25)';
+      ctx.strokeStyle = on ? '#fff' : 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 1;
+      // a little whistle: a body + a short mouthpiece.
+      ctx.beginPath(); ctx.arc(wx, wy, 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillRect(wx + 3, wy - 1.5, 5, 3);
+      if (on) { ctx.fillStyle = '#22223b'; ctx.fillRect(wx + 4, wy - 0.6, 3, 1.2); } // the "note"
+    }
+    ctx.restore();
   }
 
-  let acc = 0;
+  let acc = 0, rt = 0;
   function tick(dt) {
-    acc += dt;
+    acc += dt; rt += dt;
     if (acc >= 1 / 15) { acc = 0; draw(); }
   }
 
