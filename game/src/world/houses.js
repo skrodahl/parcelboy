@@ -37,7 +37,10 @@ function drivewaySide(tm, h) {
 }
 
 function win(gl, rec, x, y, z, w, h, nx, nz) {
-  gl.box(x, y - h / 2, z, w, h, 0.12, PALETTE.windowDay, PALETTE.windowNight);
+  // Front/back panes are thin in Z; side panes (nz === 0) are thin in X so they
+  // sit flush on the side wall instead of jutting out across it.
+  if (nz !== 0) gl.box(x, y - h / 2, z, w, h, 0.12, PALETTE.windowDay, PALETTE.windowNight);
+  else gl.box(x, y - h / 2, z, 0.12, h, w, PALETTE.windowDay, PALETTE.windowNight);
   rec.push({ x, y, z, w, h, nx, nz });
 }
 
