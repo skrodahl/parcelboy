@@ -28,6 +28,25 @@ export function buildWorld(def, seed = 1, preset) {
   buildGround(grid, tm, colliders);
   buildProps(grid, tm, colliders);
   addStreetSigns(grid, tm, signQuads); // sign posts go into chunk builders
+  // M15a.14: the "NO SWIMMING · DUCKS ONLY" sign by the park path on the pond's
+  // north side. The board runs along X (thin in Z); two back-to-back quads on
+  // its ±Z faces (both read left-to-right, like the street signs).
+  if (def.pond) {
+    const p = def.pond;
+    let sx = p.x + Math.floor(p.w / 2), sz = p.z - 1, found = false;
+    for (let r = 0; r <= 3 && !found; r++) for (let dz = -r; dz <= r && !found; dz++) for (let dx = -r; dx <= r && !found; dx++) {
+      if (tm.isWalkable(sx + dx, sz + dz)) { sx += dx; sz += dz; found = true; break; }
+    }
+    const ch = grid.chunkAt(sx, sz);
+    const wx = tm.cx(sx), wz = tm.cz(sz), by = tileBaseY(tm, sx, sz), H = 2.0, sy = H - 1.0;
+    ch.opaque.box(wx, by, wz, 0.12, H, 0.12, '#4a4e69', { skipFaces: ['bottom'] }); // post
+    ch.opaque.box(wx, sy, wz, 2.6, 0.7, 0.1, '#3d4152', { skipFaces: ['bottom'] }); // plate
+    const o = 0.08, qy = sy + 0.05; // quads float off the plate faces, centered on it
+    // Two-sided like the street signs (M15a.6): a face-P quad's readable side
+    // points at -P, so the +Z-side quad gets face -Z and the -Z-side quad face +Z.
+    signQuads.push({ rectKey: 'pond-sign', x: wx, y: qy, z: wz + o, w: 2.4, h: 0.6, face: [0, 0, -1], flip: true });
+    signQuads.push({ rectKey: 'pond-sign', x: wx, y: qy, z: wz - o, w: 2.4, h: 0.6, face: [0, 0, 1], flip: true });
+  }
 
   // Glow geometry (windows, lamp heads, lit sign trims) in one shared mesh.
   const glowB = new GlowBuilder();
@@ -78,6 +97,7 @@ export function buildWorld(def, seed = 1, preset) {
   if (schoolB) slots.push(slot('school', schoolB.name.toUpperCase(), '#c8553d', '#fffaf0', 76, 50 / 7));
   const depotB = def.buildings.find((b) => b.kind === 'depot');
   if (depotB) slots.push(slot('depot', 'QUICKBOX', PALETTE.brand, '#fffaf0', 110, 6));
+  if (def.pond) slots.push(slot('pond-sign', 'NO SWIMMING \u00b7 DUCKS ONLY', '#c8553d', '#fffaf0', 56, 4)); // M15a.14
   const numbers = [...new Set(def.houses.map((h) => h.num))].sort((a, b) => a - b);
   const signs = buildSignMesh(signQuads, { slots, numbers });
   signs.mesh.castShadow = true;

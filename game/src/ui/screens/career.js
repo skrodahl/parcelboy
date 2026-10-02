@@ -76,6 +76,7 @@ export function createCareerPage(container, ctx) {
       s.append(row('Parcels stolen by dogs', c.stolen));
       s.append(row('Cakes splatted', c.splats));
       s.append(row('Trampoline bounces', c.trampoline));
+      s.append(row('Pond dunks', c.dunk || 0)); // M15a.14
       const dist = E('div', 'career-sub');
       dist.append(E('div', 'career-lbl', 'Distance travelled'));
       const dv = E('div', 'career-val career-val-col');

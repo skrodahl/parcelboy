@@ -31,6 +31,9 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   // static perk (dogs never chase).
   const stack = createModifierStack();
   const dogFriendly = (charDef.perks || []).includes('dogFriendly');
+  let dunkSink = 0;  // M15a.14: 1 while the courier is sunk to the neck in the pond
+  let teetering = 0; // M15a.14: 1 while windmilling at the water's edge / underwater
+  let dunked = 0;    // M15a.14: remaining s stunned underwater (locked like a knockdown)
   let kdT = -1;      // 0..HAZARD.knockdownTime while knocked down / panicking
   let kdKind = null; // 'car' | 'dog' | 'skater' | 'panic'
   let puffyT = 0;    // §2.7: remaining puffy-face time (bee sting)
@@ -50,7 +53,7 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   const HB_T = 0.75, HB_H = 2.5;
   function handlebars() { if (canBeKnocked()) startKnockdown('car'); hbT = 0; return hbT; }
   // One stable anim-scratch object per player (no per-frame allocation).
-  const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1, panic: 0, puffy: 0, blink: 0, pancake: 0 };
+  const anim = { speedFrac: 0, moving: 0, wave: 0, riding: 'walk', air: -1, fall: 0, t: 0, throw: -1, panic: 0, puffy: 0, blink: 0, pancake: 0, sink: 0 };
 
   function startKnockdown(kind) {
     if (stack.knockdownImmune > 0) return 'blocked';
@@ -73,7 +76,8 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     if (puffyT > 0) puffyT -= dt;
     if (invulnT > 0) invulnT -= dt;
     if (kdT >= 0) { kdT += dt; if (kdT >= HAZARD.knockdownTime) { kdT = -1; kdKind = null; invulnT = HAZARD.invulnTime; } }
-    const down = kdT >= 0;
+    if (dunked > 0) dunked -= dt; // M15a.14: stunned underwater until it expires
+    const down = kdT >= 0 || dunked > 0; // M15a.14: a dunk locks the courier like a knockdown
 
     const fwd = input.isHeld('forward');
     const back = input.isHeld('back');
@@ -172,11 +176,13 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     // §2.12 knockdown gags: flop (fall), bee panic hop, puffy face, pancake,
     // and blinking during the invulnerability window.
     anim.fall = kdT >= 0 && kdKind !== 'panic' ? 1 : 0;
-    anim.panic = kdT >= 0 && kdKind === 'panic' ? 1 : 0;
+    // M15a.14: the teeter / underwater windmill reuses the bee-panic flail.
+    anim.panic = (kdT >= 0 && kdKind === 'panic') || teetering ? 1 : 0;
     anim.puffy = puffyT > 0 ? 1 : 0;
     anim.pancake = kdKind === 'car' && kdT >= 0 ? 1 : 0;
     anim.blink = invulnT > 0 ? (Math.sin(simT * 22) > 0 ? 1 : 0) : 0;
     const seat = RIDE_HEIGHT[vehDef.id] || 0;
+    anim.sink = dunkSink; // M15a.14: sunk to the neck in the pond (applied in the rig)
     rig.group.position.set(pos.x, pos.y + seat, pos.z);
     rig.group.rotation.y = Math.atan2(Math.sin(heading), -Math.cos(heading));
     rig.update(dt, anim);
@@ -209,6 +215,14 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     set spraySlow(v) { spraySlow = v; },
     get dogFriendly() { return dogFriendly; },
     get knockdownImmune() { return stack.knockdownImmune > 0; },
+    get dunkSink() { return dunkSink; },
+    set dunkSink(v) { dunkSink = v; },
+    get teetering() { return teetering; },
+    set teetering(v) { teetering = v ? 1 : 0; },
+    get dunked() { return dunked; },
+    set dunked(v) { dunked = v; },
+    // M15a.14: the pond respawn's invuln blink (reuses the knockdown's invuln timer).
+    grantInvuln(t) { invulnT = Math.max(invulnT, t); },
     get stack() { return stack; },
     setAbilities(a) { abilities = a; },
     startKnockdown,

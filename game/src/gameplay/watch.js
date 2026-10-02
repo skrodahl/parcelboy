@@ -21,6 +21,20 @@ export function createWatch(env) {
   ];
   const state = [null, null]; // { group, arm, x, z, clearT, lastTouch, bustCd }
 
+  // M15a.14: Watch units slide around the pond (water tiles are no longer
+  // colliders; the pursuit stays on land). Allocation-free scratch point.
+  const wAvoid = { x: 0, z: 0 };
+  function stepOffWater(x, z, nx, nz) {
+    const w = env.world;
+    if (!w || !w.def.pond) { wAvoid.x = nx; wAvoid.z = nz; return wAvoid; }
+    const t = w.tilemap, S = t.tileSize;
+    const tx = (nx / S) | 0, tz = (nz / S) | 0;
+    if (t.keyAt(tx, tz) !== 'pond') { wAvoid.x = nx; wAvoid.z = nz; return wAvoid; }
+    if (t.keyAt(tx, (z / S) | 0) !== 'pond') { wAvoid.x = nx; wAvoid.z = z; return wAvoid; }
+    if (t.keyAt((x / S) | 0, tz) !== 'pond') { wAvoid.x = x; wAvoid.z = nz; return wAvoid; }
+    wAvoid.x = x; wAvoid.z = z; return wAvoid;
+  }
+
   function spawn(i) {
     if (state[i]) return state[i];
     const model = i === 0 ? buildWatchSegway(mat, colors) : buildWatchCart(mat, colors);
@@ -49,8 +63,8 @@ export function createWatch(env) {
       // M15a.12: the difficulty's watchSpeedMul scales the pursuit speed.
       const mul = env.watchSpeedMul ? env.watchSpeedMul() : 1;
       if (d > 0.4) {
-        s.x += (dx / d) * u.speed * mul * dt;
-        s.z += (dz / d) * u.speed * mul * dt;
+        const a = stepOffWater(s.x, s.z, s.x + (dx / d) * u.speed * mul * dt, s.z + (dz / d) * u.speed * mul * dt);
+        s.x = a.x; s.z = a.z;
       }
       s.group.position.set(s.x, 0, s.z);
       s.group.rotation.y = Math.atan2(dx, -dz);

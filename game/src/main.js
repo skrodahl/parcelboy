@@ -52,6 +52,7 @@ import { createMissionMarkers } from './gameplay/missionMarkers.js';
 import { createDebugHooks } from './core/debugHooks.js';
 import { createShiftFlow } from './gameplay/shiftFlow.js';
 import { createCareer } from './gameplay/career.js';
+import { createDunk } from './gameplay/dunk.js'; // M15a.14: the pond dunk
 import { getAchievement } from './data/achievements.js';
 
 const params = parseParams();
@@ -242,6 +243,7 @@ const flow = createShiftFlow({
 });
 const { openMarkerCard, closeMarkerCard, mcKey, showShiftCard, showResults, getMarkerState } = flow;
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
+let dunk = null; // M15a.14: the pond dunk (teeter/splish/respawn)
 let sharedEffects = null, sharedFloatText = null; // M7: created once, shared by hazards + delivery
 let hitStopUntil = 0; // M7: §2.12 hit-stop (sim-time the sim freezes on a knockdown)
 // M5 interim: 5 fixed houses are delivery targets until M6 adds shifts.
@@ -495,6 +497,7 @@ function gotoNeighborhood(nbId, viaExit) {
   if (delivery) endShift(false); // a shift can't span suburbs
   // --- dispose the current suburb's dynamic + static GPU -------------------
   if (hazards) { hazards.dispose(); hazards = null; }
+  if (dunk) { dunk.dispose(); dunk = null; } // M15a.14: the pond dunk (rebuilt on travel)
   if (depotLife) { depotLife.dispose(); depotLife = null; }
   if (collectibles) { collectibles.dispose(); collectibles = null; }
   if (markers) { markers.dispose(); markers = null; }
@@ -661,7 +664,7 @@ function setupMischief() {
     heatDecayMul: () => diff().heatDecayMul, // M15a.12: Holiday decays heat at half rate
   });
   ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike(), onBowled: () => { if (events) events.emit('bowled'); }, battery: qualityName === 'battery' });
-  watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, onBusted: (i) => onBusted(i), watchSpeedMul: () => diff().watchSpeedMul });
+  watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, world, onBusted: (i) => onBusted(i), watchSpeedMul: () => diff().watchSpeedMul });
   unitOps.spawn = watch.spawn; unitOps.remove = watch.remove;
   mischief = createMischief({
     world, scene, mat, rng: mulberry32(mischiefRng()),
@@ -670,6 +673,12 @@ function setupMischief() {
   });
   radarState.mischief = mischief; radarState.heat = heat; radarState.watch = watch;
   setupGrumps(FREE_ROAM.grumps, []);
+  // M15a.14: the pond dunk (a world-level system; reads hazards live via getHazards).
+  if (!dunk) dunk = createDunk({
+    world, getPlayer: () => player, getDelivery: () => delivery, getDiff: () => diff(), getHazards: () => hazards,
+    watch, effects: sharedEffects, floatText: sharedFloatText, events, scene, mat: world.worldMat,
+    getVehId: () => (activeVeh ? activeVeh.id : 'feet'), getMaxSpeed: () => (activeVeh && activeChar ? activeVeh.stats.maxSpeed * activeChar.stats.speed : 6),
+  });
 }
 
 // Dress `count` seeded houses (excluding `excludeIds`) as Grumps.
@@ -1099,6 +1108,7 @@ function simStep(dt) {
   // §2.15 BUSTED!: a ~2 s freeze on a ticket (the sim halts, not just the player).
   if (simTime < bustedUntil) return;
   if (hazards) hazards.step(dt);
+  if (dunk) dunk.step(dt); // M15a.14: the pond dunk (teeter/splish/respawn)
   // M8: the courier's ability (counts down its duration + cooldown; the stack
   // the player/hazards/targeting read is mutated live by its start/update/end).
   if (abilities) abilities.tick(dt);
@@ -1355,6 +1365,7 @@ const debugCtx = {
   get world() { return world; },
   get ambient() { return ambient; },
   get hazards() { return hazards; },
+  get dunk() { return dunk; }, // M15a.14: the pond dunk (shot hooks)
   get mission() { return mission; },
   get heat() { return heat; },
   get watch() { return watch; },

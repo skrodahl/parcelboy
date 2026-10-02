@@ -42,13 +42,30 @@ function terrainBaseY(tm, x, z) {
   return tr ? tr.levelAt(x, z) * tr.LEVEL_H : 0;
 }
 
+// M15a.14: the pond's sunken basin. Interior water tiles drop to the basin
+// floor (a dark bed, darker toward the middle); the four rectangle corners
+// stay at grass level (rock + grass blocks round the outline — props.js).
+const POND_SINK = -0.3;
+const POND_BED = { rim: '#3f7d9e', mid: '#2f5f7e' };
+function pondSlab(key, tm, x, z) {
+  const p = tm.def.pond;
+  if (key !== 'pond' || !p) return null;
+  if (x < p.x || x >= p.x + p.w || z < p.z || z >= p.z + p.d) return null;
+  const corner = (x === p.x || x === p.x + p.w - 1) && (z === p.z || z === p.z + p.d - 1);
+  if (corner) return { h: 0, col: PALETTE.grass[0] }; // grass-level corner, rounded by props
+  const rim = x === p.x || x === p.x + p.w - 1 || z === p.z || z === p.z + p.d - 1;
+  return { h: POND_SINK, col: rim ? POND_BED.rim : POND_BED.mid }; // sunken, darker toward the middle
+}
 function addSlab(b, tm, x, z) {
   const key = tm.keyAt(x, z);
   const baseY = terrainBaseY(tm, x, z);
-  const h = tm.surfH(key);
+  let h = tm.surfH(key);
+  let col = tileColor(key, x, z);
+  const pond = pondSlab(key, tm, x, z);
+  if (pond) { h = pond.h; col = pond.col; }
   const off = ((x + z) & 1) ? TOP_OFF : 0;
   const top = baseY + h + off;
-  b.box(tm.cx(x), SLAB_BASE, tm.cz(z), T, top - SLAB_BASE, T, tileColor(key, x, z), { skipFaces: ['bottom'] });
+  b.box(tm.cx(x), SLAB_BASE, tm.cz(z), T, top - SLAB_BASE, T, col, { skipFaces: ['bottom'] });
 }
 
 // One tree = trunk + 1-2 canopy boxes, raised to its tile's terrain level.
@@ -83,8 +100,8 @@ export function buildGround(grid, tm, colliders) {
         addTree(ch.opaque, tm.cx(x) - 1 + rng() * 2, tm.cz(z) - 1 + rng() * 2, rng, true, baseY);
         addTree(ch.opaque, tm.cx(x) + 1 - rng() * 2, tm.cz(z) + 1 - rng() * 2, rng, true, baseY);
         if (colliders) colliders.push({ type: 'box', minX: tm.minX(x), maxX: tm.minX(x) + T, minZ: tm.minZ(z), maxZ: tm.minZ(z) + T });
-      } else if (key === 'pond') {
-        if (colliders) colliders.push({ type: 'box', minX: tm.minX(x), maxX: tm.minX(x) + T, minZ: tm.minZ(z), maxZ: tm.minZ(z) + T });
+      // M15a.14: pond tiles are no longer colliders - the courier can step in and
+      // dunk (the water hazard); NPCs still path around the water (walkable stays false).
       }
     }
   }
@@ -259,20 +276,26 @@ function addParkingLines(grid, tm) {
   }
 }
 
-// Pond: a translucent water plane per chunk that contains `W` tiles, with a
-// brighter rim already painted by the basin slabs.
+// M15a.14: a sunken pool — ONE water slab with a top face (no tile seams), a
+// bright shallow rim and a darker middle (reads as depth), plus a few static
+// sparkle flecks. It sits 0.2 below the grass, 0.1 above the basin floor the
+// sunken slabs form (addSlab). The water tiles are no longer colliders, so the
+// courier can step in and dunk (gameplay/dunk.js).
 function addPond(grid, tm) {
   const { def } = tm;
   const p = def.pond;
   if (!p) return;
   const water = new VoxelBuilder(999);
-  const top = terrainBaseY(tm, p.x, p.z) + 0.05;
-  for (let dz = 0; dz < p.d; dz++) {
-    for (let dx = 0; dx < p.w; dx++) {
-      const x = p.x + dx, z = p.z + dz;
-      if (tm.keyAt(x, z) !== 'pond') continue;
-      water.box(tm.cx(x), top, tm.cz(z), T, 0.02, T, PALETTE.water, { skipFaces: ['bottom', 'top'] });
-    }
+  const baseY = terrainBaseY(tm, p.x, p.z);
+  const cx = (p.x + p.w / 2) * T, cz = (p.z + p.d / 2) * T;
+  const w = p.w * T, d = p.d * T;
+  const wy = baseY - 0.22; // slab bottom; the surface (top face) is 0.2 below the grass
+  water.box(cx, wy, cz, w, 0.02, d, PALETTE.waterEdge, { skipFaces: ['bottom'] }); // bright shallow rim
+  water.box(cx, wy + 0.004, cz, w - 1.0, 0.02, d - 1.0, '#3b93b8', { skipFaces: ['bottom'] }); // darker middle
+  const rng = mulberry32(99); // a few static sparkle flecks (cosmetic twinkle skipped for the budget)
+  for (let i = 0; i < 5; i++) {
+    const fx = cx + (rng() - 0.5) * (w - 2.5), fz = cz + (rng() - 0.5) * (d - 2.5);
+    water.box(fx, wy + 0.026, fz, 0.3, 0.012, 0.3, '#eafcff', { skipFaces: ['bottom'] });
   }
   const ch = grid.chunkAt(p.x, p.z);
   ch.water = water;

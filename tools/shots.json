@@ -1018,5 +1018,47 @@
       "__pb.showPrompt('dispatch'); __pb.step(16); __pb.setCamDist(24, 11); __pb.step(8);"
     ],
     "waitMs": 400
+  },
+  {
+    "name": "m15a-pond",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(30); __pb.camFree(44, 126, 44, 145, 8);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-pond-top",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(20); __pb.camFree(44, 143.6, 44, 144, 30);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-pond-teeter",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(10); __pb.teeterNow(42, 140.6); __pb.step(16); __pb.camAt(42, 141, 7, 2.2);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-pond-dunk",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('lunch'); window.__cb = __pb.state().carried; __pb.dunkNow(44, 144); __pb.step(66); __pb.camAt(44, 144, 9, 3);",
+      "(function(){ var st = __pb.state(); var inf = __pb.dunkInfo(); if (st.carried !== window.__cb - 1) throw new Error('carried ' + st.carried + ', expected ' + (window.__cb - 1) + ' (the dunk drops the top parcel)'); if (!inf || inf.state !== 'dunking') throw new Error('dunk state ' + (inf && inf.state) + ', expected dunking (the pop-up beat with the duck)'); })()"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-pond-respawn-bees",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.angerBees(1); __pb.dunkNow(54, 146); __pb.step(120);",
+      "(function(){ var inf = __pb.dunkInfo(); if (inf.state !== 'idle') throw new Error('dunk state ' + inf.state + ', expected idle (respawned)'); var r = inf.respawn; if (r[2] !== 'path' && r[2] !== 'sidewalk') throw new Error('respawn tile key ' + r[2] + ' is not a path/sidewalk'); var h = __pb.debugBees().swarms[1]; if (!h || h.state !== 'angry') throw new Error('hive 1 not angry: ' + (h && h.state)); var dist = Math.hypot(r[3] - h.hx, r[4] - h.hz); if (dist < 8) throw new Error('respawn ' + dist.toFixed(1) + 'u from the angry hive (< 8u)'); __pb.camAt((r[3] + h.hx) / 2, (r[4] + h.hz) / 2, 13, 5); })()"
+    ],
+    "waitMs": 400
   }
 ]

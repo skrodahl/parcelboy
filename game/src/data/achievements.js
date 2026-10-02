@@ -17,6 +17,7 @@ export const ACHIEVEMENTS = [
   { id: 'air-mail',          name: 'Air Mail',                 icon: '✉️', description: 'Make an Air Mail delivery.',            test: (c) => c.airMail >= 1 },
   { id: 'cake-boss',         name: 'Cake Boss',                icon: '🎂', description: 'Deliver 5 cakes without a single SPLAT.', test: (c) => c.cakesClean >= 5 },
   { id: 'golden-boy',        name: 'Golden Boy',               icon: '✨', description: "Find all of Maple Hollow's golden parcels.", test: (c) => (c.golden['maple-hollow'] || 0) >= 12 },
+  { id: 'duck-duck-splash',  name: 'Duck, Duck, Splash!',      icon: '🦆', description: 'Fall into the pond 3 times.',         test: (c) => (c.dunk || 0) >= 3 },
   { id: 'commuter',          name: 'Commuter',                 icon: '🚌', description: 'Visit every suburb.',                    test: (c, env) => c.suburbs.length >= (env && env.suburbCount || 3) },
   { id: 'holiday-spirit',    name: 'Holiday Spirit',           icon: '🎁', description: 'Finish a shift on Holiday Rush!',        test: (c) => c.holidayMissions >= 1 },
 ];

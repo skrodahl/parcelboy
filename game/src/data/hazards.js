@@ -48,6 +48,13 @@ export const HAZARDS = [
     id: 'runawayBin', name: 'Runaway Bin', behavior: 'binRoll', model: 'bin', radius: 0.7, spawn: 'hazardSpots.bin',
     params: { wakeMin: 3, wakeMax: 7, rollTime: 2.4, accel: 5, maxSpeed: 7 }, knockdown: true,
   },
+  // M15a.14: the pond / any water tile - a cartoon dunk (behavior 'dunk'),
+  // triggered when the courier's center enters a water tile (not a spawned
+  // entity; the `water` behavior runs the teeter/splish/respawn sequence).
+  {
+    id: 'water', name: 'Pond', behavior: 'dunk', model: 'none', radius: 0.5, spawn: 'none',
+    params: { teeterTime: 0.6, dunkTime: 1.5, grace: 2.0, respawnMinWater: 3, respawnMinHazard: 8 }, knockdown: false,
+  },
   // §2.15: Neighborhood Watch. Spawned by the heat system, not by the per-shift
   // counts (their "count" is the heat level). `watchChase` runs the pursuit +
   // BUSTED logic; speed/radii come from config MISCHIEF.watch (read by the

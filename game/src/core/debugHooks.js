@@ -230,11 +230,17 @@ export function createDebugHooks(ctx) {
     debugBees() {
       const h = R.hazards;
       if (!h) return null;
-      return { swarms: h.hiveSt.map((hs) => ({ cx: +hs.cx.toFixed(1), cz: +hs.cz.toFixed(1), state: hs.state })) };
+      return { swarms: h.hiveSt.map((hs) => ({ cx: +hs.cx.toFixed(1), cz: +hs.cz.toFixed(1), hx: +hs.x.toFixed(1), hz: +hs.z.toFixed(1), state: hs.state })) };
     },
     startShift(id) { ctx.startShift(id); },
     gotoFreeRoam() { ctx.gotoFreeRoam(); },
-    angerBees() { const h = R.hazards; if (h) h.angersSwarmAt(h.hiveSt[0].x, h.hiveSt[0].z); },
+    angerBees(i) { const h = R.hazards; if (h && h.hiveSt) h.angersSwarmAt(h.hiveSt[i || 0].x, h.hiveSt[i || 0].z); },
+    // M15a.14: the pond dunk. `teeterNow(wx, wz)` puts the courier at a water
+    // tile's edge mid-windmill (0.6 s to save yourself); `dunkNow(wx, wz)`
+    // splashes straight in; `dunkInfo()` reports the state machine + respawn.
+    teeterNow(wx, wz) { const d = R.dunk, p = R.player; if (!d || !p) return false; if (wx != null) p.pos.x = wx; if (wz != null) p.pos.z = wz; d.teeterAt(p.pos.x, p.pos.z); return true; },
+    dunkNow(wx, wz) { const d = R.dunk, p = R.player; if (!d || !p) return false; if (wx != null) p.pos.x = wx; if (wz != null) p.pos.z = wz; d.forceDunk(p.pos.x, p.pos.z); return true; },
+    dunkInfo() { const d = R.dunk; return d ? d.info() : null; },
     setCamDist(h, v) {
       const fc = R.followCam, p = R.player;
       if (!fc || !p) return;

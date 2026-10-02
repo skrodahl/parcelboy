@@ -173,6 +173,17 @@ export function createAmbient(env) {
   // of where it stands — so it wanders the sidewalks and lawns but never drifts
   // off the map or through a house. Infrequent (fires once the walker reaches
   // its target), so a tiny local search is fine; the fallback keeps it in place.
+  // M15a.14: the straight line to the target must also not cross the pond
+  // (walkers route around water; they never wade).
+  function segClearsWater(x0, z0, x1, z1) {
+    if (!tm.def.pond) return true;
+    const T = tm.tileSize;
+    for (let i = 1; i <= 4; i++) {
+      const f = i / 5;
+      if (tm.keyAt(Math.floor((x0 + (x1 - x0) * f) / T), Math.floor((z0 + (z1 - z0) * f) / T)) === 'pond') return false;
+    }
+    return true;
+  }
   function pickWalkerTarget(w) {
     const T = tm.tileSize;
     const tx0 = Math.max(1, Math.min(tm.width - 2, Math.floor(w.x / T)));
@@ -180,7 +191,7 @@ export function createAmbient(env) {
     for (let a = 0; a < 6; a++) {
       const tx = tx0 + ((rng() * 7) | 0) - 3;
       const tz = tz0 + ((rng() * 7) | 0) - 3;
-      if (tx >= 1 && tz >= 1 && tx < tm.width - 1 && tz < tm.height - 1 && tm.isWalkable(tx, tz)) {
+      if (tx >= 1 && tz >= 1 && tx < tm.width - 1 && tz < tm.height - 1 && tm.isWalkable(tx, tz) && segClearsWater(w.x, w.z, tm.cx(tx), tm.cz(tz))) {
         w.tx = tm.cx(tx); w.tz = tm.cz(tz);
         return;
       }

@@ -139,13 +139,15 @@ export function buildCourier(charDef, material) {
       if (s.air >= 0) { this.legL.rotation.x = 0.7; this.legR.rotation.x = 0.7; }
 
       // §2.12 knockdown gags (M7): flop / bee-panic hop / puffy face / pancake.
+      // M15a.14: while sunk in the pond (s.sink) the rig sits at neck depth
+      // instead of the panic hop, arms still windmilling.
       if (s.panic) {
-        this.group.position.y = Math.abs(Math.sin(s.t * 9)) * 0.4;
+        this.group.position.y = s.sink ? -0.5 * s.sink : Math.abs(Math.sin(s.t * 9)) * 0.4;
         this.armL.rotation.z = -2.0 + 0.3 * Math.sin(s.t * 12);
         this.armR.rotation.z = 2.0 + 0.3 * Math.sin(s.t * 12);
         this.group.rotation.x = 0.12;
       } else {
-        this.group.position.y = 0;
+        this.group.position.y = -0.5 * s.sink;
         this.group.rotation.x = s.pancake ? -Math.PI * 0.5 : -Math.PI * 0.5 * s.fall;
         if (s.pancake) scaleY *= 0.45; // flattened on a car hit
       }

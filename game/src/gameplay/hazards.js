@@ -141,6 +141,20 @@ export function createHazards(env) {
     carM.instanceMatrix.needsUpdate = true;
   }
 
+  // M15a.14: water tiles are no longer colliders, so chasers slide around the
+  // pond instead of stepping into it (animals are never dunked). Allocation-
+  // free: a module-scope scratch point the caller writes from.
+  const avoid = { x: 0, z: 0 };
+  function stepOffWater(x, z, nx, nz) {
+    if (!world.def.pond) { avoid.x = nx; avoid.z = nz; return avoid; }
+    const t = world.tilemap;
+    const tx = (nx / T) | 0, tz = (nz / T) | 0;
+    if (t.keyAt(tx, tz) !== 'pond') { avoid.x = nx; avoid.z = nz; return avoid; }
+    if (t.keyAt(tx, (z / T) | 0) !== 'pond') { avoid.x = nx; avoid.z = z; return avoid; } // slide along X
+    if (t.keyAt((x / T) | 0, tz) !== 'pond') { avoid.x = x; avoid.z = nz; return avoid; } // slide along Z
+    avoid.x = x; avoid.z = z; return avoid; // cornered: hold
+  }
+
   function stepDogs(dt) {
     for (let i = 0; i < dogs; i++) {
       const d = dogSt[i];
@@ -150,7 +164,9 @@ export function createHazards(env) {
         if (dpd < 9 && !player.dogFriendly) { d.state = 'chase'; d.t = 0; floatText.pop('!', d.x, 1.2, d.z, { color: '#ffd166', burst: true }); }
       } else if (d.state === 'chase') {
         d.t += dt;
-        const sp = 7.2; d.x += (dpx / (dpd || 1)) * sp * dt; d.z += (dpz / (dpd || 1)) * sp * dt;
+        const sp = 7.2;
+        const a = stepOffWater(d.x, d.z, d.x + (dpx / (dpd || 1)) * sp * dt, d.z + (dpz / (dpd || 1)) * sp * dt);
+        d.x = a.x; d.z = a.z;
         const sdx = d.x - wx(d.spot), sdz = d.z - wz(d.spot);
         if (d.t > 5 || Math.hypot(sdx, sdz) > 16) {
           // M15a.12: on Holiday a gave-up dog turns around and chases again after
@@ -169,7 +185,10 @@ export function createHazards(env) {
         const hx = wx(d.spot), hz = wz(d.spot);
         const hdx = hx - d.x, hdz = hz - d.z; const hd = Math.hypot(hdx, hdz);
         if (hd < 0.4) { d.state = 'sleep'; }
-        else { d.x += (hdx / hd) * 4 * dt; d.z += (hdz / hd) * 4 * dt; }
+        else {
+          const a = stepOffWater(d.x, d.z, d.x + (hdx / hd) * 4 * dt, d.z + (hdz / hd) * 4 * dt);
+          d.x = a.x; d.z = a.z;
+        }
         if (d.stealT >= 0) { d.stealT += dt; if (dpd < 0.9 && env.onDogRecover) { env.onDogRecover(); d.stealT = -1; } else if (d.stealT > 8) d.stealT = -1; }
       }
       place(dogM, i, d.x, d.z, Math.atan2(dpx, -dpz), 1);
@@ -190,7 +209,9 @@ export function createHazards(env) {
         if (dpd < 8 && !player.dogFriendly) { g.state = 'chase'; g.t = 0; g.honkT = 0; floatText.pop('HONK!', g.x, 1.6, g.z, { color: '#fb8500', burst: true }); if (env.onHonk) env.onHonk(); }
       } else if (g.state === 'chase') {
         g.t += dt; g.honkT += dt;
-        const sp = 6.4; g.x += (dpx / (dpd || 1)) * sp * dt; g.z += (dpz / (dpd || 1)) * sp * dt;
+        const sp = 6.4;
+        const a = stepOffWater(g.x, g.z, g.x + (dpx / (dpd || 1)) * sp * dt, g.z + (dpz / (dpd || 1)) * sp * dt);
+        g.x = a.x; g.z = a.z;
         if (g.honkT >= 0.9) { g.honkT = 0; if (env.onHonk) env.onHonk(); }
         const sdx = g.x - wx(g.spot), sdz = g.z - wz(g.spot);
         if (g.t > 6 || Math.hypot(sdx, sdz) > 14) g.state = 'home';
@@ -198,7 +219,10 @@ export function createHazards(env) {
         const hx = wx(g.spot), hz = wz(g.spot);
         const hdx = hx - g.x, hdz = hz - g.z; const hd = Math.hypot(hdx, hdz);
         if (hd < 0.4) g.state = 'sleep';
-        else { g.x += (hdx / hd) * 3.5 * dt; g.z += (hdz / hd) * 3.5 * dt; }
+        else {
+          const a = stepOffWater(g.x, g.z, g.x + (hdx / hd) * 3.5 * dt, g.z + (hdz / hd) * 3.5 * dt);
+          g.x = a.x; g.z = a.z;
+        }
       }
       // Idle waddle pulse so the geese read as alive at their pad.
       place(gooseM, i, g.x, g.z, Math.atan2(dpx, -dpz), g.state === 'sleep' ? 1 + Math.sin(performance.now() * 0.003 + i) * 0.03 : 1);

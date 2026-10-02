@@ -27,10 +27,13 @@ function bench(b, wx, wz, baseY, rotZ) {
   b.box(wx - (c ? w / 2 : 0) * 0.8, baseY, wz - (c ? 0 : d / 2) * 0.8, 0.12, 0.25, 0.12, PALETTE.trunk, { skipFaces: ['bottom'] });
 }
 
-function reeds(b, wx, wz, rng) {
+function reeds(b, wx, wz, rng, baseY) {
   for (let i = 0; i < 4; i++) {
     const a = rng() * 6.28, r = rng() * 0.5;
-    b.box(wx + Math.cos(a) * r, 0, wz + Math.sin(a) * r, 0.06, 0.5 + rng() * 0.4, 0.06, PALETTE.canopy[2], { skipFaces: ['bottom'] });
+    const h = 0.5 + rng() * 0.4;
+    b.box(wx + Math.cos(a) * r, baseY, wz + Math.sin(a) * r, 0.06, h, 0.06, PALETTE.canopy[2], { skipFaces: ['bottom'] });
+    // M15a.14: every other stem is a cattail (a brown seed head on top).
+    if (i % 2 === 0) b.box(wx + Math.cos(a) * r, baseY + h - 0.04, wz + Math.sin(a) * r, 0.1, 0.22, 0.1, PALETTE.trunk, { skipFaces: ['bottom'] });
   }
 }
 
@@ -77,16 +80,61 @@ function hydrants(grid, tm, colliders) {
   }
 }
 
-// Benches + reeds ringing the pond.
+// M15a.14: the natural pond edge - rounded stones ringing the basin, rock +
+// grass blocks filling the rectangle corners (so the outline isn't a
+// rectangle), reeds/cattails, lily pads, and a small wooden dock on the north
+// side. The water tiles are no longer colliders (the courier can dunk).
+function stoneRing(b, tm, p, baseY) {
+  const rng = mulberry32(555);
+  // Rocks + grass blocks filling the four rectangle corners (rounds the outline).
+  for (const [cx, cz] of [[p.x, p.z], [p.x + p.w - 1, p.z], [p.x, p.z + p.d - 1], [p.x + p.w - 1, p.z + p.d - 1]]) {
+    b.box(tm.cx(cx), baseY, tm.cz(cz), T * 0.7, 0.35, T * 0.7, PALETTE.stone, { skipFaces: ['bottom'] });
+    b.box(tm.cx(cx) + 0.4, baseY + 0.2, tm.cz(cz) + 0.4, T * 0.5, 0.25, T * 0.5, PALETTE.grass[0], { skipFaces: ['bottom'] });
+  }
+  // A ring of small rounded stones just outside the basin edge.
+  for (let z = p.z - 1; z <= p.z + p.d; z++) for (let x = p.x - 1; x <= p.x + p.w; x++) {
+    const inRect = x >= p.x && x < p.x + p.w && z >= p.z && z < p.z + p.d;
+    if (inRect) continue;
+    let adj = false;
+    for (let a = 0; a < 4; a++) {
+      const nx = x + (a === 0 ? 1 : a === 1 ? -1 : 0), nz = z + (a === 2 ? 1 : a === 3 ? -1 : 0);
+      if (nx >= p.x && nx < p.x + p.w && nz >= p.z && nz < p.z + p.d) adj = true;
+    }
+    if (!adj) continue;
+    const wx = tm.cx(x) + (rng() - 0.5) * 1.5, wz = tm.cz(z) + (rng() - 0.5) * 1.5;
+    b.box(wx, baseY, wz, 0.5 + rng() * 0.4, 0.3, 0.5 + rng() * 0.4, PALETTE.stone, { skipFaces: ['bottom'] });
+  }
+}
+function lilyPads(b, tm, p, waterY) {
+  const rng = mulberry32(556);
+  for (let i = 0; i < 5; i++) {
+    const x = p.x + 0.5 + rng() * (p.w - 1), z = p.z + 0.5 + rng() * (p.d - 1);
+    b.box(tm.cx(x), waterY + 0.02, tm.cz(z), 0.7, 0.05, 0.7, PALETTE.canopy[1], { skipFaces: ['bottom'] }); // a pad
+    b.box(tm.cx(x), waterY + 0.06, tm.cz(z), 0.12, 0.12, 0.12, PALETTE.canopy[0], { skipFaces: ['bottom'] }); // a leaf bump
+  }
+}
+function dock(b, tm, p, baseY) {
+  // A small wooden dock on the north side, reaching into the water.
+  const wx = tm.minX(p.x) + (p.w * T) / 2, wz = tm.cz(p.z - 0.6);
+  b.box(wx, baseY, wz, 0.9, 0.12, 3.2, PALETTE.porch, { skipFaces: ['bottom'] }); // planks
+  b.box(wx - 0.45, baseY, wz + 1.2, 0.12, 0.5, 0.12, PALETTE.trunk, { skipFaces: ['bottom'] }); // posts
+  b.box(wx + 0.45, baseY, wz + 1.2, 0.12, 0.5, 0.12, PALETTE.trunk, { skipFaces: ['bottom'] });
+}
 function pondProps(grid, tm) {
   const p = tm.def.pond;
   if (!p) return;
   const rng = mulberry32(555);
   const b = grid.chunkAt(p.x, p.z).opaque;
-  bench(b, tm.cx(p.x + 1), tm.cz(p.z - 1), 0, 0);
-  bench(b, tm.cx(p.x + p.w - 1), tm.cz(p.z + p.d), 0, Math.PI / 2);
-  reeds(b, tm.cx(p.x - 1), tm.cz(p.z + p.d - 1), rng);
-  reeds(b, tm.cx(p.x + p.w), tm.cz(p.z), rng);
+  const baseY = tileBaseY(tm, p.x, p.z);
+  const waterY = baseY - 0.2; // matches addPond
+  stoneRing(b, tm, p, baseY);
+  lilyPads(b, tm, p, waterY);
+  dock(b, tm, p, baseY);
+  bench(b, tm.cx(p.x + 1), tm.cz(p.z - 1), baseY, 0);
+  bench(b, tm.cx(p.x + p.w - 1), tm.cz(p.z + p.d), baseY, Math.PI / 2);
+  reeds(b, tm.cx(p.x - 1), tm.cz(p.z + p.d - 1), rng, baseY);
+  reeds(b, tm.cx(p.x + p.w), tm.cz(p.z), rng, baseY);
+  reeds(b, tm.cx(p.x + 2), tm.cz(p.z + p.d), rng, baseY); // M15a.14: a third clump, south side
 }
 
 // Playground set (§6.1): sandbox base, a swing frame, a slide, and a spring rider.

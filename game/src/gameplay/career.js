@@ -65,6 +65,7 @@ export function createCareer({ saveData, progress, events, suburbCount }) {
       career.knockdowns[c]++;
       earnAchievements();
     });
+    events.on('dunk', () => { career.dunk++; earnAchievements(); }); // M15a.14: the pond gag
     events.on('stolen', () => { career.stolen++; earnAchievements(); });
     events.on('recovered', () => { career.recovered++; earnAchievements(); });
     events.on('results', (res) => {
