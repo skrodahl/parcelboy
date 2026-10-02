@@ -24,6 +24,7 @@ export function createHazards(env) {
   const spots = world.def.hazardSpots || { dog: [], sprinkler: [], beehive: [], bin: [], skater: [] };
   const rng = mulberry32(1234);
   const scratch = { x: 0, z: 0, heading: 0, toCorner: 99 };
+  const skPt = { x: 0, z: 0, h: 0 }; // M15a.5: pointOnRect scratch (no per-frame alloc)
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(1, 1, 1), E = new THREE.Euler();
   const carX = new Float32Array(MAX.car), carZ = new Float32Array(MAX.car); // car positions for the collision pass
 
@@ -227,10 +228,10 @@ export function createHazards(env) {
         const per = loopPerim(loop, T);
         // §2.8 Charm: skaters swerve away — during Charm they stop and give space.
         k.dist = (k.dist + (player.stack.charmActive ? 0 : 5) * dt) % per;
-        const pt = pointOnRect(loop, k.dist, T);
-        k.x = pt.x + Math.sin(k.weave + k.dist * 0.5) * 0.3;
-        k.z = pt.z;
-        place(skM, i, k.x, k.z, pt.h, 1);
+        pointOnRect(loop, k.dist, T, skPt);
+        k.x = skPt.x + Math.sin(k.weave + k.dist * 0.5) * 0.3;
+        k.z = skPt.z;
+        place(skM, i, k.x, k.z, skPt.h, 1);
         // Jump-over: a skater under an airborne player = "Hop!" +25 (once).
         if (player.pos.y > 0.1 && dist2d(k.x, k.z, player.pos.x, player.pos.z) < 0.9 && k.hopT < 0) { k.hopT = 0; if (env.onHop) env.onHop(); }
       }

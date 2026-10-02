@@ -17,14 +17,16 @@ export function inArcOf(s, px, pz) {
 export function loopPerim(r, T) { return 2 * (Math.abs((r.x1 - r.x0) + 1) * T + Math.abs((r.z1 - r.z0) + 1) * T); }
 // A point + heading at distance `d` around a loop's rectangular perimeter.
 // (cx/cz of tile r.x0 is r.x0*T, since the tilemap's center is (t + 0.5)*T.)
-export function pointOnRect(r, d, T) {
+// M15a.5: the heading is the car convention (model front = local +Z, Y rotation
+// = atan2(dx, dz) of the travel direction): +X → π/2, +Z → 0, -X → -π/2, -Z → π.
+// `out` is the caller's scratch object (written in place, no allocation).
+export function pointOnRect(r, d, T, out) {
   const w = (r.x1 - r.x0 + 1) * T, h = (r.z1 - r.z0 + 1) * T;
   const x0 = r.x0 * T, z0 = r.z0 * T;
-  let dd = d % (2 * (w + h));
-  const out = { x: 0, z: 0, h: 0 };
-  if (dd < w) { out.x = x0 + dd; out.z = z0; out.h = 0; }
-  else if (dd < w + h) { out.x = x0 + w; out.z = z0 + (dd - w); out.h = Math.PI / 2; }
-  else if (dd < 2 * w + h) { out.x = x0 + w - (dd - w - h); out.z = z0 + h; out.h = Math.PI; }
-  else { out.x = x0; out.z = z0 + h - (dd - 2 * w - h); out.h = -Math.PI / 2; }
+  const dd = d % (2 * (w + h));
+  if (dd < w) { out.x = x0 + dd; out.z = z0; out.h = Math.PI / 2; }
+  else if (dd < w + h) { out.x = x0 + w; out.z = z0 + (dd - w); out.h = 0; }
+  else if (dd < 2 * w + h) { out.x = x0 + w - (dd - w - h); out.z = z0 + h; out.h = -Math.PI / 2; }
+  else { out.x = x0; out.z = z0 + h - (dd - 2 * w - h); out.h = Math.PI; }
   return out;
 }

@@ -189,6 +189,13 @@ export function createDebugHooks(ctx) {
       if (!h || !h.runSt) return [];
       return h.runSt.map((r) => ({ x: +r.x.toFixed(1), z: +r.z.toFixed(1), hx: +r.hx.toFixed(1), hz: +r.hz.toFixed(1), rolling: r.state === 1 }));
     },
+    // M15a.5: skater positions (x,z) so a shot can frame one mid-run to check
+    // the board points along its direction of travel.
+    debugSkaters() {
+      const h = R.hazards;
+      if (!h || !h.skSt) return [];
+      return h.skSt.map((s, i) => ({ i, x: +(s.x || 0).toFixed(1), z: +(s.z || 0).toFixed(1) }));
+    },
     kickBin(i) {
       const h = R.hazards;
       if (!h || !h.runSt || !h.runSt[i]) return -1;

@@ -809,5 +809,13 @@
       "__pb.camAt(90, 10, 9, 3.5);"
     ],
     "waitMs": 400
+  },
+  {
+    "name": "m15a-skater",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(40); var sk=__pb.debugSkaters(); if(sk.length){ var s0=sk[0]; __pb.camAt(s0.x, s0.z, 5, 9); }"
+    ],
+    "waitMs": 400
   }
 ]
