@@ -118,9 +118,13 @@ export function createParcels({ scene, material, world, packages, targets, house
     return p;
   }
 
+  // §2.19: the parcel's ground = the terrain level + the curb (0.12 on s/o/d).
+  // On a flat neighborhood the terrain term is 0, so this is the old curb-only
+  // value.
   function groundY(x, z) {
     const t = world.tilemap;
-    return t.surfH(t.keyAt(Math.floor(x / t.tileSize), Math.floor(z / t.tileSize))) || 0;
+    const ty = world.terrain ? world.terrain.baseYAt(x, z) : 0;
+    return ty + (t.surfH(t.keyAt(Math.floor(x / t.tileSize), Math.floor(z / t.tileSize))) || 0);
   }
 
   // Roof vs. wall on an in-flight hit (world.colliders: boxes with h = roof top).
@@ -165,7 +169,7 @@ export function createParcels({ scene, material, world, packages, targets, house
     p.vel.x *= PARCEL.bounceHoriz;
     p.vel.z *= PARCEL.bounceHoriz;
     p.state = 'bouncing';
-    if (effects) effects.dust(p.mesh.position.x, 0, p.mesh.position.z);
+    if (effects) effects.dust(p.mesh.position.x, groundY(p.mesh.position.x, p.mesh.position.z), p.mesh.position.z);
   }
 
   function step(dt) {
@@ -228,7 +232,7 @@ export function createParcels({ scene, material, world, packages, targets, house
           p.state = 'resting';
           if (rng() < 0.35 && p.target) {
             const dm = p.target.doormat;
-            m.position.set(dm.x, 0.12, dm.z);
+            m.position.set(dm.x, groundY(dm.x, dm.z), dm.z); // §2.19: land on the porch's level
             onRest(p, 'lucky');
           } else {
             onRest(p, 'roof');

@@ -27,6 +27,7 @@ export class VoxelBuilder {
     this._v = new THREE.Vector3();
     this._n = new THREE.Vector3();
     this._m3 = new THREE.Matrix3();
+    this.yOff = 0; // §2.19: a per-builder Y lift so a whole structure sits at its tile's terrain level
   }
 
   // x/z = center, y = bottom. color: hex string, THREE.Color or [r,g,b] 0-1.
@@ -43,9 +44,10 @@ export class VoxelBuilder {
       let b = this._color.b * jitter;
       if (face.n[1] === -1) { r *= 0.75; g *= 0.75; b *= 0.75; }
       const base = this._positions.length / 3;
+      const y0 = y + this.yOff;
       for (let c = 0; c < 4; c++) {
         const corner = face.c[c];
-        const py = y + corner[1] * h;
+        const py = y0 + corner[1] * h;
         let cr = r, cg = g, cb = b;
         if (py <= 0.3) { cr *= 0.88; cg *= 0.88; cb *= 0.88; }
         this._positions.push(x + corner[0] * w, py, z + corner[2] * d);

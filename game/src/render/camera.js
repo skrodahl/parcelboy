@@ -9,7 +9,7 @@ import * as THREE from 'three';
 // target until it is outside statics (the cam never sits inside a building).
 const N_STEPS = 16; // march resolution for clearPos
 
-export function createFollowCam(camera, collision) {
+export function createFollowCam(camera, collision, groundYAt) {
   const desired = new THREE.Vector3();
   const look = new THREE.Vector3();
   const cand = new THREE.Vector3();
@@ -32,7 +32,8 @@ export function createFollowCam(camera, collision) {
           look.y + (dst.y - look.y) * t,
           look.z + (dst.z - look.z) * t,
         );
-        cand.y = Math.max(cand.y, 1.0); // cam stays above the ground
+        // cam stays above the ground (§2.19: above the terrain surface, else 1.0).
+        cand.y = Math.max(cand.y, (groundYAt ? groundYAt(cand.x, cand.z) : 0) + 1.0);
         res.hit = false;
         collision.resolveCircle(cand, 0.6, res);
         if (!res.hit) { desired.copy(cand); return; }

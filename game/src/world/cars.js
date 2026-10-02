@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VoxelBuilder } from '../render/voxel.js';
 import { PALETTE } from '../data/palette.js';
 import { mulberry32 } from '../core/rng.js';
+import { tileBaseY } from './terrain.js';
 
 // §6.2: a parked car on 40% of driveways (static collider). Cars are rounded
 // boxes merged into the owning chunk, colors from the §7.6 list.
@@ -53,14 +54,15 @@ export function parkCars(grid, tm, colliders, seed = 7) {
     const faceNorth = rng() < 0.5;
     const op = new VoxelBuilder(seed * 13 + g.x * 7 + zc * 31);
     carBoxes(op, col);
+    const sitY = tileBaseY(tm, g.x, zc) + 0.12; // §2.19: sit on the driveway's terrain level
     const m = new THREE.Matrix4().makeRotationY(faceNorth ? Math.PI : 0);
-    m.setPosition(wx, 0.12, wz); // sit on the raised driveway
+    m.setPosition(wx, sitY, wz); // sit on the raised driveway
     grid.chunkAt(g.x, zc).opaque.merge(op, m);
     colliders.push({
       type: 'box',
       minX: wx - 1.0, maxX: wx + 1.0,
       minZ: wz - 2.0, maxZ: wz + 2.0,
-      h: 1.6,
+      h: sitY + 1.6,
     });
   }
   return { placed, total: groups.length };

@@ -27,6 +27,8 @@ function rectTiles(x, z, w, d) {
   return out;
 }
 
+import { validateLayout } from './layoutValidate.js';
+
 // Parses + validates a neighborhood def (§6.2). Throws a clear error on any problem.
 export function loadTilemap(def) {
   const rows = def.map;
@@ -70,8 +72,25 @@ export function loadTilemap(def) {
     }
   }
 
+  // §2.19: an optional heights layer must match the map size; chars are
+  // '0'..'3' (levels), '/' (ramp), '=' (stairs). The bridge + reachability rules
+  // are checked by createTerrain / the map generator.
+  if (def.heights) {
+    const hr = def.heights;
+    if (hr.length !== height) throw new Error(`tilemap ${def.id}: heights has ${hr.length} rows, expected ${height}`);
+    for (let z = 0; z < height; z++) {
+      if (hr[z].length !== width) throw new Error(`tilemap ${def.id}: heights row ${z} has ${hr[z].length} chars, expected ${width}`);
+      for (let x = 0; x < width; x++) {
+        const c = hr[z][x];
+        if (!((c >= '0' && c <= '3') || c === '/' || c === '=')) {
+          throw new Error(`tilemap ${def.id}: unknown heights char '${c}' at (${x},${z})`);
+        }
+      }
+    }
+  }
+
   const t = def.tileSize;
-  return {
+  const tm = {
     def,
     id: def.id,
     width,
@@ -97,5 +116,16 @@ export function loadTilemap(def) {
     surfH(key) {
       return RAISED[key] || 0;
     },
+    // §2.19: the raw heights layer (or null when the neighborhood is flat).
+    heights: def.heights || null,
+    hasHeights: !!def.heights,
+    heightCharAt(x, z) {
+      if (!def.heights) return '0';
+      const c = (z >= 0 && z < height && x >= 0 && x < width) ? def.heights[z][x] : '0';
+      return c;
+    },
   };
+  // §2.18/§2.19: boot-time layout checks (reachability, traffic, porches, exits).
+  validateLayout(tm);
+  return tm;
 }

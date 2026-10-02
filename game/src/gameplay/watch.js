@@ -68,7 +68,20 @@ export function createWatch(env) {
 
   function reset() { for (let i = 0; i < 2; i++) remove(i); }
 
+  // §2.18: dispose any active unit's geometry on unload (the segway/cart geos
+  // are built per spawn; the shared `mat` is disposed with the world).
+  function dispose() {
+    for (let i = 0; i < 2; i++) {
+      if (state[i]) {
+        scene.remove(state[i].group);
+        state[i].group.traverse((o) => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+        state[i] = null;
+      }
+    }
+  }
+
   return {
+    dispose,
     spawn, remove, reset,
     step: (dt) => { tickClock(dt); step(dt); },
     get active() { let n = 0; for (let i = 0; i < 2; i++) if (state[i]) n++; return n; },

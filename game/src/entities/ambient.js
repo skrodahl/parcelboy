@@ -118,7 +118,7 @@ export function createAmbient(env) {
   duckMesh.frustumCulled = false;
   duckMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(duckMesh);
-  const pond = env.world.def.pond;
+  const pond = env.world.def.pond || { x: (tm.width / 2) - 1, z: (tm.height / 2) - 1, w: 2, d: 2 };
   const px = tm.cx(pond.x + pond.w / 2), pz = tm.cz(pond.z + pond.d / 2);
   const ducks = [];
   for (let i = 0; i < DUCKS; i++) ducks.push({ a: rng() * 6.28, r: 1.5 + rng() * 2.5, sp: 0.2 + rng() * 0.25, bob: rng() * 6 });
@@ -128,15 +128,18 @@ export function createAmbient(env) {
   const kids = [];
   const ball = { x: 0, y: 0, z: 0, vy: 0, t: 0 };
   if (KIDS > 0) {
-    kidMesh = new THREE.InstancedMesh(buildWalker(555), mat, KIDS);
-    kidMesh.frustumCulled = false;
-    kidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    scene.add(kidMesh);
-    const bulb = env.world.def.roads.find((r) => r.bulb).bulb;
-    const kx = tm.cx(bulb.x + bulb.w / 2), kz = tm.cz(bulb.z + bulb.d / 2);
-    for (let i = 0; i < KIDS; i++) kids.push({ x: kx + (i ? 3 : -3), z: kz, face: 0 });
-    ballMesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: '#f4a261' }));
-    scene.add(ballMesh);
+    const bulbRoad = (env.world.def.roads || []).find((r) => r.bulb);
+    if (bulbRoad) {
+      const bulb = bulbRoad.bulb;
+      const kx = tm.cx(bulb.x + bulb.w / 2), kz = tm.cz(bulb.z + bulb.d / 2);
+      kidMesh = new THREE.InstancedMesh(buildWalker(555), mat, KIDS);
+      kidMesh.frustumCulled = false;
+      kidMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      scene.add(kidMesh);
+      for (let i = 0; i < KIDS; i++) kids.push({ x: kx + (i ? 3 : -3), z: kz, face: 0 });
+      ballMesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshLambertMaterial({ color: '#f4a261' }));
+      scene.add(ballMesh);
+    }
   }
 
   // Allocation-free scratch.
@@ -272,9 +275,21 @@ export function createAmbient(env) {
     }
   }
 
+  // §2.18: free ambient's own geometries + the ball's material on unload. The
+  // shared `mat` (world.worldMat) is disposed with the world, not here.
+  function dispose() {
+    scene.remove(star); star.geometry.dispose();
+    for (const w of walkers) { scene.remove(w.mesh); w.mesh.geometry.dispose(); }
+    scene.remove(birdMesh); birdMesh.geometry.dispose();
+    if (butterMesh) { scene.remove(butterMesh); butterMesh.geometry.dispose(); }
+    scene.remove(duckMesh); duckMesh.geometry.dispose();
+    if (kidMesh) { scene.remove(kidMesh); kidMesh.geometry.dispose(); }
+    if (ballMesh) { scene.remove(ballMesh); ballMesh.geometry.dispose(); ballMesh.material.dispose(); }
+  }
+
   return {
     walkers, birds, butterflies, ducks, kids,
-    step, forceBowl, scatterBirds,
+    step, forceBowl, scatterBirds, dispose,
     get bowledTotal() { return bowledTotal; },
     get strikes() { return strike; },
     get aliveCount() { return walkers.length + BIRDS + BUTTER + DUCKS + KIDS; },

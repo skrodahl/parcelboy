@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { loadTilemap } from './tilemap.js';
 import { createChunkGrid } from './chunkGrid.js';
 import { buildGround } from './ground.js';
+import { createTerrain, tileBaseY } from './terrain.js';
 import { buildProps, sidewalkLampPositions } from './props.js';
 import { buildCollision } from './collision.js';
 import { buildSignMesh, addStreetSigns } from './signs.js';
@@ -18,6 +19,8 @@ import { PALETTE } from '../data/palette.js';
 // (its `glow` value bakes the initial window/lamp colors).
 export function buildWorld(def, seed = 1, preset) {
   const tm = loadTilemap(def);
+  const terrain = createTerrain(tm); // §2.19: null-heights (flat) → all-zero terrain
+  tm.terrain = terrain;
   const grid = createChunkGrid(tm.width, tm.height, seed);
   const colliders = [];
   const signQuads = [];
@@ -78,15 +81,16 @@ export function buildWorld(def, seed = 1, preset) {
   let flag = null;
   if (flagGeo) {
     flag = new THREE.Mesh(flagGeo, worldMat);
-    flag.position.set(flagPos.x, 0, flagPos.z);
+    flag.position.set(flagPos.x, flagPos.y || 0, flagPos.z); // §2.19: flagpole base at the tile level
     flag.castShadow = true;
     group.add(flag);
   }
 
   // Lamp light pools: under every sidewalk + porch lamp, visible at glow.
+  // §2.19: sidewalk-lamp pools sit on their tile's terrain level (0 on a flat map).
   const poolPts = [
     ...lampPoolPts.map((p) => [p[0], p[1], 0.12]),
-    ...sidewalkLampPositions(tm).map((p) => [p.wx, p.wz, 0.12]),
+    ...sidewalkLampPositions(tm).map((p) => [p.wx, p.wz, tileBaseY(tm, p.tx, p.tz) + 0.12]),
   ];
   // One shared radial disc texture (§7.8): lamp pools here, blob shadows in M4.
   const poolTexture = createPoolTexture();
@@ -106,6 +110,7 @@ export function buildWorld(def, seed = 1, preset) {
   return {
     def,
     tilemap: tm,
+    terrain,
     group,
     chunks,
     collision,
@@ -125,6 +130,29 @@ export function buildWorld(def, seed = 1, preset) {
     lockerBodies,
     lockers,
   };
+}
+
+// §2.18: free every geometry/material/texture a suburb created, so a
+// Maple Hollow → other → Maple Hollow round trip returns renderer.info to the
+// same values (no GPU leak). The caller removes `world.group` from the scene
+// first; the locker lights/doors (added to the group) are disposed here too.
+export function disposeWorld(world) {
+  if (!world) return;
+  for (const m of world.group.children) {
+    if (m.isMesh && m.geometry) m.geometry.dispose();
+  }
+  world.worldMat.dispose();
+  world.waterMat.dispose();
+  if (world.glowMesh && world.glowMesh.material) world.glowMesh.material.dispose();
+  if (world.signs) {
+    if (world.signs.material) world.signs.material.dispose();
+    if (world.signs.atlas && world.signs.atlas.texture) world.signs.atlas.texture.dispose();
+  }
+  if (world.poolTexture) world.poolTexture.dispose();
+  if (world.lockers) {
+    if (world.lockers.lights) { world.lockers.lights.geometry.dispose(); world.lockers.lights.material.dispose(); }
+    if (world.lockers.doors) { world.lockers.doors.geometry.dispose(); world.lockers.doors.material.dispose(); }
+  }
 }
 
 // §6.3: porch zone = the two `o` tiles adjacent to the house per its facing.

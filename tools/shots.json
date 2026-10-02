@@ -92,5 +92,13 @@
   { "name": "m13-cycle", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.cycle(); __pb.step(3); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"] },
   { "name": "m13-wrong-address", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); var r=__pb.wrongAddressDemo(); __pb.settleParcel(); for(var i=0;i<9;i++) __pb.stepFloat(); __pb.camAt(r.x, r.z, 11, 4.2);"], "waitMs": 500 },
   { "name": "m13-locker-full", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.lockerView(0);"] },
-  { "name": "m13-locker-empty", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.emptyLocker(0); __pb.lockerView(0);"] }
+  { "name": "m13-locker-empty", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.emptyLocker(0); __pb.lockerView(0);"] },
+  { "name": "m14-hills-ramp", "url": "/?nb=test-hills&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(18, 42); __pb.step(8); __pb.camAt(24, 38, 15, 7);"] },
+  { "name": "m14-hills-wall", "url": "/?nb=test-hills&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.aimAt(26, 33, 34, 48, 14);"] },
+  { "name": "m14-hills-throw-up", "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(30, 46); __pb.throwAt(10, 7); __pb.step(12); __pb.camAt(42, 30, 15, 7);"] },
+  { "name": "m14-exit-sign", "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.holdTransition('Maple Hollow', 'Maple Hollow — the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"] },
+  { "name": "m14-exit-locked", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.camAt(90, 10, 12, 5);"] },
+  { "name": "m14-region-map", "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.camAt(160, 140, 22, 10);"] },
+  { "name": "m14-leak-fresh", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(3);"] },
+  { "name": "m14-leak-trip", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.gotoNeighborhood('test-hills'); __pb.step(5); __pb.gotoNeighborhood('maple-hollow'); __pb.step(5);"], "waitMs": 300 }
 ]

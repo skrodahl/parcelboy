@@ -364,5 +364,23 @@ export function createDebugHooks(ctx) {
         strikes: am ? am.strikes : 0,
       };
     },
+    // §2.18: the multi-neighborhood engine. `gotoNeighborhood(id, exitId)`
+    // travels to a suburb (exits are the in-world way; `id` alone is the debug
+    // shortcut). `gpuInfo()` snapshots renderer.info for the round-trip leak
+    // check (counts must return to the same values).
+    gotoNeighborhood(nbId, exitId) { R.gotoNeighborhood && R.gotoNeighborhood(nbId, exitId); },
+    // §2.18: hold the transition sign card up for a shot (m14-exit-sign).
+    holdTransition(title, blurb) { const t = R.transition; t && t.hold(title, blurb); },
+    releaseTransition() { const t = R.transition; t && t.release(); },
+    gpuInfo() {
+      const i = renderer.info;
+      return {
+        drawCalls: i.render.calls,
+        geometries: i.memory.geometries,
+        textures: i.memory.textures,
+        triangles: i.render.triangles,
+      };
+    },
+    get currentNeighborhood() { return R.world ? R.world.def.id : null; },
   };
 }

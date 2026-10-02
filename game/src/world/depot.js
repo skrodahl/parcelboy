@@ -75,10 +75,15 @@ export function createDepotLife(scene, world, mat, battery) {
   }
 
   function dispose() {
+    // §2.18: free every mesh's geometry on unload (the shared `mat` is disposed
+    // with the world). `palletGeo`/`beltGeo` are VoxelBuilders (no dispose); the
+    // real geometries are the meshes'.
     scene.remove(palletMesh, belt, boxMesh, fork);
+    palletMesh.geometry.dispose();
+    belt.geometry.dispose();
+    fork.geometry.dispose();
     boxMesh.geometry.dispose();
     boxMesh.dispose();
-    palletGeo.dispose && palletGeo.dispose();
   }
 
   return { step, dispose, get reversing() { return fx > 0.5; } };

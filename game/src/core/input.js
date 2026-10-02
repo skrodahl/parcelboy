@@ -17,6 +17,7 @@ const KEYS = {
   Escape: 'pause', KeyP: 'pause',
   KeyM: 'mute',
   Tab: 'map',
+  KeyT: 'travel', // §2.18: travel from an in-world exit
 };
 
 export function createInput() {

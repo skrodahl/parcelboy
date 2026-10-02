@@ -217,8 +217,21 @@ export function createMischief(env) {
 
   function brokenCount() { let n = 0; for (const r of dressing) n += r.broken.size; return n; }
 
+  // §2.18: free every Grump dressing + the pooled chase figure's geometry on
+  // unload (their geometries are built per call, so they must not leak a
+  // round trip). `mat` (world material) is disposed with the world.
+  function dispose() {
+    for (const rec of dressing) {
+      rec.mesh.geometry.dispose();
+      rec.car.geometry.dispose();
+      for (const m of rec.brokenMeshes) m.geometry.dispose();
+    }
+    if (grumpFig) { grumpFig.mesh.geometry.dispose(); grumpFig = null; }
+    reset();
+  }
+
   return {
-    setup, reset, tick, grumpHit, forceBreak,
+    setup, reset, tick, grumpHit, forceBreak, dispose,
     get grumps() { return grumpIds; },
     get brokenCount() { return brokenCount(); },
     isGrump: (id) => grumpIds.indexOf(id) >= 0,

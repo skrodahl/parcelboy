@@ -3,6 +3,7 @@ import { VoxelBuilder } from '../render/voxel.js';
 import { GlowBuilder } from './glow.js';
 import { PALETTE } from '../data/palette.js';
 import { mulberry32 } from '../core/rng.js';
+import { tileBaseY } from './terrain.js';
 
 // §6.4: 5 house styles, style + colors seeded by house id (stable). Footprint
 // 8x8 units, walls inset 0.4. Local frame: front (door) = +Z; the house is
@@ -198,6 +199,7 @@ export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects
       door: PALETTE.door[(rng() * PALETTE.door.length) | 0],
     };
     const side = drivewaySide(tm, h);
+    const baseY = tileBaseY(tm, h.x, h.z); // §2.19: lift the house to its tile's level
     const op = new VoxelBuilder(idSeed(h.id) & 0xffff);
     const gl = new GlowBuilder();
     const rec = [];
@@ -207,7 +209,7 @@ export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects
     // World transform: rotate by facing, translate to footprint center.
     const ox = tm.minX(h.x) + 4, oz = tm.minZ(h.z) + 4;
     const m = new THREE.Matrix4().makeRotationY(THETA[h.facing]);
-    m.setPosition(ox, 0, oz);
+    m.setPosition(ox, baseY, oz);
     const ch = grid.chunkAt(h.x, h.z);
     ch.opaque.merge(op, m);
     glowAll.merge(gl, m);
@@ -233,8 +235,9 @@ export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects
       lampPools.push([lp.x, lp.z]);
     }
 
-    // Colliders: footprint box + garage.
-    colliders.push({ type: 'box', minX: tm.minX(h.x), maxX: tm.minX(h.x) + 8, minZ: tm.minZ(h.z), maxZ: tm.minZ(h.z) + 8, h: info.roofTop });
+    // Colliders: footprint box + garage. §2.19: the roof/wall top is measured
+    // from the tile's terrain level, so the parcel roof-band check stays correct.
+    colliders.push({ type: 'box', minX: tm.minX(h.x), maxX: tm.minX(h.x) + 8, minZ: tm.minZ(h.z), maxZ: tm.minZ(h.z) + 8, h: baseY + info.roofTop });
     if (info.garage) {
       const a = _v.set(3.8 * info.garage, 0, -1.6).applyMatrix4(m);
       const b = _v.set(7.0 * info.garage, 0, 1.6).applyMatrix4(m);
@@ -242,7 +245,7 @@ export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects
         type: 'box',
         minX: Math.min(a.x, b.x), maxX: Math.max(a.x, b.x),
         minZ: Math.min(a.z, b.z), maxZ: Math.max(a.z, b.z),
-        h: 2.9,
+        h: baseY + 2.9,
       });
     }
   }

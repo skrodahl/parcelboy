@@ -1,5 +1,6 @@
 import { PALETTE } from '../data/palette.js';
 import { mulberry32 } from '../core/rng.js';
+import { tileBaseY } from './terrain.js';
 
 // Static props (§6.2 / §7.3): sidewalk lamps, hydrants, benches + reeds by the
 // pond, and the playground set. All are boxes merged into the chunk's opaque
@@ -38,6 +39,7 @@ function reeds(b, wx, wz, rng) {
 export function sidewalkLampPositions(tm) {
   const rng = mulberry32(777);
   const out = [];
+  if (!tm.def.sidewalkLoops) return out;
   for (const key of Object.keys(tm.def.sidewalkLoops)) {
     const L = tm.def.sidewalkLoops[key];
     const pts = [];
@@ -58,18 +60,19 @@ export function sidewalkLampPositions(tm) {
 
 function sidewalkLamps(grid, tm, colliders) {
   for (const p of sidewalkLampPositions(tm)) {
-    lamp(grid.chunkAt(p.tx, p.tz).opaque, p.wx, p.wz, 0.12);
+    lamp(grid.chunkAt(p.tx, p.tz).opaque, p.wx, p.wz, tileBaseY(tm, p.tx, p.tz) + 0.12); // §2.19
     if (colliders) colliders.push({ type: 'circle', x: p.wx, z: p.wz, r: 0.25 });
   }
 }
 
 // A hydrant at the near corner of every 4-way intersection.
 function hydrants(grid, tm, colliders) {
+  if (!tm.def.roads) return;
   const h = tm.def.roads.filter((r) => r.axis === 'x');
   const v = tm.def.roads.filter((r) => r.axis === 'z');
   for (const a of h) for (const b of v) {
     const wx = tm.cx(b.x - 1), wz = tm.cz(a.z - 1);
-    hydrant(grid.chunkAt(b.x - 1, a.z - 1).opaque, wx, wz, 0.12);
+    hydrant(grid.chunkAt(b.x - 1, a.z - 1).opaque, wx, wz, tileBaseY(tm, b.x - 1, a.z - 1) + 0.12); // §2.19
     if (colliders) colliders.push({ type: 'circle', x: wx, z: wz, r: 0.25 });
   }
 }
@@ -89,23 +92,25 @@ function pondProps(grid, tm) {
 // Playground set (§6.1): sandbox base, a swing frame, a slide, and a spring rider.
 function playground(grid, tm) {
   const pg = tm.def.playground;
+  if (!pg) return;
   const b = grid.chunkAt(pg.x, pg.z).opaque;
   const x0 = tm.minX(pg.x), z0 = tm.minZ(pg.z);
   const w = pg.w * T, d = pg.d * T;
-  b.box(x0 + w / 2, 0, z0 + d / 2, w, 0.12, d, PALETTE.parkPath, { skipFaces: ['bottom', 'top'] });
+  const baseY = tileBaseY(tm, pg.x, pg.z); // §2.19
+  b.box(x0 + w / 2, baseY, z0 + d / 2, w, 0.12, d, PALETTE.parkPath, { skipFaces: ['bottom', 'top'] });
   // swing frame
   const sx = x0 + w * 0.25, sz = z0 + d * 0.5;
-  b.box(sx - 1.2, 0, sz, 0.2, 1.6, 0.2, PALETTE.brandAccent, { skipFaces: ['bottom'] });
-  b.box(sx + 1.2, 0, sz, 0.2, 1.6, 0.2, PALETTE.brandAccent, { skipFaces: ['bottom'] });
-  b.box(sx, 1.5, sz, 2.6, 0.2, 0.2, PALETTE.brandAccent, { skipFaces: ['bottom'] });
+  b.box(sx - 1.2, baseY, sz, 0.2, 1.6, 0.2, PALETTE.brandAccent, { skipFaces: ['bottom'] });
+  b.box(sx + 1.2, baseY, sz, 0.2, 1.6, 0.2, PALETTE.brandAccent, { skipFaces: ['bottom'] });
+  b.box(sx, baseY + 1.5, sz, 2.6, 0.2, 0.2, PALETTE.brandAccent, { skipFaces: ['bottom'] });
   // slide
   const lx = x0 + w * 0.7, lz = z0 + d * 0.3;
-  b.box(lx - 0.8, 0, lz, 0.3, 1.2, 0.3, PALETTE.door[1], { skipFaces: ['bottom'] });
-  b.box(lx + 0.4, 0.4, lz, 1.6, 0.12, 0.6, PALETTE.door[1], { skipFaces: ['bottom'] });
+  b.box(lx - 0.8, baseY, lz, 0.3, 1.2, 0.3, PALETTE.door[1], { skipFaces: ['bottom'] });
+  b.box(lx + 0.4, baseY + 0.4, lz, 1.6, 0.12, 0.6, PALETTE.door[1], { skipFaces: ['bottom'] });
   // spring rider
   const rx = x0 + w * 0.55, rz = z0 + d * 0.7;
-  b.box(rx, 0, rz, 0.5, 0.3, 0.5, PALETTE.door[3], { skipFaces: ['bottom'] });
-  b.box(rx, 0.3, rz, 0.16, 0.7, 0.16, PALETTE.brand, { skipFaces: ['bottom'] });
+  b.box(rx, baseY, rz, 0.5, 0.3, 0.5, PALETTE.door[3], { skipFaces: ['bottom'] });
+  b.box(rx, baseY + 0.3, rz, 0.16, 0.7, 0.16, PALETTE.brand, { skipFaces: ['bottom'] });
 }
 
 export function buildProps(grid, tm, colliders) {

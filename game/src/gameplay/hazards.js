@@ -21,7 +21,7 @@ export function createHazards(env) {
   const geos = buildHazardGeos(7);
   const material = world.worldMat;
   const traffic = createTraffic(def, world.tilemap);
-  const spots = world.def.hazardSpots;
+  const spots = world.def.hazardSpots || { dog: [], sprinkler: [], beehive: [], bin: [], skater: [] };
   const rng = mulberry32(1234);
   const scratch = { x: 0, z: 0, heading: 0, toCorner: 99 };
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(1, 1, 1), E = new THREE.Euler();
@@ -35,7 +35,8 @@ export function createHazards(env) {
     return m;
   }
   function place(mesh, i, x, z, ry, scale) {
-    P.set(x, 0, z); S.set(scale, scale, scale); Q.setFromEuler(E.set(0, ry, 0));
+    const gy = world.terrain ? world.terrain.baseYAt(x, z) : 0; // §2.19: ride the terrain
+    P.set(x, gy, z); S.set(scale, scale, scale); Q.setFromEuler(E.set(0, ry, 0));
     M.compose(P, Q, S); mesh.setMatrixAt(i, M);
   }
   // y-aware variant (bees hover above the ground/skep, not at y=0).
@@ -45,7 +46,7 @@ export function createHazards(env) {
   }
 
   // -- Spawn per count -----------------------------------------------------
-  const spotOf = { dog: spots.dog, sprinkler: spots.sprinkler, beehive: spots.beehive };
+  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [] };
   const T = world.tilemap.tileSize;
   const wx = (t) => world.tilemap.cx(t[0]), wz = (t) => world.tilemap.cz(t[1]);
 
@@ -57,16 +58,16 @@ export function createHazards(env) {
     const off = rng() * traffic.loops[loop].total;
     cars.push({ loop, dist: off, speed: 0, honkT: 0 });
   }
-  const dogs = (counts.dog || 0);
+  const dogs = Math.min(counts.dog || 0, spotOf.dog.length);
   const dogSt = [];
   for (let i = 0; i < dogs; i++) { const s = spotOf.dog[i % spotOf.dog.length]; dogSt.push({ x: wx(s), z: wz(s), spot: s, state: 'sleep', t: 0, stealT: -1 }); }
-  const sprinks = (counts.sprinkler || 0);
+  const sprinks = Math.min(counts.sprinkler || 0, spotOf.sprinkler.length);
   const spSt = [];
   for (let i = 0; i < sprinks; i++) { const s = spotOf.sprinkler[i % spotOf.sprinkler.length]; spSt.push({ x: wx(s), z: wz(s), on: (i % 2 === 0), t: 0, angle: rng() * Math.PI * 2 }); }
   const skaters = (counts.skater || 0);
   const skSt = [];
   for (let i = 0; i < skaters; i++) { skSt.push({ loop: i % 4, dist: rng() * 60, weave: rng() * 6, hopT: -1 }); }
-  const hives = Math.min(counts.bees || 0, HAZARD.maxActiveSwarms + 1);
+  const hives = Math.min(Math.min(counts.bees || 0, HAZARD.maxActiveSwarms + 1), spotOf.beehive.length);
   const hiveSt = [];
   for (let i = 0; i < hives; i++) { const s = spotOf.beehive[i % spotOf.beehive.length]; hiveSt.push({ x: wx(s), z: wz(s), state: 'idle', t: 0, shakeT: 0, cx: wx(s), cz: wz(s), phase: rng() * 6 }); }
   const bins = (counts.bin || 0);
@@ -304,6 +305,9 @@ export function createHazards(env) {
     step, angersSwarmAt, tipBin, carDebug,
     cars, dogs, skaters, hives, bins, cones,
     dogSt, hiveSt, spSt, skSt, binSt, // internal state (for __pb hooks + tests)
-    dispose() { for (const m of [carM, dogM, spM, skM, hiveM, beeM, binM, coneM]) { scene.remove(m); m.dispose && m.dispose(); } },
+    dispose() {
+      for (const m of [carM, dogM, spM, skM, hiveM, beeM, binM, coneM]) { scene.remove(m); m.dispose && m.dispose(); }
+      for (const k of Object.keys(geos)) geos[k].dispose(); // §2.18: free the hazard geos (built per suburb)
+    },
   };
 }

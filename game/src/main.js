@@ -10,9 +10,9 @@ import { applyCamPreset } from './render/camPresets.js';
 import { Registry } from './core/registry.js';
 import { PALETTE } from './data/palette.js';
 import { TIMES_OF_DAY } from './data/timeOfDay.js';
-import { buildWorld } from './world/worldBuilder.js';
+import { buildWorld, disposeWorld } from './world/worldBuilder.js';
 import { createDepotLife } from './world/depot.js';
-import { NEIGHBORHOODS } from './data/neighborhoods/index.js';
+import { NEIGHBORHOODS, getNeighborhood, DEFAULT_NEIGHBORHOOD } from './data/neighborhoods/index.js';
 import { CHARACTERS } from './data/characters.js';
 import { VEHICLES } from './data/vehicles.js';
 import { createInput } from './core/input.js';
@@ -30,6 +30,9 @@ import { createEffects } from './render/effects.js';
 import { createFloatText } from './render/floatText.js';
 import { createRadar } from './ui/radar.js';
 import { createFullMap } from './ui/fullmap.js';
+import { createExits } from './gameplay/exits.js';
+import { createTransition } from './ui/transition.js';
+import { createRegionMap } from './ui/regionmap.js';
 import { createHeat } from './gameplay/heat.js';
 import { createMischief } from './gameplay/mischief.js';
 import { createAmbient } from './entities/ambient.js';
@@ -39,7 +42,7 @@ import { createScreens } from './ui/screens.js';
 import { createEvents } from './core/events.js';
 import { createAudio } from './audio/audio.js';
 import { mulberry32 } from './core/rng.js';
-import { loadSave, defaultSave } from './core/save.js';
+import { loadSave, defaultSave, writeSave } from './core/save.js';
 import { createProgression } from './gameplay/progression.js';
 import { createCollectibles } from './gameplay/collectibles.js';
 import { createDayCycle } from './gameplay/dayCycle.js';
@@ -204,6 +207,9 @@ const camLook = new THREE.Vector3(0, 0, 0);
 let simPaused = params.paused; // M6b: also toggled while the full-screen map is open
 let musicPaused = !!params.paused; // §9: keep the music state in sync with the sim
 let radar = null, fullMap = null; // M6b: the corner radar + full-screen map
+// §2.18: the multi-neighborhood engine (exits are per-suburb; the transition +
+// region-map inset are session-level DOM).
+let exits = null, transition = null, regionMap = null, exitPromptEl = null, activeExit = null;
 // M6b: live refs the radar/full-map read each tick (kept current in main).
 const radarState = { player: null, delivery: null, hazards: null, world: null, waypoint: null, mischief: null, heat: null, watch: null };
 // M7b: the GTA-lite mischief layer (heat + Grumps + breakables + Watch).
@@ -293,7 +299,12 @@ if (params.scene === 'test') {
   scene.add(new THREE.Mesh(gb.toGeometry(), worldMat));
 } else {
   // M2+: the neighborhood world, built once and reused by every state (§5.3).
-  world = buildWorld(NEIGHBORHOODS[0], 1, preset);
+  // §2.18: a `?nb=<id>` param (or the save's neighborhood) picks the suburb;
+  // it defaults to Maple Hollow.
+  // §2.18: a `?nb=<id>` param picks the suburb; otherwise the save's current
+  // neighborhood (restored), defaulting to Maple Hollow.
+  const nbId = params.nb || saveData.neighborhood || DEFAULT_NEIGHBORHOOD;
+  world = buildWorld(getNeighborhood(nbId), 1, preset);
   scene.add(world.group);
   for (const ch of world.chunks) { ch.mesh.castShadow = true; ch.mesh.receiveShadow = true; }
   lighting = createLighting(scene, preset);
@@ -404,12 +415,119 @@ if (params.scene === 'test') {
   }
 }
 
+// §2.18: travel to another suburb. Disposes the current suburb's GPU + its
+// per-suburb systems, builds + binds the new one, and re-points the courier /
+// camera / radar at it. Session state (courier identity, save, registries, the
+// day clock, screens) persists. `viaExit` marks an in-world exit (vs `?nb=`).
+function gotoNeighborhood(nbId, viaExit) {
+  const def = getNeighborhood(nbId);
+  if (!def || def.id === world.def.id) return;
+  if (delivery) endShift(false); // a shift can't span suburbs
+  // --- dispose the current suburb's dynamic + static GPU -------------------
+  if (hazards) { hazards.dispose(); hazards = null; }
+  if (depotLife) { depotLife.dispose(); depotLife = null; }
+  if (collectibles) { collectibles.dispose(); collectibles = null; }
+  if (markers) { markers.dispose(); markers = null; }
+  if (ambient) { ambient.dispose(); ambient = null; }
+  if (watch) { watch.dispose(); watch = null; }
+  if (mischief) { mischief.dispose(); mischief = null; }
+  heat = null;
+  if (benchMesh) { scene.remove(benchMesh.seat, benchMesh.post); benchMesh.seat.geometry.dispose(); benchMesh.post.geometry.dispose(); benchMesh.seat.material.dispose(); benchMesh = null; }
+  benchZone = null;
+  if (benchPromptEl) { benchPromptEl.remove(); benchPromptEl = null; }
+  if (radar) { if (radar.canvas) radar.canvas.remove(); radar = null; }
+  if (fullMap) { fullMap.dispose(); fullMap = null; }
+  if (sky) { sky.dispose(); sky = null; }
+  dayCycle = null;
+  if (world) { scene.remove(world.group); disposeWorld(world); }
+  // --- build + bind the new suburb -----------------------------------------
+  world = buildWorld(def, 1, preset);
+  scene.add(world.group);
+  for (const ch of world.chunks) { ch.mesh.castShadow = true; ch.mesh.receiveShadow = true; }
+  const tt = world.tilemap;
+  sky = createSky(scene, preset, { cx: (tt.width / 2) * tt.tileSize, cz: (tt.height / 2) * tt.tileSize, sx: tt.width * tt.tileSize + 120, sz: tt.height * tt.tileSize + 120 });
+  sky.update(0, 0);
+  depotLife = createDepotLife(scene, world, world.worldMat, qualityName === 'battery');
+  collectibles = createCollectibles({ scene, world, mat: world.worldMat, progression: progress, floatText: sharedFloatText, events });
+  markers = createMissionMarkers({ scene, def: world.def, T: world.tilemap.tileSize });
+  MARKER_RADIUS = 2 * world.tilemap.tileSize;
+  dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
+  dayCycle.startAt(preset.id);
+  createBench();
+  // re-point the courier + camera + radar + hazards + mischief at the new world
+  radarState.world = world;
+  spawnCourier(activeChar, activeVeh);
+  bindNeighborhood();
+  saveData.neighborhood = nbId; writeSave(saveData);
+  if (events) events.emit('neighborhoodChange', { to: nbId, viaExit: !!viaExit });
+}
+
+// §2.18: (re)build the per-suburb exit set + refresh the region-map inset after a
+// suburb is loaded. The transition overlay is session-level (created once).
+function bindNeighborhood() {
+  exits = createExits(world, saveData);
+  if (!transition) transition = createTransition(document.getElementById('ui'));
+  if (!regionMap) regionMap = createRegionMap(document.getElementById('ui'), () => world);
+  if (regionMap) regionMap.refresh();
+}
+
+// §2.18: travel from an in-world exit — fade + sign card, swap mid-fade. A
+// locked exit shows a "earn N stars" prompt instead.
+function travelFromExit(exit) {
+  if (!exit) return;
+  const unlocked = exits.isUnlocked(exit);
+  if (!unlocked) {
+    const need = exit.unlockStars || 0;
+    showExitPrompt({ title: exit.to, blurb: `Locked — earn ${need} star${need === 1 ? '' : 's'} to travel`, locked: true, key: null });
+    return;
+  }
+  const target = getNeighborhood(exit.to);
+  const blurb = target && target.region ? target.region : target ? target.name : exit.to;
+  transition.begin(target ? target.name : exit.to, blurb, () => { gotoNeighborhood(exit.to, exit.id); });
+}
+
+// §2.18: the bottom-center travel prompt (created once, updated in place).
+function showExitPrompt({ title, blurb, locked, key }) {
+  if (!exitPromptEl) { exitPromptEl = el('div', 'nb-exit-prompt'); document.getElementById('ui').appendChild(exitPromptEl); }
+  exitPromptEl.className = 'nb-exit-prompt' + (locked ? ' locked' : '');
+  exitPromptEl.innerHTML = '';
+  exitPromptEl.append(el('div', 'nb-exit-title', (locked ? 'Locked · ' : 'Exit · ') + title));
+  if (key != null) exitPromptEl.append(el('div', 'nb-exit-key', key + ' to ' + (locked ? 'unlock' : 'travel')));
+  if (blurb) exitPromptEl.append(el('div', 'nb-exit-blurb', blurb));
+  exitPromptEl.style.display = '';
+}
+function hideExitPrompt() { if (exitPromptEl) exitPromptEl.style.display = 'none'; }
+
+// §2.18: run each sim tick — raise the prompt on the exit the courier stands on
+// (a shift shows a "clock out + travel" variant) and act on the T key.
+function stepExits() {
+  if (!exits || !player) return;
+  const onExit = exits.onExitTile(player.pos);
+  if (onExit !== activeExit) {
+    activeExit = onExit;
+    if (onExit) {
+      const unlocked = exits.isUnlocked(onExit);
+      showExitPrompt({
+        title: onExit.to, locked: !unlocked, key: unlocked ? 'T' : null,
+        blurb: delivery ? 'Clock out + travel' : (unlocked ? 'Press T to travel' : `Locked — earn ${onExit.unlockStars} star${onExit.unlockStars === 1 ? '' : 's'}`),
+      });
+    } else hideExitPrompt();
+  }
+  if (input.isHeld('travel') && activeExit && exits.isUnlocked(activeExit)) {
+    const e = activeExit; activeExit = null; hideExitPrompt();
+    travelFromExit(e);
+  }
+}
+
 // M6: spawn the courier + vehicle + follow cam at the depot, free roam.
 function spawnCourier(charDef, vehDef) {
   activeChar = charDef; activeVeh = vehDef;
   // §10 locker: re-spawn removes the previous courier's rig + vehicle + shadows.
-  if (courierRig) { scene.remove(courierRig.group); courierRig = null; }
-  if (courierVehMesh) { scene.remove(courierVehMesh); courierVehMesh = null; }
+  // §2.18: dispose the rig/vehicle geometries too (built per spawn) so a
+  // suburb round trip leaks none. Their material (world or the golden mat) is
+  // handled separately below / with the world.
+  if (courierRig) { courierRig.group.traverse((o) => { if (o.isMesh && o.geometry) o.geometry.dispose(); }); scene.remove(courierRig.group); courierRig = null; }
+  if (courierVehMesh) { if (courierVehMesh.geometry) courierVehMesh.geometry.dispose(); scene.remove(courierVehMesh); courierVehMesh = null; }
   if (courierVehMat && courierVehMat !== world.worldMat) { courierVehMat.dispose(); courierVehMat = null; }
   const rig = buildCourier(charDef, world.worldMat);
   courierRig = rig;
@@ -420,6 +538,9 @@ function spawnCourier(charDef, vehDef) {
   const vehicleMesh = buildModel(vehDef.model, courierVehMat);
   if (vehicleMesh) scene.add(vehicleMesh);
   courierVehMesh = vehicleMesh;
+  // §2.18: drop the previous courier's blob shadows (its material references the
+  // old suburb's pool texture, which would otherwise re-upload on every swap).
+  if (blobs) { scene.remove(blobs.mesh); blobs.mesh.geometry.dispose(); if (blobs.mesh.material) blobs.mesh.material.dispose(); blobs = null; }
   blobs = createBlobShadows(16, world.poolTexture);
   scene.add(blobs.mesh);
   player = createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk: (amount) => { if (followCam) followCam.shake(amount); } });
@@ -434,7 +555,7 @@ function spawnCourier(charDef, vehDef) {
     if (sharedEffects) sharedEffects.dust(player.pos.x, 0.3, player.pos.z);
     if (events) events.emit('boing');
   });
-  followCam = createFollowCam(camera, world.collision);
+  followCam = createFollowCam(camera, world.collision, world.terrain ? world.terrain.baseYAt : null);
   camTgt.pos = player.pos; camTgt.heading = player.heading;
   player.syncVisuals(0, simTime);
   blobs.set(0, player.pos.x, player.pos.z, 1.4);
@@ -454,6 +575,7 @@ function spawnCourier(charDef, vehDef) {
     });
   }
   setupMischief(); // M7b: heat + Grumps + breakables + Watch (free-roam Grumps)
+  bindNeighborhood(); // §2.18: the per-suburb exits + region-map inset
 }
 
 // M7b: create the mischief systems once (they are session-independent) and
@@ -846,6 +968,8 @@ function simStep(dt) {
     ambient.step(dt, player, bt);
   }
   if (depotLife) depotLife.step(dt);
+  // §2.18: the in-world exit travel prompt + the T-key travel.
+  stepExits();
   // M10: the hidden Golden Parcels (spin/bob + collect on contact) + the free-roam
   // day cycle (a mission holds its own time of day, so it only ticks in free roam).
   if (collectibles && player) collectibles.tick(dt, simTime, player);
@@ -1109,12 +1233,16 @@ const debugCtx = {
   get dayClock() { return dayClock; },
   get shifts() { return SHIFTS; },
   get benchZone() { return benchZone; },
+  get transition() { return transition; },
+  get regionMap() { return regionMap; },
+  get exits() { return exits; },
   setClock(min) { if (dayClock) dayClock.min = min; },
   get benchState() { return { in: benchIn, ff: benchFF, zone: !!benchZone, isHeldF: input.isHeld('doorstep'), menuGate: menuGate() }; },
   get simTime() { return simTime; },
   events, gameState, M5_TARGETS, input, camTgt, camLook, camera, scene, renderer, progress, params,
   stats, camPreset, startShift, gotoFreeRoam, endShift, routeScreen, openMarkerCard,
   refreshCoins, refreshGolden, onStrike, onBusted, autoplayRun,
+  gotoNeighborhood: (nbId, exitId) => { gotoNeighborhood(nbId, exitId); },
   stepSim(frames) { const st = 1 / 60; for (let i = 0; i < (frames | 0); i++) { simTime += st; simStep(st); } },
   setPrevM(v) { prevM = v; },
   setSimPaused(v) { simPaused = v; },

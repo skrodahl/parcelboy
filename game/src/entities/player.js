@@ -13,6 +13,12 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   const pos = new THREE.Vector3();
   const spawn = world.def.spawn;
   pos.set(world.tilemap.cx(spawn.x), 0, world.tilemap.cz(spawn.z));
+  // §2.19 terrain: the player rides the ground surface. A flat neighborhood's
+  // terrain is all-zero, so this is a no-op for Maple Hollow.
+  const terrain = world.terrain;
+  const TSIZE = world.tilemap.tileSize;
+  const isVehicle = vehDef.id !== 'feet'; // stairs are walk-only (vehicles blocked)
+  let groundY = 0; // the terrain surface height under the player this frame
   let heading = SPAWN_HEADING[spawn.facing] || 0;
   let speed = 0;
   let airT = -1; // 0..PLAYER.jumpTime while airborne
@@ -97,41 +103,26 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     if (input.consume('ability') && abilities) abilities.use();
 
     // Integrate (§5.1 heading convention).
+    const prevX = pos.x, prevZ = pos.z;
+    const ptx = (prevX / TSIZE) | 0, ptz = (prevZ / TSIZE) | 0;
     pos.x += Math.sin(heading) * speed * dt;
     pos.z += -Math.cos(heading) * speed * dt;
 
     // Throw wind-up timer (§2.12 anticipation): starts on startThrow(), runs 0.06 s.
     if (throwT >= 0) { throwT += dt; if (throwT >= THROW_WINDUP) throwT = -1; }
-    // Jump / hop (§2.2): 1.2 units high in 0.5 s, a parabola.
+    // Advance the airborne timers; their effect on pos.y is resolved below, on the
+    // terrain surface (§2.19) rather than a fixed y=0.
     if (input.consume('jump') && airT < 0 && vehDef.canJump) airT = 0;
-    if (airT >= 0) {
-      airT += dt;
-      const T = PLAYER.jumpTime;
-      if (airT >= T) { airT = -1; pos.y = 0; }
-      else {
-        const t = airT / T;
-        pos.y = 4 * PLAYER.jumpHeight * t * (1 - t);
-      }
-    }
-    // §2.12 trampoline: launch 5 units up; auto-trigger when standing on one.
-    if (trampT >= 0) {
-      trampT += dt;
-      if (trampT >= TRAMP_T) { trampT = -1; pos.y = 0; }
-      else { const t = trampT / TRAMP_T; pos.y = TRAMP_H * 4 * t * (1 - t) * 0.9; }
-    } else if (trampSpots.length && airT < 0) {
+    if (airT >= 0) airT += dt;
+    if (trampT >= 0) trampT += dt;
+    else if (trampSpots.length && airT < 0) {
       for (let i = 0; i < trampSpots.length; i++) {
         const s = trampSpots[i];
         const dx = pos.x - s.x, dz = pos.z - s.z;
         if (dx * dx + dz * dz < TRAMP_R * TRAMP_R) { boing(); break; }
       }
     }
-    // §2.12 over-the-handlebars: a 2.5u forward arc, then the courier lands flat.
-    if (hbT >= 0) {
-      hbT += dt;
-      const t = hbT / HB_T;
-      if (t >= 1) { hbT = -1; pos.y = 0; }
-      else { pos.y = HB_H * 4 * t * (1 - t); pos.x += Math.sin(heading) * 1.5 * dt * 4; pos.z += -Math.cos(heading) * 1.5 * dt * 4; }
-    }
+    if (hbT >= 0) hbT += dt;
 
     // Collision: slide out of statics; bonk if the hit was fast enough.
     const hit = world.collision.resolveCircle(pos, PLAYER.radius);
@@ -139,9 +130,35 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
       speed = -speed * 0.3; // small bounce back
       if (onBonk) onBonk(PLAYER.bonkShake);
     }
-    // World bounds.
-    pos.x = Math.max(4, Math.min(188, pos.x));
-    pos.z = Math.max(4, Math.min(156, pos.z));
+    // §2.19: climbing up a retaining wall or stairs without a ramp is blocked.
+    if (terrain.hasHills) {
+      const ctx = (pos.x / TSIZE) | 0, ctz = (pos.z / TSIZE) | 0;
+      if ((ctx !== ptx || ctz !== ptz) && terrain.edgeBlocked(ptx, ptz, ctx, ctz, isVehicle)) {
+        pos.x = prevX; pos.z = prevZ;
+        if (Math.abs(speed) > 1) { speed *= -0.3; if (onBonk) onBonk(PLAYER.bonkShake); }
+      }
+    }
+    // World bounds (the interior is clamped to the map; the forest border also
+    // collides, so these are a loose outer limit).
+    pos.x = Math.max(4, Math.min(world.tilemap.width * TSIZE + 4, pos.x));
+    pos.z = Math.max(4, Math.min(world.tilemap.height * TSIZE - 4, pos.z));
+
+    // §2.19: sit on the terrain surface; the airborne gags arc above it.
+    groundY = terrain.baseYAt(pos.x, pos.z);
+    if (airT >= 0) {
+      const JT = PLAYER.jumpTime;
+      if (airT >= JT) { airT = -1; pos.y = groundY; }
+      else { const t = airT / JT; pos.y = groundY + 4 * PLAYER.jumpHeight * t * (1 - t); }
+    } else if (trampT >= 0) {
+      if (trampT >= TRAMP_T) { trampT = -1; pos.y = groundY; }
+      else { const t = trampT / TRAMP_T; pos.y = groundY + TRAMP_H * 4 * t * (1 - t) * 0.9; }
+    } else if (hbT >= 0) {
+      const t = hbT / HB_T;
+      if (t >= 1) { hbT = -1; pos.y = groundY; }
+      else { pos.y = groundY + HB_H * 4 * t * (1 - t); pos.x += Math.sin(heading) * 1.5 * dt * 4; pos.z += -Math.cos(heading) * 1.5 * dt * 4; }
+    } else {
+      pos.y = groundY;
+    }
   }
 
   // Apply the kinematic state to the rig + vehicle + anim scratch.
@@ -164,7 +181,7 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
     rig.group.rotation.y = Math.atan2(Math.sin(heading), -Math.cos(heading));
     rig.update(dt, anim);
     if (vehicleMesh) {
-      vehicleMesh.position.set(pos.x, 0, pos.z); // wheels stay on the ground
+      vehicleMesh.position.set(pos.x, pos.y, pos.z); // §2.19: wheels ride the terrain
       vehicleMesh.rotation.y = rig.group.rotation.y;
     }
   }
@@ -174,7 +191,8 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
   }
 
   function teleport(tileX, tileZ, headingDeg) {
-    pos.set(world.tilemap.cx(tileX), 0, world.tilemap.cz(tileZ));
+    const cx = world.tilemap.cx(tileX), cz = world.tilemap.cz(tileZ);
+    pos.set(cx, terrain.baseYAt(cx, cz), cz); // §2.19: land on the tile's terrain level
     heading = (headingDeg * Math.PI) / 180;
     speed = 0;
     airT = -1;
@@ -184,6 +202,7 @@ export function createPlayer({ charDef, vehDef, rig, vehicleMesh, world, onBonk 
 
   return {
     pos,
+    get groundY() { return groundY; }, // §2.19: the terrain surface under the player (for the cam)
     get heading() { return heading; },
     get speed() { return speed; },
     get spraySlow() { return spraySlow; },

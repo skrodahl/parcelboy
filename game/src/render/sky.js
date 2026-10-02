@@ -92,5 +92,13 @@ export function createSky(scene, preset, region) {
     },
     update,
     follow,
+    // §2.18: free the sky dome + clouds + their materials/textures on unload.
+    dispose() {
+      scene.remove(skyMesh, clouds);
+      geo.dispose();
+      skyMesh.material.dispose();
+      cloudGeo.dispose();
+      clouds.material.dispose();
+    },
   };
 }

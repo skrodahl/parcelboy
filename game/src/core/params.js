@@ -17,6 +17,7 @@ export function parseParams() {
     lineup: q.has('lineup'),
     cam: q.get('cam'),
     tod: q.get('tod'),
+    nb: q.get('nb'), // §2.18: the neighborhood id (defaults to maple-hollow)
     paused: q.has('paused'),
     showCard: q.get('showCard'),
   };

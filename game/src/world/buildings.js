@@ -4,6 +4,7 @@ import { GlowBuilder } from './glow.js';
 import { PALETTE } from '../data/palette.js';
 import { buildHouses } from './houses.js';
 import { parkCars } from './cars.js';
+import { tileBaseY } from './terrain.js';
 
 // §6.4: the neighborhood's special buildings — Hollow Elementary, 3 shops and
 // the Quickbox Distribution Center — plus parked cars. Everything merges into
@@ -13,26 +14,29 @@ import { parkCars } from './cars.js';
 const T = 4;
 const _v = new THREE.Vector3();
 
-// Facing N (front door faces north, -Z): local +Z is the front.
-function frontMatrix(def, x, z, w, d) {
+// Facing N (front door faces north, -Z): local +Z is the front. `baseY`
+// (§2.19) lifts the whole structure to its tile's terrain level (0 when flat).
+function frontMatrix(def, x, z, w, d, baseY) {
   const m = new THREE.Matrix4().makeRotationY(Math.PI);
-  m.setPosition(x * T + (w * T) / 2, 0, z * T + (d * T) / 2);
+  m.setPosition(x * T + (w * T) / 2, baseY || 0, z * T + (d * T) / 2);
   return m;
 }
 
-function buildingColliders(def, colliders, id, x, z, w, d, h) {
-  colliders.push({ type: 'box', minX: x * T, maxX: (x + w) * T, minZ: z * T, maxZ: (z + d) * T, h });
+function buildingColliders(def, colliders, id, x, z, w, d, h, baseY) {
+  colliders.push({ type: 'box', minX: x * T, maxX: (x + w) * T, minZ: z * T, maxZ: (z + d) * T, h: (baseY || 0) + h });
 }
 
 // Returns { flagGeo, flagPos }: the school flag's geometry + pole-top position
 // (worldBuilder makes one Mesh with the shared world material; main.js waves it).
 export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects, lampPools, mailboxes) {
   buildHouses(grid, tm, glow, signQuads, colliders, windowRects, lampPools, mailboxes);
-  const flag = buildSchool(grid, tm, glow, signQuads, colliders);
+  // A neighborhood (e.g. the debug terrain map) may omit a school or a depot.
+  let flag = null;
+  if (tm.def.buildings.some((b) => b.kind === 'school')) flag = buildSchool(grid, tm, glow, signQuads, colliders);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'shop')) buildShop(grid, tm, glow, signQuads, colliders, b);
-  buildDepot(grid, tm, glow, signQuads, colliders);
+  if (tm.def.buildings.some((b) => b.kind === 'depot')) buildDepot(grid, tm, glow, signQuads, colliders);
   parkCars(grid, tm, colliders);
-  return flag;
+  return flag || { flagGeo: null, flagPos: null };
 }
 
 // --- Hollow Elementary: 2 floors, brick, clock over the door, flagpole.
@@ -42,7 +46,8 @@ function buildSchool(grid, tm, glow, signQuads, colliders) {
   const gl = new GlowBuilder();
   const W = b.w * T, D = b.d * T, H = 5.8;
   const brick = '#c8553d';
-  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d);
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
   const ch = grid.chunkAt(b.x, b.z);
 
   op.box(0, 0, D / 2 - 0.25, W, H, 0.5, brick, { skipFaces: ['bottom'] });
@@ -74,7 +79,7 @@ function buildSchool(grid, tm, glow, signQuads, colliders) {
   const fx = -W / 2 + 3, fz = D / 2 + 3;
   op.box(fx, 0.12, fz, 0.12, 6.0, 0.12, '#cfc4b8', { skipFaces: ['bottom'] });
   const pv = _v.set(fx, 0, fz).applyMatrix4(m);
-  const pole = { x: pv.x, y: 0, z: pv.z }; // plain copy (scratch _v gets reused)
+  const pole = { x: pv.x, y: baseY, z: pv.z }; // plain copy (scratch _v gets reused); §2.19 pole base at the tile level
 
   // school sign board + glow trim + atlas plate
   op.box(0, 3.6, D / 2 + 0.1, 5.4, 0.9, 0.18, '#f8f4ea', { skipFaces: ['bottom'] });
@@ -84,7 +89,7 @@ function buildSchool(grid, tm, glow, signQuads, colliders) {
 
   ch.opaque.merge(op, m);
   glow.merge(gl, m);
-  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.6);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.6, baseY);
 
   // Flag geometry: built around the pole (world orientation, so the animated
   // mesh's rotation.y swings it), origin at the pole base. worldBuilder makes
@@ -102,7 +107,8 @@ function buildShop(grid, tm, glow, signQuads, colliders, b) {
   const op = new VoxelBuilder(302 + b.x);
   const gl = new GlowBuilder();
   const W = b.w * T, D = b.d * T, H = 3.0;
-  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d);
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
   const ch = grid.chunkAt(b.x, b.z);
   const wall = PALETTE.wall[(b.x * 7) % PALETTE.wall.length];
 
@@ -126,7 +132,7 @@ function buildShop(grid, tm, glow, signQuads, colliders, b) {
   glow.merge(gl, m);
   const p = _v.set(0, 3.5, D / 2 + 0.22).applyMatrix4(m);
   signQuads.push({ rectKey: 'plate:' + (7 + tm.def.buildings.filter((x) => x.kind === 'shop').indexOf(b)), x: p.x, y: p.y - 0.4, z: p.z, w: 3.0, h: 0.7, face: [0, 0, -1] });
-  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.3);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.3, baseY);
 }
 
 // --- Quickbox Distribution Center: teal warehouse, docks, lit sign, 2 vans.
@@ -135,7 +141,8 @@ function buildDepot(grid, tm, glow, signQuads, colliders) {
   const op = new VoxelBuilder(303);
   const gl = new GlowBuilder();
   const W = b.w * T, D = b.d * T, H = 4.0;
-  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d);
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
   const ch = grid.chunkAt(b.x, b.z);
   const brand = PALETTE.brand;
 
@@ -164,7 +171,7 @@ function buildDepot(grid, tm, glow, signQuads, colliders) {
   glow.merge(gl, m);
   const p = _v.set(0, 2.6, D / 2 + 0.27).applyMatrix4(m);
   signQuads.push({ rectKey: 'plate:10', x: p.x, y: p.y - 0.55, z: p.z, w: 6.6, h: 1.1, face: [0, 0, -1] });
-  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.8);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.8, baseY);
 
   // 2 parked Quickbox vans in the lot in front of the docks.
   addVan(grid, tm, b.x + 2, b.z - 1, 311, signQuads, colliders);
@@ -176,6 +183,8 @@ function buildDepot(grid, tm, glow, signQuads, colliders) {
 function addVan(grid, tm, tx, tz, seed, signQuads, colliders) {
   const op = new VoxelBuilder(seed);
   const wx = tm.cx(tx), wz = tm.cz(tz);
+  const baseY = tileBaseY(tm, tx, tz); // §2.19: the lot tile's terrain level
+  op.yOff = baseY;
   const brand = PALETTE.brand;
   op.box(wx, 0.47, wz - 0.4, 1.9, 0.9, 2.6, brand, { skipFaces: ['bottom'] }); // body
   op.box(wx, 0.62, wz - 1.4, 1.9, 1.4, 1.4, brand, { skipFaces: ['bottom'] }); // cab
@@ -186,7 +195,7 @@ function addVan(grid, tm, tx, tz, seed, signQuads, colliders) {
   }
   grid.chunkAt(tx, tz).opaque.merge(op);
   // Quickbox logo quads on both cargo sides.
-  signQuads.push({ rectKey: 'logo', x: wx - 1.17, y: 0.9, z: wz + 1.1, w: 1.5, h: 0.94, face: [-1, 0, 0] });
-  signQuads.push({ rectKey: 'logo', x: wx + 1.17, y: 0.9, z: wz + 1.1, w: 1.5, h: 0.94, face: [1, 0, 0] });
-  colliders.push({ type: 'box', minX: wx - 1.3, maxX: wx + 1.3, minZ: wz - 2.4, maxZ: wz + 2.4, h: 2.9 });
+  signQuads.push({ rectKey: 'logo', x: wx - 1.17, y: baseY + 0.9, z: wz + 1.1, w: 1.5, h: 0.94, face: [-1, 0, 0] });
+  signQuads.push({ rectKey: 'logo', x: wx + 1.17, y: baseY + 0.9, z: wz + 1.1, w: 1.5, h: 0.94, face: [1, 0, 0] });
+  colliders.push({ type: 'box', minX: wx - 1.3, maxX: wx + 1.3, minZ: wz - 2.4, maxZ: wz + 2.4, h: baseY + 2.9 });
 }

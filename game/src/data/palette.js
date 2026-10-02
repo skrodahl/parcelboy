@@ -10,4 +10,6 @@ export const PALETTE = {
   door: ['#ef476f', '#118ab2', '#06d6a0', '#ffd166', '#073b4c'],
   trim: '#fffaf0', windowDay: '#bde0fe', windowNight: '#ffe8a3',
   brand: '#00b4a6', brandAccent: '#ffbe0b', parcel: '#c8925a', parcelTape: '#00b4a6',
+  // §2.19 terrain: retaining walls + ramp/stair surfaces.
+  stone: '#c9bda8', rampConcrete: '#d8cfc4',
 };
