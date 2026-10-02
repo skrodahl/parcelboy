@@ -87,7 +87,8 @@ function buildSchool(grid, tm, glow, signQuads, colliders) {
   op.box(0, 3.6, D / 2 + 0.1, 5.4, 0.9, 0.18, '#f8f4ea', { skipFaces: ['bottom'] });
   gl.box(0, 3.6, D / 2 + 0.02, 5.7, 1.15, 0.1, '#5a5e6e', '#ffd6a5');
   const p = _v.set(0, 3.6, D / 2 + 0.22).applyMatrix4(m);
-  signQuads.push({ rectKey: 'plate:11', x: p.x, y: p.y - 0.4, z: p.z, w: 5.0, h: 0.7, face: [0, 0, -1] });
+  // M15a.10: center the quad on the board (board center y = p.y, quad h = 0.7).
+  signQuads.push({ rectKey: 'school', x: p.x, y: p.y - 0.35, z: p.z, w: 5.0, h: 0.7, face: [0, 0, -1] });
 
   ch.opaque.merge(op, m);
   glow.merge(gl, m);
@@ -133,7 +134,8 @@ function buildShop(grid, tm, glow, signQuads, colliders, b) {
   ch.opaque.merge(op, m);
   glow.merge(gl, m);
   const p = _v.set(0, 3.5, D / 2 + 0.22).applyMatrix4(m);
-  signQuads.push({ rectKey: 'plate:' + (7 + tm.def.buildings.filter((x) => x.kind === 'shop').indexOf(b)), x: p.x, y: p.y - 0.4, z: p.z, w: 3.0, h: 0.7, face: [0, 0, -1] });
+  // M15a.10: center the quad on the board (board center y = p.y, quad h = 0.7).
+  signQuads.push({ rectKey: 'shop:' + b.id, x: p.x, y: p.y - 0.35, z: p.z, w: 3.0, h: 0.7, face: [0, 0, -1] });
   buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.3, baseY);
 }
 
@@ -172,7 +174,7 @@ function buildDepot(grid, tm, glow, signQuads, colliders) {
   ch.opaque.merge(op, m);
   glow.merge(gl, m);
   const p = _v.set(0, 2.6, D / 2 + 0.27).applyMatrix4(m);
-  signQuads.push({ rectKey: 'plate:10', x: p.x, y: p.y - 0.55, z: p.z, w: 6.6, h: 1.1, face: [0, 0, -1] });
+  signQuads.push({ rectKey: 'depot', x: p.x, y: p.y - 0.55, z: p.z, w: 6.6, h: 1.1, face: [0, 0, -1] });
   buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 0.8, baseY);
 
   // 2 parked Quickbox vans in the lot in front of the docks.

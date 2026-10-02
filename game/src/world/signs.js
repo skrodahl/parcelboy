@@ -18,12 +18,30 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Build the atlas. `plates` = [{ text, bg?, fg? }] wide sign plates;
-// `numbers` = [1..n] small mailbox plates; plus one logo tile.
-// Layout (1024px, 256px slots): rows 0-2 hold up to 12 plates (4 per row);
-// row 3: a 4x4 grid of 64px number tiles in the left slot, the logo in the
-// right slot. Nothing is drawn twice, so no rect overlaps another.
-export function buildSignAtlas({ plates, numbers }) {
+// M15a.10: atlas slots are keyed (not index-based) and sized to the same aspect
+// ratio as the sign quad that maps onto them, so text is never squished and the
+// plate fills its whole slot (no cream margin bands). Slots are packed in rows
+// by height (a shelf packer): wide short strips (shop/school/depot) share rows
+// with each other, square street signs + the logo fill 4-up rows, 64px number
+// tiles pack 4-wide. `slots` = [{ key, text, bg, fg, w, h }] (w/h in px, aspect
+// w/h == the quad's aspect); `numbers` = [n] mailbox tiles; a 'logo' slot is
+// added automatically. `rectFor(key)` returns that slot's UV rect.
+export function buildSignAtlas({ slots, numbers }) {
+  const all = slots.map((s) => ({ ...s }));
+  all.push({ key: 'logo', w: 256, h: 256, kind: 'logo' });
+  for (const n of numbers) all.push({ key: 'num:' + n, w: 64, h: 64, kind: 'number', value: n });
+  // Shelf pack: taller slots first (they set the row height), wide before narrow.
+  all.sort((a, b) => b.h - a.h || b.w - a.w);
+  let x = 0, y = 0, rowH = 0;
+  for (const s of all) {
+    if (s.w > ATLAS) s.w = ATLAS;
+    if (x + s.w > ATLAS) { x = 0; y += rowH; rowH = 0; }
+    s.x = x; s.y = y;
+    if (s.h > rowH) rowH = s.h;
+    x += s.w;
+    if (y + s.h > ATLAS) console.warn('sign atlas overflow at', s.key, y + s.h);
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS;
   canvas.height = ATLAS;
@@ -31,67 +49,11 @@ export function buildSignAtlas({ plates, numbers }) {
   ctx.fillStyle = '#fffaf0';
   ctx.fillRect(0, 0, ATLAS, ATLAS);
   const rects = {};
-
-  const plate = (text, x, y, w, h, bg, fg) => {
-    roundRect(ctx, x + 8, y + h * 0.18, w - 16, h * 0.64, 12);
-    ctx.fillStyle = bg;
-    ctx.fill();
-    ctx.fillStyle = fg;
-    let fs = Math.floor(h * 0.4);
-    ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
-    const tw = ctx.measureText(text).width;
-    const maxW = (w - 16) * 0.9;
-    if (tw > maxW) fs = Math.max(8, Math.floor(fs * maxW / tw));
-    ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, x + w / 2, y + h / 2);
-  };
-
-  // Plates: up to 12, 4 per row in the top 3 rows (256px slots).
-  for (let i = 0; i < plates.length; i++) {
-    const p = plates[i];
-    const row = (i / 4) | 0;
-    const col = i % 4;
-    const x = col * 256, y = row * 256;
-    plate(p.text, x, y, 256, 256, p.bg || C.plate, p.fg || C.ink);
-    rects['plate:' + i] = { u: x / ATLAS, v: 1 - (y + 256) / ATLAS, w: 256 / ATLAS, h: 256 / ATLAS };
-  }
-
-  // Number tiles: 4x4 grid of 64px tiles in the bottom-left slot (row 3).
-  for (let n = 0; n < numbers.length; n++) {
-    const col = n % 4, row = (n / 4) | 0;
-    const x = col * 64, y = 768 + row * 64;
-    roundRect(ctx, x + 6, y + 6, 52, 52, 8);
-    ctx.fillStyle = '#f8f4ea';
-    ctx.fill();
-    ctx.fillStyle = '#2f333d';
-    ctx.font = 'bold 34px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(numbers[n]), x + 32, y + 33);
-    rects['num:' + numbers[n]] = { u: x / ATLAS, v: 1 - (y + 64) / ATLAS, w: 64 / ATLAS, h: 64 / ATLAS };
-  }
-
-  // Logo tile: bottom-right slot (row 3, col 3) -> teal rounded box, white Q + arrow.
-  {
-    const x = 3 * 256, y = 3 * 256;
-    roundRect(ctx, x + 24, y + 64, 208, 128, 24);
-    ctx.fillStyle = C.logo;
-    ctx.fill();
-    ctx.fillStyle = '#fffaf0';
-    ctx.font = 'bold 96px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Q', x + 110, y + 132);
-    ctx.beginPath();
-    ctx.moveTo(x + 170, y + 132);
-    ctx.lineTo(x + 210, y + 132);
-    ctx.lineTo(x + 196, y + 114);
-    ctx.lineTo(x + 210, y + 150);
-    ctx.closePath();
-    ctx.fill();
-    rects['logo'] = { u: x / ATLAS, v: 1 - (y + 256) / ATLAS, w: 256 / ATLAS, h: 256 / ATLAS };
+  for (const s of all) {
+    if (s.kind === 'number') drawNumber(ctx, s);
+    else if (s.kind === 'logo') drawLogo(ctx, s);
+    else drawPlate(ctx, s);
+    rects[s.key] = { u: s.x / ATLAS, v: 1 - (s.y + s.h) / ATLAS, w: s.w / ATLAS, h: s.h / ATLAS };
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -100,6 +62,53 @@ export function buildSignAtlas({ plates, numbers }) {
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.anisotropy = 4; // sign quads are often viewed at grazing angles
   return { texture, rectFor: (k) => rects[k] };
+}
+
+// A plate fills its whole slot: solid bg + centered text sized to ~60% of the
+// slot height (shrunk only if it overflows the width). No cream margin.
+function drawPlate(ctx, s) {
+  ctx.fillStyle = s.bg || C.plate;
+  roundRect(ctx, s.x, s.y, s.w, s.h, Math.min(14, s.h * 0.35));
+  ctx.fill();
+  ctx.fillStyle = s.fg || C.ink;
+  let fs = Math.floor(s.h * 0.6);
+  ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
+  const tw = ctx.measureText(s.text).width;
+  const maxW = s.w * 0.88;
+  if (tw > maxW) fs = Math.max(8, Math.floor((fs * maxW) / tw));
+  ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(s.text, s.x + s.w / 2, s.y + s.h / 2);
+}
+
+function drawNumber(ctx, s) {
+  roundRect(ctx, s.x + 4, s.y + 4, s.w - 8, s.h - 8, 8);
+  ctx.fillStyle = '#f8f4ea';
+  ctx.fill();
+  ctx.fillStyle = '#2f333d';
+  ctx.font = 'bold 34px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(s.value), s.x + s.w / 2, s.y + s.h / 2 + 1);
+}
+
+function drawLogo(ctx, s) {
+  roundRect(ctx, s.x + 24, s.y + 64, s.w - 48, s.h - 128, 24);
+  ctx.fillStyle = C.logo;
+  ctx.fill();
+  ctx.fillStyle = '#fffaf0';
+  ctx.font = 'bold 96px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Q', s.x + 110, s.y + 132);
+  ctx.beginPath();
+  ctx.moveTo(s.x + 170, s.y + 132);
+  ctx.lineTo(s.x + 210, s.y + 132);
+  ctx.lineTo(s.x + 196, s.y + 114);
+  ctx.lineTo(s.x + 210, s.y + 150);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // Street signs: one post (merged into the owning chunk) + sign quad at each
@@ -120,7 +129,7 @@ export function addStreetSigns(grid, tm, signQuads) {
     }
     return bd < Infinity ? { x: bx, z: bz } : null;
   }
-  tm.def.roads.forEach((r, i) => {
+  tm.def.roads.forEach((r) => {
     let wx, wz;
     if (r.axis === 'x') {
       // E/W road: stand the sign on a sidewalk at the west end (the NW corner),
@@ -146,15 +155,18 @@ export function addStreetSigns(grid, tm, signQuads) {
     const alongX = out[0] !== 0; // the plate's thin axis runs along out
     ch.opaque.box(wx, sy, wz, alongX ? 0.1 : 2.4, 2.4, alongX ? 2.4 : 0.1, C.plate, { skipFaces: ['bottom'] });
     const o = 0.07; // each quad floats just off the plate face
-    signQuads.push({ rectKey: 'plate:' + i, x: wx + out[0] * o, y: sy, z: wz + out[2] * o, w: 2.4, h: 2.4, face: [-out[0], -out[1], -out[2]], flip: true });
-    signQuads.push({ rectKey: 'plate:' + i, x: wx - out[0] * o, y: sy, z: wz - out[2] * o, w: 2.4, h: 2.4, face: [out[0], out[1], out[2]], flip: true });
+    const sk = 'street:' + r.name; // M15a.10: key by road name, not index
+    signQuads.push({ rectKey: sk, x: wx + out[0] * o, y: sy, z: wz + out[2] * o, w: 2.4, h: 2.4, face: [-out[0], -out[1], -out[2]], flip: true });
+    signQuads.push({ rectKey: sk, x: wx - out[0] * o, y: sy, z: wz - out[2] * o, w: 2.4, h: 2.4, face: [out[0], out[1], out[2]], flip: true });
   });
 }
 
 // One merged mesh of all sign quads (street signs, shop signs, depot sign,
 // mailbox numbers, van logos). `quads` = [{ rectKey, x, y, z, w, h, face }];
-// `atlasSpec` = { plates: [{ text, bg?, fg? }], numbers: [n] }. Plate rect keys
-// are 'plate:<i>' (in spec order), numbers 'num:<n>', plus 'logo'.
+// `atlasSpec` = { slots: [{ key, text, bg, fg, w, h }], numbers: [n] }. Each
+// quad's rectKey must match a slot key ('street:<road>', 'shop:<id>', 'school',
+// 'depot'), a number key ('num:<n>'), or 'logo'. The slot's aspect matches the
+// quad's (M15a.10) so the text is not squished.
 export function buildSignMesh(quads, atlasSpec) {
   const atlas = buildSignAtlas(atlasSpec);
   const pos = [];

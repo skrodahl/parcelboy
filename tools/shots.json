@@ -819,6 +819,38 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-sign-shops",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(4); __pb.teleport(3, 3, 90); __pb.camFree(122, 126, 122, 144, 8);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-sign-school",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(4); __pb.camFree(124, 15, 124, 24, 7);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-sign-depot",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(4); __pb.camFree(158, 131, 158, 144, 8);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-sign-cedar",
+    "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(4); __pb.camFree(62, 144, 62, 134, 7);"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-skater",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
     "eval": [

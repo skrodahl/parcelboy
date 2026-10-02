@@ -65,15 +65,21 @@ export function buildWorld(def, seed = 1, preset) {
   group.add(glowMesh);
 
   // Sign-atlas mesh (all sign quads share one texture + one material).
-  const shops = def.buildings.filter((b) => b.kind === 'shop');
-  const plates = [
-    ...def.roads.map((r) => ({ text: r.name })),
-    ...shops.map((s) => ({ text: s.name, bg: s.accent, fg: '#fffaf0' })),
-    { text: 'QUICKBOX', bg: PALETTE.brand, fg: '#fffaf0' },
-    { text: 'HOLLOW ELEMENTARY', bg: '#c8553d', fg: '#fffaf0' },
+  // M15a.10: key-based, aspect-matched slots. Each slot's w/h (px) matches the
+  // sign quad's aspect (see buildings.js / signs.js) so text is never squished,
+  // and slots are keyed (not index-based) so a suburb with more/fewer roads or
+  // shops can't show the wrong name. Only add slots for buildings that exist.
+  const slot = (key, text, bg, fg, h, aspect) => ({ key, text, bg, fg, h, w: Math.round(h * aspect) });
+  const slots = [
+    ...def.roads.map((r) => slot('street:' + r.name, r.name, '#3d4152', '#fffaf0', 256, 1)),
+    ...def.buildings.filter((b) => b.kind === 'shop').map((b) => slot('shop:' + b.id, b.name, b.accent, '#fffaf0', 94, 30 / 7)),
   ];
+  const schoolB = def.buildings.find((b) => b.kind === 'school');
+  if (schoolB) slots.push(slot('school', schoolB.name.toUpperCase(), '#c8553d', '#fffaf0', 76, 50 / 7));
+  const depotB = def.buildings.find((b) => b.kind === 'depot');
+  if (depotB) slots.push(slot('depot', 'QUICKBOX', PALETTE.brand, '#fffaf0', 110, 6));
   const numbers = [...new Set(def.houses.map((h) => h.num))].sort((a, b) => a - b);
-  const signs = buildSignMesh(signQuads, { plates, numbers });
+  const signs = buildSignMesh(signQuads, { slots, numbers });
   signs.mesh.castShadow = true;
   group.add(signs.mesh);
 
