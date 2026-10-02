@@ -801,5 +801,13 @@
       "__pb.setCam(\"follow\"); __pb.teleport(14, 17, 90); __pb.step(10); __pb.setCamDist(16, 7);"
     ],
     "waitMs": 600
+  },
+  {
+    "name": "m15a-sign-oak",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.camAt(90, 10, 9, 3.5);"
+    ],
+    "waitMs": 400
   }
 ]

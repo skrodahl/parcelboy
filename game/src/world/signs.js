@@ -106,20 +106,35 @@ export function buildSignAtlas({ plates, numbers }) {
 // road's start corner, facing the default cams.
 export function addStreetSigns(grid, tm, signQuads) {
   const H = 2.2;
+  const T = tm.tileSize;
+  // M15a.4: the post must stand on a *sidewalk* tile (a road tile counts as
+  // walkable, so the old "first walkable row" rule dropped N/S signs into the
+  // cross-road). Nearest sidewalk tile (BFS by squared distance) to a seed.
+  function nearestSidewalk(sx, sz, range) {
+    let bx = -1, bz = -1, bd = Infinity;
+    for (let dz = -range; dz <= range; dz++) for (let dx = -range; dx <= range; dx++) {
+      const x = sx + dx, z = sz + dz;
+      if (tm.keyAt(x, z) !== 'sidewalk') continue;
+      const d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; bx = x; bz = z; }
+    }
+    return bd < Infinity ? { x: bx, z: bz } : null;
+  }
   tm.def.roads.forEach((r, i) => {
     let wx, wz;
     if (r.axis === 'x') {
-      // E/W road: the NW corner, on the west + north sidewalks (off the road).
-      wx = tm.minX(r.x0) - 0.7; wz = tm.minZ(r.z) - 0.7;
+      // E/W road: stand the sign on a sidewalk at the west end (the NW corner),
+      // nudged toward the road corner — never in the road.
+      const s = nearestSidewalk(r.x0 - 1, r.z - 1, 4);
+      if (s) { wx = tm.cx(s.x) + 0.5; wz = tm.cz(s.z) - 0.5; }
+      else { wx = tm.minX(r.x0) - 0.7; wz = tm.minZ(r.z) - 0.7; }
     } else {
-      // N/S road: on the west curb, at the first walkable west-sidewalk row in the
-      // road's span (past the cross-road at its north end) so it sits on the walk.
-      wx = tm.minX(r.x) - 0.7;
-      let row = r.z0;
-      for (let zz = r.z0; zz <= r.z1; zz++) if (tm.isWalkable(r.x - 1, zz)) { row = zz; break; }
-      wz = tm.cz(row);
+      // N/S road: stand the sign on a sidewalk on the west curb.
+      const s = nearestSidewalk(r.x - 1, r.z0, 4);
+      if (s) { wx = tm.cx(s.x) + 0.5; wz = tm.cz(s.z); }
+      else { wx = tm.minX(r.x) - 0.7; wz = tm.cz(r.z0); }
     }
-    const ch = grid.chunkAt(Math.floor(wx / tm.tileSize), Math.floor(wz / tm.tileSize));
+    const ch = grid.chunkAt(Math.floor(wx / T), Math.floor(wz / T));
     ch.opaque.box(wx, 0, wz, 0.12, H, 0.12, '#4a4e69', { skipFaces: ['bottom'] });
     signQuads.push({
       rectKey: 'plate:' + i,
