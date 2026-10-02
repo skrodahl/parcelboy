@@ -648,7 +648,7 @@ export default {
         ]
       ],
       "entry": "spawn",
-      "unlockStars": 3
+      "unlockStars": 8
     },
     {
       "id": "east",

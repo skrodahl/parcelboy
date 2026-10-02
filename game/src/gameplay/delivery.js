@@ -169,7 +169,7 @@ export function createDelivery(env) {
   }
   s.onRest = onRest;
   // §2.12 mailbox gag: a parcel that clips a mailbox pops the flag + "DING!".
-  s.parcels = createParcels({ scene, material: world.worldMat, world, packages: PACKAGES, targets, houseRects, rng, effects, onRest, mailboxes, targetHouseIds, onMailbox: (x, z) => { effects.dust(x, 1.1, z); floatText.pop('DING!', x, 1.8, z, { color: '#ffd166', burst: true }); }, onThrow: (p) => { player.startThrow(); floatText.pop('THWUMP!', p.mesh.position.x, p.mesh.position.y + 0.8, p.mesh.position.z, { burst: true }); } });
+  s.parcels = createParcels({ scene, material: world.worldMat, world, packages: PACKAGES, targets, houseRects, rng, effects, onRest, mailboxes, targetHouseIds, onMailbox: (x, z) => { effects.dust(x, 1.1, z); floatText.pop('DING!', x, 1.8, z, { color: '#ffd166', burst: true }); }, onGag: (p, x, z) => { floatText.pop('Come back!', x, 1.8, z, { color: '#ff6b6b', burst: true }); effects.dust(x, 0.6, z); }, onThrow: (p) => { player.startThrow(); floatText.pop('THWUMP!', p.mesh.position.x, p.mesh.position.y + 0.8, p.mesh.position.z, { burst: true }); } });
 
   function doThrow(aim) {
     if (s.parcels.cooldownGet() > 0) return;

@@ -63,7 +63,7 @@ function judgeZone(x, z, target, houseRects, world, targetHouseIds) {
   return 'missed';
 }
 
-export function createParcels({ scene, material, world, packages, targets, houseRects, rng, effects, onRest, onThrow, onMailbox, mailboxes, targetHouseIds }) {
+export function createParcels({ scene, material, world, packages, targets, houseRects, rng, effects, onRest, onThrow, onMailbox, onGag, mailboxes, targetHouseIds }) {
   const geos = {};
   for (const p of packages) geos[p.id] = buildParcelGeometry(p.model, p.colors);
   const defaultGeo = geos.standard;
@@ -75,12 +75,13 @@ export function createParcels({ scene, material, world, packages, targets, house
     mesh.visible = false;
     mesh.castShadow = true;
     scene.add(mesh);
-    parcels.push({
-      mesh, state: 'idle', pkg: null, target: null,
-      vel: new THREE.Vector3(), spin: 0,
-      contact: 0, slideT: 0, roofT: 0, jellyT: 0,
-      impact: 0, dist: 0, airMail: false, rest: 0, mailHit: false, trick: false,
-    });
+      parcels.push({
+        mesh, state: 'idle', pkg: null, target: null,
+        vel: new THREE.Vector3(), spin: 0,
+        contact: 0, slideT: 0, roofT: 0, jellyT: 0,
+        impact: 0, dist: 0, airMail: false, rest: 0, mailHit: false, trick: false,
+        gagged: false, rollT: 0, rollVx: 0, rollVz: 0, loseKey: null, // M15: the downhill roll gag
+      });
   }
   let cooldown = 0;
   const tmp = new THREE.Vector3();
@@ -105,6 +106,7 @@ export function createParcels({ scene, material, world, packages, targets, house
     p.spin = 0;
     p.contact = 0;
     p.slideT = 0; p.roofT = 0; p.jellyT = 0; p.mailHit = false;
+    p.gagged = false; p.rollT = 0; p.rollVx = 0; p.rollVz = 0; p.loseKey = null;
     const dx = to.x - from.x, dz = to.z - from.z;
     const dist = Math.hypot(dx, dz);
     p.dist = dist;
@@ -125,6 +127,20 @@ export function createParcels({ scene, material, world, packages, targets, house
     const t = world.tilemap;
     const ty = world.terrain ? world.terrain.baseYAt(x, z) : 0;
     return ty + (t.surfH(t.keyAt(Math.floor(x / t.tileSize), Math.floor(z / t.tileSize))) || 0);
+  }
+
+  // M15 §2.18: true when (x,z) sits on a real ramp/stairs tile — the only place
+  // a missed parcel can physically roll downhill (retaining walls stop it
+  // between terraces, so the gag is gated to genuine slope tiles).
+  function tileIsSlope(x, z) {
+    if (!world.terrain || !world.terrain.hasHills) return false;
+    const raw = world.terrain.raw;
+    if (!raw) return false;
+    const T = world.tilemap.tileSize;
+    const tx = Math.floor(x / T), tz = Math.floor(z / T);
+    if (tz < 0 || tz >= raw.length || !raw[tz]) return false;
+    const c = raw[tz][tx];
+    return c === '/' || c === '=';
   }
 
   // Roof vs. wall on an in-flight hit (world.colliders: boxes with h = roof top).
@@ -222,9 +238,30 @@ export function createParcels({ scene, material, world, packages, targets, house
         p.vel.x *= 0.9; p.vel.z *= 0.9;
         m.rotation.x += dt * 3;
         if (p.slideT >= PARCEL.slideTime) {
-          p.state = 'resting';
-          onRest(p, judgeZone(m.position.x, m.position.z, p.target, houseRects, world, targetHouseIds));
+          const key = judgeZone(m.position.x, m.position.z, p.target, houseRects, world, targetHouseIds);
+          // M15 §2.18 gag: a LOST parcel resting on a slope rolls downhill ("Come back!").
+          const lost = key === 'missed' || key === 'road' || key === 'wrong' || key === 'wrongAddress';
+          if (lost && tileIsSlope(m.position.x, m.position.z)) {
+            p.state = 'rolling'; p.rollT = 0; p.rollVx = 0; p.rollVz = 0; p.loseKey = key;
+            if (onGag) onGag(p, m.position.x, m.position.z);
+          } else {
+            p.state = 'resting';
+            onRest(p, key);
+          }
         }
+      } else if (p.state === 'rolling') {
+        // M15: the lost parcel tumbles down the slope, then is judged as lost.
+        p.rollT += dt;
+        const tr = world.terrain, gd = 0.6;
+        const gx = tr.baseYAt(m.position.x + gd, m.position.z) - tr.baseYAt(m.position.x - gd, m.position.z);
+        const gz = tr.baseYAt(m.position.x, m.position.z + gd) - tr.baseYAt(m.position.x, m.position.z - gd);
+        p.rollVx += -gx * 8 * dt; p.rollVz += -gz * 8 * dt;
+        const sp = Math.hypot(p.rollVx, p.rollVz);
+        if (sp > 4.5) { p.rollVx = p.rollVx / sp * 4.5; p.rollVz = p.rollVz / sp * 4.5; }
+        m.position.x += p.rollVx * dt; m.position.z += p.rollVz * dt;
+        m.position.y = groundY(m.position.x, m.position.z);
+        m.rotation.x += dt * 8; m.rotation.z += dt * 5;
+        if (p.rollT >= 0.8) { p.state = 'resting'; onRest(p, p.loseKey); }
       } else if (p.state === 'roofWait') {
         p.roofT += dt;
         // §2.12 roof luck: after the slide delay, 35% flip off onto the porch.

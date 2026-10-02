@@ -35,6 +35,7 @@ export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects
   if (tm.def.buildings.some((b) => b.kind === 'school')) flag = buildSchool(grid, tm, glow, signQuads, colliders);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'shop')) buildShop(grid, tm, glow, signQuads, colliders, b);
   if (tm.def.buildings.some((b) => b.kind === 'depot')) buildDepot(grid, tm, glow, signQuads, colliders);
+  for (const b of tm.def.buildings.filter((b) => b.kind === 'watertower')) buildWaterTower(grid, tm, glow, signQuads, colliders, b);
   parkCars(grid, tm, colliders);
   return flag || { flagGeo: null, flagPos: null };
 }
@@ -198,4 +199,52 @@ function addVan(grid, tm, tx, tz, seed, signQuads, colliders) {
   signQuads.push({ rectKey: 'logo', x: wx - 1.17, y: baseY + 0.9, z: wz + 1.1, w: 1.5, h: 0.94, face: [-1, 0, 0] });
   signQuads.push({ rectKey: 'logo', x: wx + 1.17, y: baseY + 0.9, z: wz + 1.1, w: 1.5, h: 0.94, face: [1, 0, 0] });
   colliders.push({ type: 'box', minX: wx - 1.3, maxX: wx + 1.3, minZ: wz - 2.4, maxZ: wz + 2.4, h: baseY + 2.9 });
+}
+
+// --- Cedar Heights: a hilltop water tower (concrete legs + tank) with an
+// overlook bench. A landmark, so it's taller than the houses and its tank
+// window glows at night.
+function buildWaterTower(grid, tm, glow, signQuads, colliders, b) {
+  const op = new VoxelBuilder(320);
+  const gl = new GlowBuilder();
+  const W = b.w * T, D = b.d * T;
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
+  const ch = grid.chunkAt(b.x, b.z);
+  const legH = 6.0;
+  const concrete = PALETTE.roof[5];
+  const lx = W / 2 - 0.8, lz = D / 2 - 0.8;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1])
+    op.box(sx * lx, legH / 2, sz * lz, 0.7, legH, 0.7, concrete, { skipFaces: ['bottom'] });
+  for (const y of [1.5, 3.0, 4.5]) {
+    op.box(0, y, lz, W - 1.6, 0.35, 0.35, concrete);
+    op.box(0, y, -lz, W - 1.6, 0.35, 0.35, concrete);
+    op.box(lx, y, 0, 0.35, 0.35, D - 1.6, concrete);
+    op.box(-lx, y, 0, 0.35, 0.35, D - 1.6, concrete);
+  }
+  const tankW = W * 0.66, tankH = 3.0, tankY = legH + tankH / 2;
+  op.box(0, tankY, 0, tankW, tankH, tankW, PALETTE.trim, { skipFaces: ['bottom'] });
+  op.box(0, legH + tankH + 0.25, 0, tankW + 0.4, 0.5, tankW + 0.4, PALETTE.brand, { skipFaces: ['bottom'] });
+  op.box(0, legH + tankH + 0.7, 0, tankW * 0.5, 0.6, tankW * 0.5, PALETTE.brand);
+  op.box(0, 0.1, D / 2 + 0.4, 0.9, 2.0, 0.1, PALETTE.door[4], { skipFaces: ['bottom'] }); // access door
+  gl.box(0, tankY, tankW / 2 + 0.02, 1.4, 1.0, 0.1, PALETTE.windowDay, PALETTE.windowNight);
+  ch.opaque.merge(op, m);
+  glow.merge(gl, m);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, legH + tankH + 1.2, baseY);
+  // overlook bench on the hilltop, just in front of the tower (world coords).
+  addBench(grid, tm, b.x + 1, b.z + b.d, colliders);
+}
+
+// One overlook bench (wood seat + two legs) sitting on the tile's terrain level.
+function addBench(grid, tm, tx, tz, colliders) {
+  const op = new VoxelBuilder(321);
+  const wx = tm.cx(tx), wz = tm.cz(tz);
+  const baseY = tileBaseY(tm, tx, tz);
+  op.yOff = baseY;
+  const wood = PALETTE.porch;
+  op.box(wx, 0.5, wz, 3.0, 0.18, 0.8, wood, { skipFaces: ['bottom'] }); // seat
+  op.box(wx, 0.85, wz - 0.5, 3.0, 0.6, 0.14, wood, { skipFaces: ['bottom'] }); // backrest
+  for (const s of [-1, 1]) op.box(wx + s * 1.2, 0.25, wz, 0.16, 0.5, 0.7, PALETTE.roof[5], { skipFaces: ['bottom'] });
+  grid.chunkAt(tx, tz).opaque.merge(op);
+  colliders.push({ type: 'box', minX: wx - 1.6, maxX: wx + 1.6, minZ: wz - 0.9, maxZ: wz + 0.9, h: baseY + 1.4 });
 }

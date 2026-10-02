@@ -12,7 +12,15 @@ export function createShiftFlow(ctx) {
   let markerCardEl = null, mcList = null, mcMarker = null, mcIdx = 0;
   let shiftCardEl = null, resultsEl = null;
 
-  function mcShifts(id) { return id === 'dispatch' ? MAIN_SHIFTS : SIDE_SHIFTS.filter((s) => s.giver === id); }
+  // §2.18: the dispatch card at a suburb's kiosk lists only THAT suburb's main
+  // shifts (each carries a `neighborhood`). `ctx.getNb()` is the loaded suburb id.
+  function mcShifts(id) {
+    if (id === 'dispatch') {
+      const nb = ctx.getNb ? ctx.getNb() : null;
+      return nb ? MAIN_SHIFTS.filter((s) => s.neighborhood === nb) : MAIN_SHIFTS;
+    }
+    return SIDE_SHIFTS.filter((s) => s.giver === id);
+  }
   // §2.20: the card row's meta — the drops, your carry capacity, and the shift's
   // window (main, "07:00–11:00") or soft deliver-by (side, "by 12:00").
   function meta(s) {

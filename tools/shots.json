@@ -100,5 +100,13 @@
   { "name": "m14-exit-locked", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.camAt(90, 10, 12, 5);"] },
   { "name": "m14-region-map", "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.camAt(160, 140, 22, 10);"] },
   { "name": "m14-leak-fresh", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(3);"] },
-  { "name": "m14-leak-trip", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.gotoNeighborhood('test-hills'); __pb.step(5); __pb.gotoNeighborhood('maple-hollow'); __pb.step(5);"], "waitMs": 300 }
+  { "name": "m14-leak-trip", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.gotoNeighborhood('test-hills'); __pb.step(5); __pb.gotoNeighborhood('maple-hollow'); __pb.step(5);"], "waitMs": 300 },
+  { "name": "m15-overview", "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(58, 16, 0); __pb.step(3); __pb.camAt(60, 80, 64, 52);"] },
+  { "name": "m15-switchback", "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(44, 76); __pb.step(8); __pb.camAt(44, 76, 17, 12);"] },
+  { "name": "m15-stairs", "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(60, 76); __pb.step(6); __pb.camAt(60, 76, 12, 7);"] },
+  { "name": "m15-watertower", "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1&tod=morning", "eval": ["__pb.playerTeleportWorld(58, 16); __pb.step(6); __pb.camAt(58, 17, 33, 23);"] },
+  { "name": "m15-bin-roll", "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('cedarLunch'); __pb.kickBin(0); for (var i = 0; i < 40; i++) __pb.step(1); var r = __pb.debugRunaway()[0]; __pb.playerTeleportWorld(r.x + 7, r.z + 7); __pb.step(2); __pb.camAt(r.x, r.z, 14, 8);"] },
+  { "name": "m15-shift", "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('cedarMorning'); __pb.step(6); var t=__pb.topParcel(); __pb.playerTeleportWorld(t.x+6, t.z+6, 225); __pb.step(3); __pb.camAt(t.x, t.z, 15, 9);"] },
+  { "name": "m15-exit-locked", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(6); __pb.camAt(90, 10, 12, 5);"] },
+  { "name": "m15-exit-travel", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=8", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.gotoNeighborhood('cedar-heights'); __pb.playerTeleportWorld(58, 16, 0); __pb.step(3); __pb.camAt(60, 80, 64, 52);"] }
 ]

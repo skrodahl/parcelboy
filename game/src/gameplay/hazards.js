@@ -14,7 +14,7 @@ import { aheadOf, dist2d, inArcOf, loopPerim, pointOnRect } from './hazardGeom.j
 //
 // env = { scene, world, def, charDef, counts, effects, floatText,
 // onKnockdown(kind), onHiveHit(x, z), onDogSteal(), onDogRecover(), onHop() }
-const MAX = { car: 8, dog: 4, sprinkler: 4, skater: 4, beehive: 4, bee: 48, bin: 10, cone: 4 };
+const MAX = { car: 8, dog: 4, sprinkler: 4, skater: 4, beehive: 4, bee: 48, bin: 10, cone: 4, runaway: 6 };
 
 export function createHazards(env) {
   const { scene, world, def, counts, effects, floatText, player } = env;
@@ -46,7 +46,7 @@ export function createHazards(env) {
   }
 
   // -- Spawn per count -----------------------------------------------------
-  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [] };
+  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [], bin: spots.bin || [] };
   const T = world.tilemap.tileSize;
   const wx = (t) => world.tilemap.cx(t[0]), wz = (t) => world.tilemap.cz(t[1]);
 
@@ -79,6 +79,11 @@ export function createHazards(env) {
   const dvPos = dv.map((g) => ({ x: world.tilemap.cx(g.x), z: world.tilemap.cz(g.z1) }));
   for (let i = 0; i < bins; i++) { const p = dvPos[i % Math.max(1, dvPos.length)]; binSt.push({ x: p ? p.x : 40, z: p ? p.z : 40, tip: -1 }); }
   for (let i = 0; i < cones; i++) { const p = dvPos[(i + 2) % Math.max(1, dvPos.length)]; coneSt.push({ x: p ? p.x : 40, z: p ? p.z : 40 }); }
+  // M15 §2.18: runaway bins sit at the bin spots and periodically lunge downhill.
+  // `state` 0 = idle at home, 1 = rolling; `t` is the (idle wake / roll) timer.
+  const runCount = Math.min(counts.runawayBin || 0, spotOf.bin.length || MAX.runaway);
+  const runSt = [];
+  for (let i = 0; i < runCount; i++) { const s = spotOf.bin[i % spotOf.bin.length]; runSt.push({ x: wx(s), z: wz(s), hx: wx(s), hz: wz(s), vx: 0, vz: 0, state: 0, t: rng() * 5, roll: 0 }); }
 
   // -- Instanced meshes ----------------------------------------------------
   const carM = instanced('car', MAX.car, nCars);
@@ -90,10 +95,13 @@ export function createHazards(env) {
   const beeM = instanced('bee', MAX.bee, hives * BEE);
   const binM = instanced('bin', MAX.bin, bins);
   const coneM = instanced('cone', MAX.cone, cones);
+  const runM = instanced('bin', MAX.runaway, runCount); // M15 runaway bins (share the bin geo)
+  const mapW = world.tilemap.width * T, mapH = world.tilemap.height * T; // M15: clamp the roll to the map
 
   // Static placement (bins/cones/hives/sprinklers sit; set once).
   for (let i = 0; i < bins; i++) place(binM, i, binSt[i].x, binSt[i].z, rng() * 6, 1);
   for (let i = 0; i < cones; i++) place(coneM, i, coneSt[i].x, coneSt[i].z, 0, 1);
+  for (let i = 0; i < runCount; i++) place(runM, i, runSt[i].x, runSt[i].z, 0, 1);
   for (let i = 0; i < hives; i++) place(hiveM, i, hiveSt[i].x, hiveSt[i].z, 0, 1);
   for (let i = 0; i < sprinks; i++) place(spM, i, spSt[i].x, spSt[i].z, 0, 1);
 
@@ -251,6 +259,42 @@ export function createHazards(env) {
     if (dirty) binM.instanceMatrix.needsUpdate = true;
   }
 
+  // M15 §2.18: a runaway bin periodically lunges and rolls downhill along the
+  // terrain (gradient of the surface height). It rolls on its side, keeps
+  // momentum on flat ground, and is clamped to the map. Idle = upright at home.
+  function stepRunaway(dt) {
+    if (!runCount) return;
+    const gAt = world.terrain ? world.terrain.baseYAt : null;
+    const d = 0.6;
+    for (let i = 0; i < runCount; i++) {
+      const r = runSt[i];
+      r.t -= dt;
+      if (r.state === 0) {
+        // Wake from rest: the downhill gradient (nonzero on the ramp the bin
+        // sits on) drives the roll. A slight seeded nudge breaks symmetry.
+        if (r.t <= 0) { r.state = 1; r.vx = (rng() - 0.5) * 0.6; r.vz = (rng() - 0.5) * 0.6; r.roll = 0; }
+        P.set(r.x, gAt ? gAt(r.x, r.z) : 0, r.z); S.set(1, 1, 1); Q.setFromEuler(E.set(0, 0, 0));
+        M.compose(P, Q, S); runM.setMatrixAt(i, M);
+        continue;
+      }
+      // rolling: accelerate downhill + keep momentum, stay on the surface
+      const gx = (gAt ? gAt(r.x + d, r.z) : 0) - (gAt ? gAt(r.x - d, r.z) : 0);
+      const gz = (gAt ? gAt(r.x, r.z + d) : 0) - (gAt ? gAt(r.x, r.z - d) : 0);
+      r.vx += -gx * 5 * dt; r.vz += -gz * 5 * dt;
+      let sp = Math.hypot(r.vx, r.vz);
+      if (sp > 7) { r.vx = r.vx / sp * 7; r.vz = r.vz / sp * 7; sp = 7; }
+      r.x = Math.max(0.5, Math.min(mapW - 0.5, r.x + r.vx * dt));
+      r.z = Math.max(0.5, Math.min(mapH - 0.5, r.z + r.vz * dt));
+      r.roll += sp * dt * 0.9;
+      const gy = gAt ? gAt(r.x, r.z) : 0;
+      if (sp > 0.1) { P.set(r.vz, 0, -r.vx).normalize(); Q.setFromAxisAngle(P, r.roll); } else { P.set(1, 0, 0); Q.setFromAxisAngle(P, 0); }
+      S.set(1, 1, 1); P.set(r.x, gy + 0.3, r.z);
+      M.compose(P, Q, S); runM.setMatrixAt(i, M);
+      if (r.t <= 0) { r.x = r.hx; r.z = r.hz; r.vx = 0; r.vz = 0; r.state = 0; r.t = 3 + rng() * 4; }
+    }
+    runM.instanceMatrix.needsUpdate = true;
+  }
+
   // Collision pass: hazards that knock the player down (skaters on the ground,
   // cars only if you darted out in front of a moving one, §2.7).
   function collide() {
@@ -269,6 +313,15 @@ export function createHazards(env) {
         break;
       }
     }
+    // M15: a fast-moving runaway bin clips the grounded courier (like a skater).
+    for (let i = 0; i < runCount; i++) {
+      const r = runSt[i];
+      if (r.state === 1 && Math.hypot(r.vx, r.vz) > 2 && dist2d(r.x, r.z, player.pos.x, player.pos.z) < 0.7 && player.pos.y < 0.1) {
+        if (player.startKnockdown('bin') === 'knockdown' && env.onKnockdown) env.onKnockdown('bin');
+        r.state = 0; r.x = r.hx; r.z = r.hz; r.vx = 0; r.vz = 0; r.t = 2; // it stops and rolls home
+        break;
+      }
+    }
   }
 
   // M12a.5: the shared geometry helpers (dist2d / inArcOf / loopPerim /
@@ -277,7 +330,7 @@ export function createHazards(env) {
   // Public API -------------------------------------------------------------
   function step(dt) {
     if (player) player.spraySlow = 1; // reset; sprinklers raise it this frame
-    stepCars(dt); stepDogs(dt); stepSprinklers(dt); stepSkaters(dt); stepBees(dt); stepBins(dt);
+    stepCars(dt); stepDogs(dt); stepSprinklers(dt); stepSkaters(dt); stepBees(dt); stepBins(dt); stepRunaway(dt);
     collide();
   }
   function angersSwarmAt(x, z) {
@@ -301,13 +354,13 @@ export function createHazards(env) {
   binM.instanceMatrix.needsUpdate = true; coneM.instanceMatrix.needsUpdate = true;
   hiveM.instanceMatrix.needsUpdate = true; spM.instanceMatrix.needsUpdate = true;
 
-  return {
-    step, angersSwarmAt, tipBin, carDebug,
-    cars, dogs, skaters, hives, bins, cones,
-    dogSt, hiveSt, spSt, skSt, binSt, // internal state (for __pb hooks + tests)
-    dispose() {
-      for (const m of [carM, dogM, spM, skM, hiveM, beeM, binM, coneM]) { scene.remove(m); m.dispose && m.dispose(); }
-      for (const k of Object.keys(geos)) geos[k].dispose(); // §2.18: free the hazard geos (built per suburb)
-    },
-  };
+    return {
+      step, angersSwarmAt, tipBin, carDebug,
+      cars, dogs, skaters, hives, bins, cones,
+      dogSt, hiveSt, spSt, skSt, binSt, runSt, // internal state (for __pb hooks + tests)
+      dispose() {
+        for (const m of [carM, dogM, spM, skM, hiveM, beeM, binM, coneM, runM]) { scene.remove(m); m.dispose && m.dispose(); }
+        for (const k of Object.keys(geos)) geos[k].dispose(); // §2.18: free the hazard geos (built per suburb)
+      },
+    };
 }

@@ -56,6 +56,12 @@ const params = parseParams();
 // a balance for screenshots. Persisted settings feed the renderer quality below.
 const saveData = loadSave();
 if (params.coins) saveData.coins = parseInt(params.coins, 10);
+// §2.18 test hook: `?stars=N` seeds the total-star count a one-entry `best` map
+// supplies, so the exit-unlock gate can be photographed at a chosen star total.
+if (params.stars) {
+  saveData.best = saveData.best || {};
+  saveData.best._seed = { score: 0, stars: parseInt(params.stars, 10) };
+}
 
 const todRegistry = new Registry('timeOfDay', ['id', 'sunDir', 'sunColor', 'sunIntensity', 'hemiSky', 'hemiGround', 'hemiIntensity', 'skyZenith', 'skyHorizon']);
 for (const p of TIMES_OF_DAY) todRegistry.add(p);
@@ -190,6 +196,7 @@ const flow = createShiftFlow({
    getCapacity: () => activeChar ? activeChar.stats.capacity + (activeVeh ? activeVeh.stats.capacityBonus : 0) : null,
    getClock: () => dayClock,
    fmtMin: (m) => minToTime(m),
+   getNb: () => (world ? world.def.id : null), // §2.18: the dispatch card lists only this suburb's shifts
 });
 const { openMarkerCard, closeMarkerCard, mcKey, showShiftCard, showResults, getMarkerState } = flow;
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
@@ -1089,16 +1096,16 @@ function autoplayRun() {
   let lastRes = null, guard = 0, lastTid = '', retries = 0;
   while (guard++ < 200 && !lastRes) {
     if (m.lastResult) { lastRes = m.lastResult; break; } // auto-ended (all delivered or time out)
+    // M15: when the stack has run dry but parcels remain, restock before the top
+    // grab (which bails on an empty stack). The M13 order skipped this restock
+    // and capped every run at the courier's capacity.
+    if (d.carried <= 0 && d.remaining() > 0) autoplayerRestock();
     const t = d.topParcel(); // §2.16: deliver the top parcel's house (auto-matching doorstep)
-    if (!t) { m.end(); lastRes = m.lastResult; break; }
+    if (!t) { m.end(); lastRes = m.lastResult; break; } // nothing left to deliver
     const tid = String(t.house.id);
     if (tid === lastTid) retries++; else { retries = 0; lastTid = tid; }
     if (retries >= 3) break; // give up on a stubborn target (the shift ends short)
-    // M12a.6: when the stack is empty + parcels remain, refill at the pickup zone first.
-    if (d.carried <= 0 && d.remaining() > 0) autoplayerRestock();
-    const top = d.topParcel(); // re-grab (the restock rebuilds the stack)
-    if (!top) { m.end(); lastRes = m.lastResult; break; }
-    const dx = top.doormat.x, dz = top.doormat.z;
+    const dx = t.doormat.x, dz = t.doormat.z;
     // Teleport to the target's porch (the doormat tile) + doorstep it (safe + reliable).
     const TS = world.tilemap.tileSize;
     player.teleport(Math.floor(dx / TS), Math.floor(dz / TS), 0);

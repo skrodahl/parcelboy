@@ -182,6 +182,20 @@ export function createDebugHooks(ctx) {
         dogSteal: h.dogSt ? h.dogSt.map((ds) => ds.stealT) : [],
       };
     },
+    // M15: the runaway-bin states (x,z,home,rolling flag) so a shot can frame
+    // one mid-roll; `kickBin(i)` forces bin i into its rolling state now.
+    debugRunaway() {
+      const h = R.hazards;
+      if (!h || !h.runSt) return [];
+      return h.runSt.map((r) => ({ x: +r.x.toFixed(1), z: +r.z.toFixed(1), hx: +r.hx.toFixed(1), hz: +r.hz.toFixed(1), rolling: r.state === 1 }));
+    },
+    kickBin(i) {
+      const h = R.hazards;
+      if (!h || !h.runSt || !h.runSt[i]) return -1;
+      const r = h.runSt[i];
+      r.state = 1; r.vx = 0; r.vz = 0.4; r.t = 4; r.roll = 0;
+      return i;
+    },
     debugPlayer() {
       const p = R.player;
       if (!p) return null;

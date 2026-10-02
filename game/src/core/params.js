@@ -20,5 +20,7 @@ export function parseParams() {
     nb: q.get('nb'), // §2.18: the neighborhood id (defaults to maple-hollow)
     paused: q.has('paused'),
     showCard: q.get('showCard'),
+    coins: int('coins'), // §2.11: seed a coin balance for screenshots
+    stars: int('stars'), // §2.18: seed the total-star count (exit-gate screenshots)
   };
 }

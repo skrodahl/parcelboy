@@ -33,6 +33,14 @@ export const HAZARDS = [
     id: 'cone', name: 'Traffic Cone', behavior: 'static', model: 'cone', radius: 0.4, spawn: 'driveways',
     params: {}, knockdown: false,
   },
+  // §2.18 Cedar Heights: a tipped bin that rolls downhill along the terrain
+  // (rolls on its side, accelerates down the slope, knocks the courier down
+  // like a skater when it's moving). Spawns at the bin hazard spots and, on a
+  // flat suburb, just sits — the downhill term is zero there.
+  {
+    id: 'runawayBin', name: 'Runaway Bin', behavior: 'binRoll', model: 'bin', radius: 0.7, spawn: 'hazardSpots.bin',
+    params: { wakeMin: 3, wakeMax: 7, rollTime: 2.4, accel: 5, maxSpeed: 7 }, knockdown: true,
+  },
   // §2.15: Neighborhood Watch. Spawned by the heat system, not by the per-shift
   // counts (their "count" is the heat level). `watchChase` runs the pursuit +
   // BUSTED logic; speed/radii come from config MISCHIEF.watch (read by the
