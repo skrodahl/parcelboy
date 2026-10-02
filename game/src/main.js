@@ -21,6 +21,8 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
+import { createMapCam } from './render/mapCam.js';
+import { renderRadarSnapshot } from './render/radarSnapshot.js';
 import { FREE_ROAM, HAZARD, CARTOON, MISCHIEF, TOD_HAZARDS } from './data/config.js';
 import { SHIFTS, MAIN_SHIFTS, SIDE_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
@@ -106,6 +108,7 @@ let player = null;
 let vehicleMesh = null;
 let blobs = null;
 let followCam = null;
+let mapCam = null; // M15a.18: the top-down full-map camera (reuses the main camera)
 let courierRig = null, courierVehMesh = null, courierVehMat = null; // rig + vehicle (+ a dedicated mat for the golden bike)
 let delivery = null; // M5 interim delivery session (M6 replaces with shifts)
 let mission = null; // M6 active shift runner (null in free roam)
@@ -257,6 +260,11 @@ const gameState = { name: 'boot' };
 const camLook = new THREE.Vector3(0, 0, 0);
 let simPaused = params.paused; // M6b: also toggled while the full-screen map is open
 let musicPaused = !!params.paused; // §9: keep the music state in sync with the sim
+// M15a.18: the live full map. `mapGuard` protects the courier (no knockdown /
+// parcel drop / bust) while it is open. `showcaseFog` / `savedBg` / `savedSkyOn`
+// restore the distance fog, the scene background and the sky dome when the
+// showcase (the live map or a menu screen) closes.
+let mapGuard = false, savedBg = null, savedSkyOn = true, showcaseFog = null;
 let radar = null, fullMap = null; // M6b: the corner radar + full-screen map
 // §2.18: the multi-neighborhood engine (exits are per-suburb; the transition +
 // region-map inset are session-level DOM).
@@ -637,11 +645,16 @@ function spawnCourier(charDef, vehDef) {
   setHazards(FREE_ROAM.hazards);
   // M6b: the corner radar + full-screen map (created once; they read radarState).
   radarState.player = player; radarState.world = world;
+  if (!mapCam) mapCam = createMapCam(camera, camLook);
   if (!radar) {
-    radar = createRadar({ tm: world.tilemap, state: radarState, ui: document.getElementById('ui') });
+    // M15a.18: the radar's base map is a one-time 3D top-down snapshot (noon,
+    // actors hidden) — not the old hand-painted 6px/tile bitmap.
+    const snap = renderRadarSnapshot({ scene, world, lighting, renderer });
+    radar = createRadar({ tm: world.tilemap, state: radarState, ui: document.getElementById('ui'), mapBase: snap.canvas });
     fullMap = createFullMap({
-      tm: world.tilemap, state: radarState, radar,
-      onPause: (p) => { if (p) simPaused = true; else if (!params.paused) simPaused = false; },
+      tm: world.tilemap, state: radarState, radar, camera, mapCam,
+      // M15a.18: toggle the live map mode (top-down cam, fog off, courier guarded).
+      onMode: (p) => setMapMode(p),
       // M15a.8: the region-map card lives inside the full map (not the HUD).
       onOpen: () => { if (regionMap) regionMap.show(); },
       onClose: () => { if (regionMap) regionMap.hide(); },
@@ -696,6 +709,7 @@ function setupGrumps(count, excludeIds) {
 let bustedEl = null;
 function onBusted(level) {
   if (!player) return;
+  if (mapGuard) return; // M15a.18: no ticket while the full map is open
   bustedUntil = simTime + MISCHIEF.bustedFreezeSec;
   const p = player.pos;
   if (followCam) followCam.shake(0.3);
@@ -764,9 +778,9 @@ function setHazards(counts) {
     dogRechase: () => diff().dogRechase, // M15a.12: a gave-up dog turns back after N s
     effects: sharedEffects, floatText: sharedFloatText, player,
     onKnockdown, parcels: delivery ? delivery.parcels : null,
-    onDogSteal: () => { if (delivery) delivery.dropParcel(true); if (events) events.emit('stolen'); },
+    onDogSteal: () => { if (mapGuard) return; if (delivery) delivery.dropParcel(true); if (events) events.emit('stolen'); },
     onDogRecover: () => { if (delivery) delivery.recoverParcel(); if (events) events.emit('recovered'); },
-      onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } if (events) events.emit('hop'); },
+      onHop: () => { if (mapGuard) return; if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } if (events) events.emit('hop'); },
       onHonk: () => { if (events) events.emit('honk'); }, // §2.17 M16: the lakeside geese
    });
   radarState.hazards = hazards;
@@ -788,6 +802,7 @@ function reapplyDifficulty(id) {
 // §2.6 knockdown: camera shake + hit-stop + drop a parcel (in a mission) + dust.
 function onKnockdown(kind) {
   if (!player) return;
+  if (mapGuard) return; // M15a.18: nothing can knock the courier down while the map is open
   if (followCam) followCam.shake(HAZARD.knockdownShake);
   hitStopUntil = simTime + (CARTOON.enabled ? CARTOON.hitStopMs : 0) / 1000;
   // M15a.12: on Easy a knockdown never costs a parcel (`knockdownCostsParcel` false).
@@ -1089,6 +1104,29 @@ function camPreset(name) { applyCamPreset(camera, name, { world, camLook, scene 
 // rest of the world stays live behind it. The pause screen freezes the whole sim.
 function menuGate() { return !!(screens && screens.active && screens.active !== 'pause'); }
 
+// M15a.18: enter / exit the live full-map cam mode. While open the courier is
+// guarded (no knockdown / parcel drop / bust, via `mapGuard`), the distance fog
+// is off, and the top-down mapCam drives the camera. On close the follow cam is
+// restored exactly (a snap, no ease-in). The clean "showcase" look (no sky dome,
+// a paper background) is shared with the menu screens and handled in update().
+const MAP_BG = new THREE.Color('#bcdcec'); // M15a.18: clean "map paper" void
+function setMapMode(p) {
+  mapGuard = p;
+  if (!p) {
+    if (mapCam) mapCam.exit();
+    if (player && followCam) { camTgt.pos = player.pos; camTgt.heading = player.heading; followCam.snap(camTgt, camLook); }
+  }
+  // (the map's clean "no fog / paper bg / no dome" look is the shared showcase
+  // transition in update(); here we just guard the courier + drive the cam.)
+}
+// M15a.18: hide the in-play HUD chips + radar + ability while the map (or a menu
+// screen) is up. One class on #ui; the live 3D world shows through behind it.
+let hudHiddenNow = false, showcaseNow = false; // showcase = menu or map (clean look)
+function setHudHidden(hidden) {
+  const ui = document.getElementById('ui');
+  if (ui) ui.classList.toggle('pb-hud-hidden', !!hidden);
+}
+
 // M15a.13: the pause hub. Opening it freezes the sim (the paused world shows
 // behind the panel); the hub's own handleKey (Esc/P or the Resume row) resumes.
 function openPauseHub() {
@@ -1142,8 +1180,9 @@ function simStep(dt) {
     dayCycle.setPhase(pb.idx, pb.frac);
     setCricketsForPreset(TIMES_OF_DAY[pb.idx]);
   }
-  if (player && !menuGate() && !(actionStrip && actionStrip.isOpen())) {
+  if (player && !menuGate() && !(actionStrip && actionStrip.isOpen()) && !(fullMap && fullMap.isOpen())) {
     // M15a.8: the courier locks while the action strip is open (the sim keeps running).
+    // M15a.18: it also locks while the full map is open (the world stays live).
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
     // §2.12 speed lines: while Sprint/Turbo raise the top speed, a short white
@@ -1274,6 +1313,27 @@ function update(dt) {
   simTime += dt;
   if (bustedEl && simTime >= bustedUntil) { bustedEl.remove(); bustedEl = null; }
   if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
+  if (fullMap && fullMap.isOpen()) { if (mapCam) mapCam.update(dt); } // M15a.18: top-down easing
+  const wantHudHidden = menuGate() || (fullMap && fullMap.isOpen()); // M15a.18: hide HUD in menus + map
+  if (hudHiddenNow !== wantHudHidden) { hudHiddenNow = wantHudHidden; setHudHidden(wantHudHidden); }
+  // M15a.18: the "showcase" look (title / how-to / settings / difficulty + the
+  // live map) — hide the sky dome and show a clean paper background instead of
+  // the horizon-color void the dome leaves past the ground.
+  const showcase = wantHudHidden;
+  if (showcaseNow !== showcase) {
+    showcaseNow = showcase;
+    if (showcase) {
+      showcaseFog = scene.fog; savedBg = scene.background; savedSkyOn = sky ? sky.visible : true;
+      scene.fog = null; // no depth haze — a crisp map / title
+      scene.background = MAP_BG;
+      if (sky) sky.setVisible(false);
+      if (menuGate() && dayCycle) dayCycle.setPhase(1, 0); // M15a.18: menus present a clean noon
+    } else {
+      scene.fog = showcaseFog;
+      scene.background = savedBg;
+      if (sky) sky.setVisible(savedSkyOn);
+    }
+  }
   if (world && world.flag) world.flag.rotation.y = Math.sin(simTime * 2.0) * 0.3;
   if (markers) markers.tick(dt, player ? player.pos.x : 0, player ? player.pos.z : 0); // M15a.9: arrows bob/spin, rings pulse (in-range aware)
   // Distance-scaled fog + far clip (§7.3 plan change): near/far track the
@@ -1309,6 +1369,9 @@ function update(dt) {
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
   simStep(dt);
+  // M15a.18: a menu screen presents a clean noon (the sim re-synced the clock;
+  // re-apply noon so the title/how-to/settings overview stays bright + legible).
+  if (menuGate() && dayCycle) dayCycle.setPhase(1, 0);
 }
 
 let ready = false;
@@ -1320,7 +1383,9 @@ function render() {
   }
 }
 
-const loop = createLoop({ update, render, targetFps });
+// M15a.18: the render cap drops to 30 fps while the full map is open (the sim
+// still steps at 60 Hz; only the 3D world's draw rate is throttled).
+const loop = createLoop({ update, render, targetFps, getFps: () => (fullMap && fullMap.isOpen() ? 30 : targetFps) });
 
 // §9: the AudioContext is created + resumed on the first user gesture (browsers
 // block audio otherwise); the light ambience + the music loop start there too.
@@ -1396,6 +1461,8 @@ const debugCtx = {
   get transition() { return transition; },
   get regionMap() { return regionMap; },
   get exits() { return exits; },
+  get fullMap() { return fullMap; }, // M15a.18
+  get mapCam() { return mapCam; }, // M15a.18
   setClock(min) { if (dayClock) dayClock.min = min; },
   get simTime() { return simTime; },
   events, gameState, M5_TARGETS, input, camTgt, camLook, camera, scene, renderer, progress, params,

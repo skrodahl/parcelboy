@@ -596,7 +596,7 @@
     "name": "m14-exit-sign",
     "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1",
     "eval": [
-      "__pb.holdTransition('Maple Hollow', 'Maple Hollow \u2014 the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"
+      "__pb.holdTransition('Maple Hollow', 'Maple Hollow — the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"
     ]
   },
   {
@@ -1100,5 +1100,45 @@
       "(function(){ var inf = __pb.dunkInfo(); if (inf.state !== 'idle') throw new Error('dunk state ' + inf.state + ', expected idle (respawned)'); var r = inf.respawn; if (r[2] !== 'path' && r[2] !== 'sidewalk') throw new Error('respawn tile key ' + r[2] + ' is not a path/sidewalk'); var h = __pb.debugBees().swarms[1]; if (!h || h.state !== 'angry') throw new Error('hive 1 not angry: ' + (h && h.state)); var dist = Math.hypot(r[3] - h.hx, r[4] - h.hz); if (dist < 8) throw new Error('respawn ' + dist.toFixed(1) + 'u from the angry hive (< 8u)'); __pb.camAt((r[3] + h.hx) / 2, (r[4] + h.hz) / 2, 13, 5); })()"
     ],
     "waitMs": 400
+  },
+  {
+    "name": "m15a-fullmap",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(2); __pb.openMap();"
+    ],
+    "waitMs": 600
+  },
+  {
+    "name": "m15a-fullmap-zoom",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(2); __pb.openMap(); __pb.mapZoom(2.6);"
+    ],
+    "waitMs": 900
+  },
+  {
+    "name": "m15a-fullmap-cedar",
+    "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(2); __pb.openMap();"
+    ],
+    "waitMs": 600
+  },
+  {
+    "name": "m15a-radar-names",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(23, 17, 0); __pb.step(8);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-title-clean",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title",
+    "eval": [
+      "__pb.step(2);"
+    ],
+    "waitMs": 500
   }
 ]

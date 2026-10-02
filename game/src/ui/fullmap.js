@@ -1,127 +1,179 @@
-// §10: the full-screen map (Tab). North-up, the whole pre-rendered map scaled
-// to fit, with all blips, a legend, the player arrow and the waypoint. Clicking
-// sets (or clears) the waypoint. The game pauses while it is open. 2D canvas:
-// zero GPU draw calls.
-import { renderMapCanvas } from './mapcanvas.js';
+// §10 + M15a.18: the full map (Tab) is the LIVE 3D world seen from above (like
+// the title screen). The main camera is driven top-down by mapCam; the sim keeps
+// running (the world stays live) but the courier is locked and protected. This
+// module is the overlay: a compact legend, projected DOM labels (suburb, streets,
+// landmarks, exits, blips), and zoom / pan / recenter / waypoint / close input.
+import * as THREE from 'three';
 
-const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d', locker: '#00b4a6' };
-const KIND_LABEL = { target: 'Deliver', pickup: 'Pickup', depot: 'Quickbox Q', marker: 'Mission', waypoint: 'Waypoint', bee: 'Angry bees', locker: 'Parcel locker' };
+const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d', locker: '#00b4a6', exit: '#ffbe0b' };
+const KIND_LABEL = { target: 'Deliver', pickup: 'Pickup', depot: 'Quickbox Q', marker: 'Mission', waypoint: 'Waypoint', bee: 'Angry bees', locker: 'Parcel locker', exit: 'Exit' };
 
-export function createFullMap({ tm, state, radar, onPause, onOpen, onClose }) {
-  const map = renderMapCanvas(tm);
+function el(cls, text) { const d = document.createElement('div'); d.className = cls; if (text != null) d.textContent = text; return d; }
+
+export function createFullMap({ tm, state, radar, camera, mapCam, onOpen, onClose, onMode }) {
   const worldW = tm.width * tm.tileSize, worldH = tm.height * tm.tileSize;
+  const T = tm.tileSize;
 
+  // --- DOM overlay (transparent: the 3D world renders behind it). ---
   const root = document.createElement('div');
   root.className = 'fullmap';
-  const canvas = document.createElement('canvas');
-  const legend = document.createElement('div');
-  legend.className = 'fm-legend';
-  legend.innerHTML = '<b>Legend</b>' + Object.keys(KIND_LABEL).map((k) =>
+  const labelsRoot = document.createElement('div'); labelsRoot.className = 'fm-labels';
+  const suburb = el('fm-suburb', tm.def.name);
+  const legend = el('fm-legend');
+  legend.innerHTML = Object.keys(KIND_LABEL).map((k) =>
     '<span><i style="background:' + KIND_COLOR[k] + '"></i>' + KIND_LABEL[k] + '</span>').join('') +
-    '<span class="fm-hint">Click: set / clear waypoint · Tab / Esc: close</span>';
-  root.appendChild(canvas);
-  root.appendChild(legend);
+    '<span class="fm-hint">wheel: zoom · drag: pan · F: recenter · click: waypoint · Tab/Esc: close</span>';
+  root.append(suburb, labelsRoot, legend);
+  root.style.display = 'none';
   document.getElementById('ui').appendChild(root);
 
-  const ctx = canvas.getContext('2d');
-  let mapOpen = false, acc = 0;
-  let s = 1, ox = 0, oy = 0; // scale + letterbox offsets (filled in fit())
-
-  function fit() {
-    const m = 40;
-    s = Math.min((canvas.width - m) / worldW, (canvas.height - m) / worldH);
-    ox = (canvas.width - worldW * s) / 2;
-    oy = (canvas.height - worldH * s) / 2;
+  // The mapCam height at which the WHOLE suburb fits the viewport (with margin),
+  // so the default map view shows the entire neighborhood, not a cropped slice.
+  function fitHeight() {
+    const fov = (camera.fov * Math.PI) / 180;
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    const hV = worldH / (2 * Math.tan(fov / 2));          // vertical fit
+    const hH = worldW / (2 * Math.tan(fov / 2) * aspect); // horizontal fit
+    return Math.max(hV, hH) * 1.06;
   }
 
-  function drawBlips() {
-    const p = state.player;
-    // Deliver / Pickup
+  // Projected label pool (rebuilt only when the suburb changes).
+  let labels = [];      // [{ el, wx, wz, kind, dynamic }]
+  let builtFor = null;  // the suburb id the labels were built for
+  const proj = new THREE.Vector3();
+  const ndc = new THREE.Vector2();
+  const ray = new THREE.Raycaster();
+
+  function roadMid(r) {
+    if (r.axis === 'x') return [((r.x0 + r.x1) / 2) * T, r.z * T];
+    return [r.x * T, ((r.z0 + r.z1) / 2) * T];
+  }
+  function buildLabels() {
+    labelsRoot.innerHTML = '';
+    labels = [];
+    const add = (wx, wz, kind, text) => {
+      const e = el('fm-label ' + kind, text);
+      labelsRoot.appendChild(e);
+      labels.push({ el: e, wx, wz, kind, dynamic: false });
+    };
+    for (const r of (tm.def.roads || [])) { const m = roadMid(r); add(m[0], m[1], 'street', r.name); }
+    for (const b of (tm.def.buildings || [])) add((b.x + b.w / 2) * T, (b.z + b.d / 2) * T, 'landmark', b.name || b.kind);
+    if (tm.def.playground) add((tm.def.playground.x + tm.def.playground.w / 2) * T, (tm.def.playground.z + tm.def.playground.d / 2) * T, 'landmark', 'Playground');
+    if (tm.def.pond) add((tm.def.pond.x + (tm.def.pond.w || 4) / 2) * T, (tm.def.pond.z + (tm.def.pond.d || 3) / 2) * T, 'landmark', 'Pond');
+    if (tm.def.kiosk) add(tm.def.kiosk.x * T + T / 2, tm.def.kiosk.z * T + T / 2, 'landmark', tm.def.kiosk.name || 'Kiosk');
+    for (const x of (tm.def.exits || [])) add(x.tiles[0][0] * T + T / 2, x.tiles[0][1] * T + T / 2, 'exit', (x.unlockStars ? '🔒 ' : '→ ') + (x.name || x.to));
+    builtFor = tm.def.id;
+  }
+
+  // Dynamic blips are rebuilt every refresh (a small, allocation-free set).
+  function addBlip(wx, wz, kind) {
+    const e = el('fm-label ' + kind, kind === 'depot' ? 'Q' : '');
+    labelsRoot.appendChild(e);
+    labels.push({ el: e, wx, wz, kind, dynamic: true });
+  }
+  function refreshDynamic() {
+    for (let i = labels.length - 1; i >= 0; i--) if (labels[i].dynamic) { labels[i].el.remove(); labels.splice(i, 1); }
     if (state.delivery) {
-      for (const t of state.delivery.targets) if (!t.delivered) dot(t.doormat.x, t.doormat.z, KIND_COLOR.target, 5);
+      for (const t of state.delivery.targets) if (!t.delivered) addBlip(t.doormat.x, t.doormat.z, 'target');
       const rz = state.world.def.restockZone;
-      dot(tm.cx((rz.x0 + rz.x1) / 2), tm.cz((rz.z0 + rz.z1) / 2), KIND_COLOR.pickup, 6);
-      // §2.17: the parcel lockers (teal=full, grey=empty for the rest of the shift).
-      const del = state.delivery;
-      if (del.lockerState && del.lockerBodies) for (let i = 0; i < del.lockerState.length; i++) {
-        dot(del.lockerBodies[i].wx, del.lockerBodies[i].wz, del.lockerState[i].full ? KIND_COLOR.locker : '#8d99ae', 5);
+      addBlip(tm.cx((rz.x0 + rz.x1) / 2), tm.cz((rz.z0 + rz.z1) / 2), 'pickup');
+      if (state.delivery.lockerState && state.delivery.lockerBodies) for (let i = 0; i < state.delivery.lockerState.length; i++) {
+        addBlip(state.delivery.lockerBodies[i].wx, state.delivery.lockerBodies[i].wz, state.delivery.lockerState[i].full ? 'locker' : 'empty');
       }
     }
     const depot = state.world.def.buildings.find((b) => b.kind === 'depot');
-    if (depot) letter('Q', tm.cx(depot.x + depot.w / 2), tm.cz(depot.z + depot.d / 2), KIND_COLOR.depot);
-    if (!state.delivery) for (const mk of state.world.def.missionMarkers) dot(tm.cx(mk.x), tm.cz(mk.z), mk.color, 5);
-    if (state.waypoint) { dot(state.waypoint.x, state.waypoint.z, KIND_COLOR.waypoint, 7); }
-    if (state.hazards && state.hazards.hiveSt) for (const h of state.hazards.hiveSt) if (h.state === 'angry') dot(h.x, h.z, KIND_COLOR.bee, 3);
-    if (p) {
-      // player arrow (rotated to its facing)
-      ctx.save(); ctx.translate(ox + p.pos.x * s, oy + p.pos.z * s); ctx.rotate(p.heading);
-      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#22223b'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(-5, 6); ctx.lineTo(5, 6); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.restore();
+    if (depot) addBlip(tm.cx(depot.x + depot.w / 2), tm.cz(depot.z + depot.d / 2), 'depot');
+    if (!state.delivery) for (const mk of state.world.def.missionMarkers) addBlip(tm.cx(mk.x), tm.cz(mk.z), 'marker');
+    if (state.waypoint) addBlip(state.waypoint.x, state.waypoint.z, 'waypoint');
+  }
+
+  function updateLabels() {
+    const w = window.innerWidth, h = window.innerHeight;
+    const dense = mapCam && mapCam.height() < 95; // street names get crowded up close
+    for (let i = 0; i < labels.length; i++) {
+      const L = labels[i];
+      if (L.kind === 'street' && dense) { L.el.style.display = 'none'; continue; }
+      proj.set(L.wx, 0, L.wz).project(camera);
+      const sx = (proj.x * 0.5 + 0.5) * w, sy = (-proj.y * 0.5 + 0.5) * h;
+      if (sx < -80 || sx > w + 80 || sy < -40 || sy > h + 40) { L.el.style.display = 'none'; continue; }
+      L.el.style.display = '';
+      L.el.style.transform = 'translate(' + sx.toFixed(0) + 'px,' + sy.toFixed(0) + 'px) translate(-50%,-50%)';
     }
   }
-  const toPx = (wx) => ox + wx * s, toPy = (wz) => oy + wz * s;
-  function dot(wx, wz, color, r) {
-    ctx.fillStyle = color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(toPx(wx), toPy(wz), r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  }
-  function letter(t, wx, wz, color) {
-    ctx.fillStyle = color; ctx.font = '800 16px ui-rounded, system-ui, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, toPx(wx), toPy(wz));
+
+  function screenToWorld(cx, cy) {
+    const w = window.innerWidth, h = window.innerHeight;
+    ndc.set((cx / w) * 2 - 1, -(cy / h) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const t = -ray.ray.origin.y / ray.ray.direction.y; // intersect the y=0 ground
+    return [ray.ray.origin.x + ray.ray.direction.x * t, ray.ray.origin.z + ray.ray.direction.z * t];
   }
 
-  function draw() {
-    fit();
-    ctx.fillStyle = '#1c2333'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(map.canvas, ox, oy, worldW * s, worldH * s);
-    drawBlips();
-  }
-
+  // --- input: zoom / pan / recenter / waypoint / close ---
+  let mapOpen = false, dragging = false, lastX = 0, lastY = 0;
   function onKey(e) {
     if (!mapOpen) return;
-    // M12a.8: Tab is a toggle handled by main.js (input 'map'); Escape closes here.
     if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key === 'f' || e.key === 'F') { const p = state.player; if (p) mapCam.recenter(p.pos.x, p.pos.z); }
   }
+  function onWheel(e) { if (!mapOpen) return; e.preventDefault(); mapCam.zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18); }
+  function onDown(e) { if (!mapOpen) return; dragging = true; lastX = e.clientX; lastY = e.clientY; }
+  function onMove(e) {
+    if (!mapOpen || !dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
+    const wpp = (2 * Math.tan((camera.fov * Math.PI / 180) / 2) * mapCam.height()) / window.innerHeight;
+    mapCam.pan(-dx * wpp, -dy * wpp); // grab-and-drag: the map follows the cursor
+  }
+  function onUp() { dragging = false; }
   function onClick(e) {
-    if (!mapOpen) return;
-    const r = canvas.getBoundingClientRect();
-    const wx = (e.clientX - r.left - ox) / s, wz = (e.clientY - r.top - oy) / s;
-    const tx = Math.floor(wx / tm.tileSize), tz = Math.floor(wz / tm.tileSize);
+    if (!mapOpen || dragging) return;
+    const [wx, wz] = screenToWorld(e.clientX, e.clientY);
+    const tx = Math.floor(wx / T), tz = Math.floor(wz / T);
     if (state.waypoint) {
       const dx = Math.abs(state.waypoint.x - tm.cx(tx)), dz = Math.abs(state.waypoint.z - tm.cz(tz));
-      if (dx < tm.tileSize && dz < tm.tileSize) { radar.clearWaypoint(); return; }
+      if (dx < T && dz < T) { radar.clearWaypoint(); refreshDynamic(); return; }
     }
-    radar.setWaypoint(tx, tz);
+    radar.setWaypoint(tx, tz); refreshDynamic();
   }
   window.addEventListener('keydown', onKey);
-  canvas.addEventListener('click', onClick);
+  root.addEventListener('wheel', onWheel, { passive: false });
+  root.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  root.addEventListener('click', onClick);
 
+  // --- open / close ---
   function open() {
     if (mapOpen) return;
     mapOpen = true;
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     root.style.display = 'block';
     root.style.pointerEvents = 'auto';
-    onPause(true);
-    if (onOpen) onOpen(); // M15a.8: show the region-map card inside the full map
-    draw();
+    if (builtFor !== tm.def.id) { buildLabels(); refreshDynamic(); }
+    const p = state.player;
+    if (mapCam && p) mapCam.enter(p.pos.x, p.pos.z, fitHeight());
+    if (onMode) onMode(true);   // main.js: top-down cam, fog off, HUD hidden, sim live
+    if (onOpen) onOpen();
+    updateLabels(); // position the labels immediately (the cam is snapped on enter)
   }
   function close() {
     if (!mapOpen) return;
     mapOpen = false;
     root.style.display = 'none';
     root.style.pointerEvents = 'none';
-    onPause(false);
-    if (onClose) onClose(); // M15a.8: hide the region-map card
+    if (onMode) onMode(false);  // main.js: restore follow cam + fog + HUD
+    if (onClose) onClose();
   }
   function tick(dt) {
     if (!mapOpen) return;
-    acc += dt;
-    if (acc >= 1 / 15) { acc = 0; draw(); }
+    updateLabels(); // projected each frame (~30 Hz, matches the render cap)
   }
   function dispose() {
     window.removeEventListener('keydown', onKey);
-    canvas.removeEventListener('click', onClick);
+    root.removeEventListener('wheel', onWheel);
+    root.removeEventListener('pointerdown', onDown);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    root.removeEventListener('click', onClick);
   }
-  return { open, close, isOpen: () => mapOpen, tick, dispose };
+  return { open, close, isOpen: () => mapOpen, tick, dispose, refreshDynamic };
 }

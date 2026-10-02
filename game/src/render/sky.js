@@ -88,10 +88,14 @@ export function createSky(scene, preset, region) {
   return {
     apply(p) {
       applyColors(p);
-      scene.fog.color.set(p.skyHorizon);
+      if (scene.fog) scene.fog.color.set(p.skyHorizon); // M15a.18: fog is off in the map / menu showcase
     },
     update,
     follow,
+    // M15a.18: hide the dome + clouds (the full map / title show a clean background
+    // instead of the horizon-color "void" the dome leaves past the ground).
+    setVisible(on) { skyMesh.visible = on; clouds.visible = on; },
+    get visible() { return skyMesh.visible; },
     // §2.18: free the sky dome + clouds + their materials/textures on unload.
     dispose() {
       scene.remove(skyMesh, clouds);

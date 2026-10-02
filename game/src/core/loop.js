@@ -4,7 +4,9 @@ const FPS_WINDOW = 120;
 
 // Fixed-step simulation (60 Hz) with a frame-rate capped renderer.
 // update(dt) runs in fixed steps; render() only when the frame cap allows.
-export function createLoop({ update, render, targetFps = 60 }) {
+// M15a.18: `getFps` (optional) is polled each frame so the cap can drop to
+// 30 fps while the full map is open (the sim still runs at 60 Hz).
+export function createLoop({ update, render, targetFps = 60, getFps }) {
   let acc = 0;
   let lastTime = 0;
   let lastRender = 0;
@@ -47,7 +49,8 @@ export function createLoop({ update, render, targetFps = 60 }) {
       acc -= STEP;
       steps++;
     }
-    if (now - lastRender >= 1000 / targetFps - 1) {
+    const cap = getFps ? getFps() : targetFps;
+    if (now - lastRender >= 1000 / cap - 1) {
       lastRender = now;
       render();
       times[tIdx] = now;

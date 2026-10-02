@@ -5,6 +5,10 @@
 
 import { renderMapCanvas } from './mapcanvas.js';
 
+// M15a.18: the base map is the 3D snapshot when `mapBase` is provided; otherwise
+// it falls back to the old hand-painted 6px/tile bitmap (a safety net).
+function baseCanvas(mapBase, tm) { return mapBase || renderMapCanvas(tm).canvas; }
+
 const S = 200;      // logical CSS size
 const SCALE = 2;    // internal device pixels for crispness
 const C = S / 2;    // center
@@ -15,10 +19,26 @@ const PPU = R / RANGE; // pixels per world unit
 // Blip colors (§10). The white outline is drawn around each marker.
 const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d', lockerFull: '#00b4a6', lockerEmpty: '#8d99ae' };
 
-export function createRadar({ tm, state, ui }) {
-  const map = renderMapCanvas(tm);
+export function createRadar({ tm, state, ui, mapBase }) {
+  let mapCanvas = baseCanvas(mapBase, tm);
   const W = tm.width, H = tm.height;
   const worldW = W * tm.tileSize, worldH = H * tm.tileSize; // world units
+  const roads = (tm.def.roads || []); // M15a.18: the 1-2 nearest street names
+
+  // M15a.18: the two roads nearest the player (perpendicular distance, only
+  // within each road's span). A 2-min scan — no allocation, called at 15 Hz.
+  function twoNearestRoads(px, pz) {
+    const T = tm.tileSize;
+    let bestA = -1, bestB = -1, da = 1e9, db = 1e9;
+    for (let i = 0; i < roads.length; i++) {
+      const r = roads[i]; let d;
+      if (r.axis === 'x') { if (px < (r.x0 - 1) * T || px > (r.x1 + 1) * T) continue; d = Math.abs(pz - r.z * T); }
+      else { if (pz < (r.z0 - 1) * T || pz > (r.z1 + 1) * T) continue; d = Math.abs(px - r.x * T); }
+      if (d < da) { db = da; bestB = bestA; da = d; bestA = i; }
+      else if (d < db) { db = d; bestB = i; }
+    }
+    return [bestA, bestB];
+  }
 
   // Preallocated BFS + route buffers (no per-frame allocation; the route is
   // recomputed only when the player's tile or the objective tile changes).
@@ -182,7 +202,7 @@ export function createRadar({ tm, state, ui }) {
     ctx.fillStyle = '#26362a'; ctx.fill();
     ctx.translate(C, C);
     ctx.rotate(-p.heading); // the facing direction is "up"; N tick tracks north
-    ctx.drawImage(map.canvas, -px * PPU, -pz * PPU, worldW * PPU, worldH * PPU);
+    ctx.drawImage(mapCanvas, -px * PPU, -pz * PPU, worldW * PPU, worldH * PPU);
     if (routeLen > 1) {
       ctx.strokeStyle = '#00b4a6'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo((routeX[0] - px) * PPU, (routeZ[0] - pz) * PPU);
@@ -201,6 +221,16 @@ export function createRadar({ tm, state, ui }) {
     ctx.fillStyle = '#fff'; ctx.strokeStyle = '#22223b'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(C, C - 8); ctx.lineTo(C - 5, C + 6); ctx.lineTo(C + 5, C + 6); ctx.closePath();
     ctx.fill(); ctx.stroke();
+    // M15a.18: the 1-2 nearest street names, screen-space (below the disc, not
+    // rotated) so they stay legible while the radar rotates with the courier.
+    const near = twoNearestRoads(px, pz);
+    ctx.font = '700 11px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3;
+    for (let i = 0; i < near.length && i < 2; i++) {
+      const idx = near[i]; if (idx < 0) continue;
+      const y = S - 24 + i * 12;
+      ctx.strokeText(roads[idx].name, C, y); ctx.fillStyle = '#fff'; ctx.fillText(roads[idx].name, C, y); ctx.fillStyle = '#fff';
+    }
     // M12a.9: the heat whistles moved to a DOM row above the radar (main.js) —
     // the old in-canvas 4px dots on the white rim were effectively invisible.
   }
@@ -216,6 +246,8 @@ export function createRadar({ tm, state, ui }) {
     draw();
   }
   function clearWaypoint() { state.waypoint = null; draw(); }
+  // M15a.18: swap the base map when the suburb changes (a fresh 3D snapshot).
+  function setBase(canvas) { mapCanvas = canvas; draw(); }
 
-  return { canvas, tick, setWaypoint, clearWaypoint };
+  return { canvas, tick, setWaypoint, clearWaypoint, setBase };
 }

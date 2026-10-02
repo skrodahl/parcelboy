@@ -43,6 +43,12 @@ export function createDebugHooks(ctx) {
       };
     },
     setCam(name) { ctx.camPreset(name); },
+    // M15a.18: open / close the live full map and drive its top-down camera.
+    openMap() { if (ctx.fullMap) ctx.fullMap.open(); },
+    closeMap() { if (ctx.fullMap) ctx.fullMap.close(); },
+    mapZoom(f) { if (ctx.mapCam) ctx.mapCam.zoom(f); },
+    mapPan(dx, dz) { if (ctx.mapCam) ctx.mapCam.pan(dx, dz); },
+    mapRecenter() { const p = R.player; if (ctx.mapCam && p) ctx.mapCam.recenter(p.pos.x, p.pos.z); },
     // frame an arbitrary world point (a close-up for the shots).
     camAt(wx, wz, dist, up) {
       const c = camera, cl = camLook;

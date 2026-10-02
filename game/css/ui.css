@@ -26,6 +26,12 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
   -webkit-text-stroke: 0;
   clip-path: polygon(0% 45%, 8% 25%, 3% 8%, 20% 12%, 30% 0%, 40% 14%, 55% 4%, 62% 18%, 78% 8%, 84% 24%, 100% 20%, 92% 42%, 100% 58%, 86% 60%, 92% 80%, 74% 74%, 66% 92%, 54% 78%, 40% 90%, 34% 74%, 18% 82%, 22% 62%, 6% 66%);
 }
+/* M15a.18: while the full map or a menu screen is up, hide the in-play HUD — the
+   live 3D world (or the map) shows through behind it. Toggled on #ui. */
+.pb-hud-hidden .hud-chip, .pb-hud-hidden .hud-coins, .pb-hud-hidden .hud-golden,
+.pb-hud-hidden .hud-diff, .pb-hud-hidden .hud-mission, .pb-hud-hidden .hud-clock,
+.pb-hud-hidden .ability-btn, .pb-hud-hidden .heat-row, .pb-hud-hidden .radar,
+.pb-hud-hidden .pb-banner, .pb-hud-hidden .watch-popup { display: none !important; }
 /* §2.13 + §10: the free-roam HUD chip + coins, and the mission HUD panel. */
 .hud-chip {
   position: fixed; top: 12px; left: 12px;
@@ -256,22 +262,44 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .watch-popup .watch-popup-sub { font-size: 13px; opacity: 0.92; }
 .watch-popup.show { animation: pbBannerPop 0.3s ease-out; }
 .watch-popup.fade { opacity: 0; transition: opacity 0.4s; }
-/* §10: the full-screen map (Tab). Dark letterbox, the map centered, legend top-left. */
+/* §10 + M15a.18: the full map (Tab) is the LIVE 3D world from above. The overlay
+   is transparent (the scene renders behind it); only a soft edge vignette darkens
+   the corners so the DOM labels read. Labels project from world positions each
+   frame; the legend is a compact strip. */
 .fullmap {
   position: fixed; inset: 0; display: none; pointer-events: auto;
-  background: rgba(28, 35, 51, 0.92);
+  background: radial-gradient(120% 120% at 50% 45%, rgba(0,0,0,0) 55%, rgba(16,20,30,0.35) 100%);
   font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
 }
-.fullmap canvas { position: absolute; inset: 0; }
-.fullmap .fm-legend {
-  position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column;
-  gap: 5px; color: #fff; background: rgba(24, 24, 38, 0.72); padding: 10px 12px;
-  border-radius: 10px; font: 600 13px/1.4 inherit;
+.fullmap .fm-labels { position: absolute; inset: 0; pointer-events: none; }
+.fullmap .fm-label {
+  position: absolute; left: 0; top: 0; white-space: nowrap; will-change: transform;
+  font: 700 12px/1 inherit; color: #fff; letter-spacing: 0.3px;
+  text-shadow: 0 0 3px #22223b, 0 1px 2px rgba(0,0,0,0.7); -webkit-text-stroke: 0.6px rgba(34,34,59,0.5);
+  pointer-events: none;
 }
-.fullmap .fm-legend b { color: #ffbe0b; font-size: 15px; }
-.fullmap .fm-legend span { display: flex; align-items: center; gap: 7px; }
-.fullmap .fm-legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
-.fullmap .fm-hint { color: #9fb4c9; font-size: 11px; margin-top: 4px; }
+.fullmap .fm-label.street { font-weight: 600; font-size: 11px; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.8px; }
+.fullmap .fm-label.landmark { color: #fff; }
+.fullmap .fm-label.exit { color: #ffd166; font-weight: 800; }
+.fullmap .fm-label.waypoint { color: #ff5d5d; font-weight: 800; }
+.fullmap .fm-label.target, .fullmap .fm-label.locker { color: #00b4a6; font-weight: 800; }
+.fullmap .fm-label.pickup { color: #ffbe0b; font-weight: 800; }
+.fullmap .fm-label.marker { color: #8338ec; font-weight: 800; }
+.fullmap .fm-label.bee { color: #ffe14d; font-weight: 800; }
+.fullmap .fm-suburb {
+  position: absolute; top: 14px; left: 16px; pointer-events: none;
+  font: 800 26px/1 inherit; color: #fff; letter-spacing: 0.5px;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.6), 0 0 2px #22223b;
+}
+.fullmap .fm-legend {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: center;
+  color: #fff; background: rgba(24, 24, 38, 0.72); padding: 8px 14px;
+  border-radius: 10px; font: 600 12px/1 inherit; max-width: 90vw;
+}
+.fullmap .fm-legend span { display: flex; align-items: center; gap: 6px; }
+.fullmap .fm-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.fullmap .fm-hint { color: #9fb4c9; font-size: 11px; }
 /* §2.15: the BUSTED! "ticket" — a comic card that pops up during the freeze. */
 .busted-ticket {
   position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%) rotate(-3deg);
