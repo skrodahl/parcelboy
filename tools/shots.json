@@ -811,6 +811,14 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-sign-back",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.camFree(85, 10, 90.5, 10, 6);"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-skater",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
     "eval": [

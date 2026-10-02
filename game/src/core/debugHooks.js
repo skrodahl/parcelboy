@@ -54,6 +54,18 @@ export function createDebugHooks(ctx) {
       const dd = c.position.distanceTo(cl);
       if (scene && scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
     },
+    // Free camera: sit at (px, up, pz) and look at (tx, 1.3, tz). For shots
+    // that need a specific facing (e.g. a sign's back, which camAt's NE
+    // vantage can't reach).
+    camFree(px, pz, tx, tz, up) {
+      const c = camera, cl = camLook;
+      const u = up || 4.5;
+      c.position.set(px, u, pz);
+      c.lookAt(tx, 1.3, tz);
+      cl.set(tx, 1.3, tz);
+      const dd = c.position.distanceTo(cl);
+      if (scene && scene.fog) { scene.fog.near = dd + 45; scene.fog.far = dd + 150; }
+    },
     setTimeOfDay() {},
     teleport(tileX, tileZ, headingDeg) {
       const p = R.player;

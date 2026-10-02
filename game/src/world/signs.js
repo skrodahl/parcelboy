@@ -135,12 +135,19 @@ export function addStreetSigns(grid, tm, signQuads) {
       else { wx = tm.minX(r.x) - 0.7; wz = tm.cz(r.z0); }
     }
     const ch = grid.chunkAt(Math.floor(wx / T), Math.floor(wz / T));
+    const out = r.axis === 'x' ? [0, 0, 1] : [1, 0, 0]; // which way the sign "faces"
     ch.opaque.box(wx, 0, wz, 0.12, H, 0.12, '#4a4e69', { skipFaces: ['bottom'] });
-    signQuads.push({
-      rectKey: 'plate:' + i,
-      x: wx, y: H - 1.2, z: wz, w: 2.4, h: 2.4,
-      face: r.axis === 'x' ? [0, 0, 1] : [1, 0, 0],
-    });
+    // M15a.6: the sign is a thin plate, readable from BOTH sides. A quad built
+    // with face P has its textured (CCW) side pointing at -P, so each side gets
+    // its own outward quad: face=-out on the +out side, face=+out on the -out
+    // side. Opposite faces flip the tangent, so both read left-to-right — no
+    // separate UV flip needed. A thin solid plate box fills the gap.
+    const sy = H - 1.2;
+    const alongX = out[0] !== 0; // the plate's thin axis runs along out
+    ch.opaque.box(wx, sy, wz, alongX ? 0.1 : 2.4, 2.4, alongX ? 2.4 : 0.1, C.plate, { skipFaces: ['bottom'] });
+    const o = 0.07; // each quad floats just off the plate face
+    signQuads.push({ rectKey: 'plate:' + i, x: wx + out[0] * o, y: sy, z: wz + out[2] * o, w: 2.4, h: 2.4, face: [-out[0], -out[1], -out[2]], flip: true });
+    signQuads.push({ rectKey: 'plate:' + i, x: wx - out[0] * o, y: sy, z: wz - out[2] * o, w: 2.4, h: 2.4, face: [out[0], out[1], out[2]], flip: true });
   });
 }
 
@@ -174,10 +181,15 @@ export function buildSignMesh(quads, atlasSpec) {
     ];
     for (let k = 0; k < 4; k++) pos.push(cx + corners[k][0], cy + corners[k][1], cz + corners[k][2]);
     for (let k = 0; k < 4; k++) nor.push(f[0], f[1], f[2]);
-    // Corners 0/3 sit on the -tan side (screen right for our cam-facing
-    // faces) and 1/2 on the +tan side, so the texture's left edge (u) goes on
-    // corners 1/2. Getting this backwards mirrors the text.
-    uv.push(rect.u + rect.w, rect.v, rect.u, rect.v, rect.u, rect.v + rect.h, rect.u + rect.w, rect.v + rect.h);
+    // Corners 0/3 sit on the -tan side and 1/2 on the +tan side. For a
+    // cam-facing face the texture's left edge (u) must land on the viewer's
+    // screen-left, which is the -tan side — so `flip` puts u on corners 0/3.
+    // Two-sided street signs (M15a.6) set flip on both back-to-back quads.
+    if (q.flip) {
+      uv.push(rect.u, rect.v, rect.u + rect.w, rect.v, rect.u + rect.w, rect.v + rect.h, rect.u, rect.v + rect.h);
+    } else {
+      uv.push(rect.u + rect.w, rect.v, rect.u, rect.v, rect.u, rect.v + rect.h, rect.u + rect.w, rect.v + rect.h);
+    }
     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
   const geo = new THREE.BufferGeometry();
@@ -185,6 +197,17 @@ export function buildSignMesh(quads, atlasSpec) {
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
+  // FrontSide: each two-sided sign is two back-to-back quads (see M15a.6);
+  // single-face wall signs only ever show their outward face.
+  // FrontSide: two-sided signs are two back-to-back quads (M15a.6); single
+  // wall signs only ever show their outward face.
+  // DoubleSide (M15a.6 decision): two-sided street signs are two back-to-back
+  // quads, each readable from its side. We keep DoubleSide (not FrontSide, as
+  // the plan suggested) because every single-quad sign (van logo, QUICKBOX
+  // depot sign, shop signs, mailbox numbers) has its FrontSide/CCW face
+  // pointing AWAY from the street, so FrontSide would cull them. DoubleSide
+  // renders all of them correctly (the mirrored back faces of single-quad
+  // signs are on building/van undersides the player never sees).
   const mat = new THREE.MeshBasicMaterial({ map: atlas.texture, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'signs';
