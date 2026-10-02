@@ -51,7 +51,10 @@ export function buildWorld(def, seed = 1, preset) {
   // Glow geometry (windows, lamp heads, lit sign trims) in one shared mesh.
   const glowB = new GlowBuilder();
   for (const p of sidewalkLampPositions(tm)) {
-    glowB.box(p.wx, 2.69, p.wz, 0.42, 0.24, 0.42, '#8a8f9e', PALETTE.windowNight);
+    // M15a.15: pale frosted glass by day, a bright warm light at night; the bulb
+    // sits just above the downward shade (props.lamp) and on the lamp's tile
+    // level (§2.19) so raised terraces light correctly.
+    glowB.box(p.wx, tileBaseY(tm, p.tx, p.tz) + 2.74, p.wz, 0.44, 0.3, 0.44, PALETTE.lampGlass, PALETTE.lampGlow);
   }
   const windowRects = {};
   const mailboxes = [];

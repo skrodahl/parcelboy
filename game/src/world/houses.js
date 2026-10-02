@@ -182,7 +182,7 @@ function mailbox(op, gl) {
   op.box(x, 0.12, z, 0.12, 0.8, 0.12, '#4a4e69', { skipFaces: ['bottom'] });
   op.box(x, 0.92, z, 0.55, 0.4, 0.45, '#f8f4ea', { skipFaces: ['bottom'] });
   op.box(-1.6, 0.12, 5.2, 0.1, 1.1, 0.1, '#4a4e69', { skipFaces: ['bottom'] }); // lamp post
-  gl.box(-1.6, 1.22, 5.2, 0.26, 0.24, 0.26, '#8a8f9e', PALETTE.windowNight); // lamp head
+  gl.box(-1.6, 1.22, 5.2, 0.26, 0.24, 0.26, PALETTE.lampGlass, PALETTE.lampGlow); // lamp head (M15a.15: bright + warm)
 }
 
 const _v = new THREE.Vector3();

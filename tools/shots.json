@@ -868,6 +868,30 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-lamps-day",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "(function(){ __pb.setClock(720); __pb.step(4); var L = __pb.lampPositions(); if (L.length) { __pb.camAt(L[0][0], L[0][1], 8, 3.2); } })();"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-lamps-night",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "(function(){ __pb.setClock(1320); __pb.step(4); var L = __pb.lampPositions(); if (L.length) { __pb.camAt(L[0][0], L[0][1], 8, 3.2); } })();"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-lamps-mission",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "(function(){ __pb.setClock(1020); __pb.startShift('dusk'); __pb.step(2); __pb.setClock(1260); __pb.step(4); var L = __pb.lampPositions(); if (L.length) { __pb.camAt(L[0][0], L[0][1], 9, 3.4); } })();"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-card-stars",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=0",
     "eval": [

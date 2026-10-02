@@ -9,6 +9,8 @@ export const PALETTE = {
   roof: ['#e76f51', '#6d597a', '#355070', '#b56576', '#2a9d8f', '#8d99ae'],
   door: ['#ef476f', '#118ab2', '#06d6a0', '#ffd166', '#073b4c'],
   trim: '#fffaf0', windowDay: '#bde0fe', windowNight: '#ffe8a3',
+  // M15a.15: lamp glass — pale frosted globe by day, a bright warm light at night.
+  lampGlass: '#d5e0ec', lampGlow: '#ffd98a',
   brand: '#00b4a6', brandAccent: '#ffbe0b', parcel: '#c8925a', parcelTape: '#00b4a6',
   // §2.19 terrain: retaining walls + ramp/stair surfaces.
   stone: '#c9bda8', rampConcrete: '#d8cfc4',

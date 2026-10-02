@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PARCEL } from '../data/config.js';
+import { sidewalkLampPositions } from '../world/props.js';
 
 // §2.11 + M12a.5: the `window.__pb` debug hooks, extracted from main.js so the
 // orchestration file stays small. `ctx` exposes the live module refs — the
@@ -95,6 +96,13 @@ export function createDebugHooks(ctx) {
       if (!w || !w.lockerBodies) return [];
       const d = R.delivery;
       return w.lockerBodies.map((b, i) => ({ i, wx: b.wx, wz: b.wz, full: d ? d.lockerState[i].full : true }));
+    },
+    // M15a.15: the sidewalk lamp positions (world x,z) so a shot can frame a real
+    // lamp and confirm it lights up at night.
+    lampPositions() {
+      const w = R.world;
+      if (!w || !w.tilemap) return [];
+      return sidewalkLampPositions(w.tilemap).map((p) => [ +p.wx.toFixed(2), +p.wz.toFixed(2) ]);
     },
     // §2.17: view a locker (frame the cabinet with a fixed close-up cam).
     lockerView(i) {

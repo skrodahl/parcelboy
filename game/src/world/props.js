@@ -10,8 +10,13 @@ const T = 4;
 const Y = 0.0; // props sit on the raised sidewalk (0.12) where placed; base given per call
 
 function lamp(b, wx, wz, baseY) {
-  b.box(wx, baseY, wz, 0.14, 2.6, 0.14, '#4a4e69', { skipFaces: ['bottom'] });
-  b.box(wx, baseY + 2.55, wz, 0.5, 0.28, 0.5, '#2f333d', { skipFaces: ['bottom'] });
+  b.box(wx, baseY, wz, 0.14, 2.6, 0.14, '#4a4e69', { skipFaces: ['bottom'] }); // post
+  // M15a.15: a downward shade (three voxel steps, widening upward) under the bulb
+  // so the lamp reads as a lamp. The glowing bulb itself is the bright box in the
+  // glow mesh (worldBuilder), sitting just above this shade.
+  b.box(wx, baseY + 2.52, wz, 0.5, 0.1, 0.5, '#2f333d', { skipFaces: ['bottom'] });
+  b.box(wx, baseY + 2.42, wz, 0.38, 0.1, 0.38, '#2f333d', { skipFaces: ['bottom'] });
+  b.box(wx, baseY + 2.32, wz, 0.26, 0.1, 0.26, '#2f333d', { skipFaces: ['bottom'] });
 }
 
 function hydrant(b, wx, wz, baseY) {

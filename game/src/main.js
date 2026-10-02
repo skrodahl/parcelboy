@@ -1127,10 +1127,12 @@ function simStep(dt) {
   // day cycle (a mission holds its own time of day, so it only ticks in free roam).
   if (collectibles && player) collectibles.tick(dt, simTime, player);
   // §2.20 / M15a.11: the world clock always advances (free roam AND missions).
-  // It drives the time-of-day mood and now the day cycle runs in free roam (M15a.15
-  // extends that to missions). No bench fast-forward — missions are any time.
+  // M15a.15: the clock is the truth, so it drives the lighting, glow and lamp
+  // pools ALWAYS — in free roam and in missions alike (a mission started in the
+  // afternoon now turns to night when the clock passes 21:00). No bench
+  // fast-forward — missions are any time.
   if (dayClock) dayClock.tick(dt);
-  if (dayClock && dayCycle && !mission && !delivery) {
+  if (dayClock && dayCycle) {
     const pb = dayClock.presetBlend();
     dayCycle.setPhase(pb.idx, pb.frac);
     setCricketsForPreset(TIMES_OF_DAY[pb.idx]);
