@@ -354,7 +354,9 @@ export function createDebugHooks(ctx) {
     },
     speedLines() { const p = R.player, se = R.sharedEffects; if (!p || !se) return false; se.speedLines(p.pos.x, p.pos.z, Math.sin(p.heading) * 9, -Math.cos(p.heading) * 9); return true; },
     celebrate() { const p = R.player, se = R.sharedEffects; if (!p || !se) return false; se.celebrate(p.pos.x, 1, p.pos.z); return true; },
-    autoplay() { return ctx.autoplayRun(); },
+    // M15a.16: `autoplay()` is the normal autoplayer (real-courier pace, ~1★);
+    // `autoplay({ doorstepOnly: true })` is the careful player (finishes everything).
+    autoplay(opts) { return ctx.autoplayRun(opts); },
     debugCars() { const h = R.hazards; return h ? h.carDebug() : []; },
     playerPos() { const p = R.player; return p ? [ +p.pos.x.toFixed(2), +p.pos.z.toFixed(2) ] : null; },
     holdF(on) { input.forceHeld('doorstep', !!on); return !!on; },

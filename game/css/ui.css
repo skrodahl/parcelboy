@@ -154,6 +154,13 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .results-stars { font: 800 34px/1 inherit; color: #ffbe0b; letter-spacing: 6px; }
 .results-score { font: 800 26px/1 inherit; }
 .results-detail { font: 600 15px/1.4 inherit; color: #ff7b9c; }
+/* M15a.16: the three star conditions as a ✓/✗ checklist on the report. */
+.results-check { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.results-check-line { font: 700 16px/1.2 inherit; color: #fff; display: flex; align-items: baseline; gap: 4px; }
+.rc-label { color: #fff; }
+.rc-mark.ok { color: #7cfc00; }
+.rc-mark.no { color: #ff7b9c; }
+.rc-note { font: 600 13px/1 inherit; color: rgba(255,255,255,0.6); }
 .results-btn {
   margin-top: 10px; font: 800 16px/1 inherit; color: #22223b;
   background: #ffbe0b; border: 0; border-radius: 10px; padding: 10px 22px;
@@ -440,6 +447,12 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .as-card-teaser { font: 700 12px/1 inherit; color: #ffd166; } /* M15a.11: the "Evenings only" teaser */
 .as-card-lock { font: 800 12px/1 inherit; color: #b388ff; }
 .as-card-detail { font: 600 12px/1.3 inherit; color: #fff; }
+/* M15a.16: the three star goals — revealed on the focused (big) card only. */
+.as-card-stars { display: none; flex-direction: column; gap: 2px; margin-top: 2px; }
+.as-card.big .as-card-stars { display: flex; }
+.as-card-star { font: 700 11px/1.2 inherit; color: #ffd166; }
+.as-card-star:nth-child(2) { color: #4dd0e1; }
+.as-card-star:nth-child(3) { color: #ff8fab; }
 .as-nav {
   position: absolute; top: 44%; z-index: 2; font: 800 26px/1 inherit; color: rgba(255,255,255,0.5);
   width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;

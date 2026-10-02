@@ -868,6 +868,30 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-card-stars",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=0",
+    "eval": [
+      "__pb.setClock(480); __pb.nearMarker('dispatch'); __pb.openStrip('dispatch', { focus: 'morning' }); __pb.step(4); __pb.setCam('follow');"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-report-stars",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1&stars=0",
+    "eval": [
+      "__pb.startShift('morning'); var r = __pb.autoplay(); if (!(r.res.stars >= 1)) throw new Error('normal autoplayer got ' + r.res.stars + ' stars, expected >= 1'); __pb.setCam('follow');"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-autoplay-careful",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1&stars=0",
+    "eval": [
+      "__pb.startShift('morning'); var r = __pb.autoplay({ doorstepOnly: true }); if (!(r.res.stars >= 2)) throw new Error('careful player got ' + r.res.stars + ' stars, expected >= 2'); __pb.setCam('follow');"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-skater",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
     "eval": [

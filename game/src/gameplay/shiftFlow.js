@@ -41,6 +41,17 @@ export function createShiftFlow(ctx) {
     const h = (n) => ((n < 10 ? '0' : '') + n);
     return 'Evenings only · ' + h(s.availableHours[0]) + ':00–' + h(s.availableHours[1]) + ':00';
   }
+  // M15a.16: the three star conditions for a finished shift, as [label, met, note].
+  // 1★ = at least ~70% delivered (needOne), 2★ = all delivered, 3★ = all + score ≥ style.
+  function starCheck(res) {
+    const met2 = res.delivered >= res.total;
+    const met3 = met2 && res.score >= res.styleThreshold;
+    return [
+      ['Delivered ' + res.needOne + ' of ' + res.total, res.delivered >= res.needOne, ''],
+      ['All delivered', met2, met2 ? '' : '(' + res.delivered + '/' + res.total + ')'],
+      ['Style ' + res.styleThreshold, met3, met3 ? '' : '(' + res.score + ')'],
+    ];
+  }
   function mcRenderList() {
     if (!mcList) return;
     const list = mcShifts(mcMarker);
@@ -139,6 +150,16 @@ export function createShiftFlow(ctx) {
       el('div', 'results-score', 'Score ' + res.score + bonus),
       el('div', 'results-detail', res.delivered + '/' + res.total + ' delivered · +' + res.coins + ' coins' + backNote),
     );
+    // M15a.16: the three star conditions as a ✓/✗ checklist, so the player sees
+    // exactly what the next star needs.
+    const chk = el('div', 'results-check');
+    for (const p of starCheck(res)) {
+      const row = el('div', 'results-check-line');
+      row.append(el('span', 'rc-label', p[0]), el('span', p[1] ? 'rc-mark ok' : 'rc-mark no', p[1] ? '✓' : '✗'));
+      if (p[2]) row.append(el('span', 'rc-note', ' ' + p[2]));
+      chk.append(row);
+    }
+    resultsEl.append(chk);
     const btnC = el('button', 'results-btn', 'Continue');
     const btnR = el('button', 'results-btn', 'Retry');
     btnC.onclick = () => { resultsEl.remove(); resultsEl = null; };

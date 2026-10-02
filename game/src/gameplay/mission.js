@@ -126,13 +126,21 @@ export function createMission(env) {
     }
     const base = session ? session.scoring.score : 0;
     const score = base + timeBonus;
-    const th = shift.stars || [1, 2, 3];
+    // M15a.16: stars reward delivering first, style second.
+    // 1★ = at least ~`deliveredFrac` of the parcels delivered (rounded up);
+    // 2★ = every parcel delivered; 3★ = every parcel delivered AND
+    // score ≥ the mission's `style` threshold.
+    const st = shift.stars || { deliveredFrac: 0.7, style: 0 };
+    const needOne = Math.ceil(total * st.deliveredFrac);
     let stars = 0;
-    for (let i = th.length - 1; i >= 0; i--) if (score >= th[i]) { stars = i + 1; break; }
+    if (delivered >= total) stars = 2;
+    else if (delivered >= needOne) stars = 1;
+    if (stars === 2 && score >= st.style) stars = 3;
     const coins = Math.max(0, Math.floor(score / 10)); // §2.6 (never negative)
     const res = {
       shift: shift.id, score, timeBonus, stars, coins, delivered, total, success,
       tip, hoursOut: !success && hoursRanOut(), base,
+      needOne, styleThreshold: st.style,
     };
     lastRes = res;
     if (env.onResults) env.onResults(res);

@@ -939,7 +939,7 @@ function routeScreen(name, params) {
   // M15a.8: the select screens + dispatch card are the shared action strip now.
   else if (name === 'selectCourier') { openStripFor('locker', { row: 0 }); }
   else if (name === 'selectVehicle') { openStripFor('locker', { row: 1 }); }
-  else if (name === 'results') { showResults({ shift: 'morning', success: true, score: 3420, stars: 3, coins: 340, timeBonus: 120, delivered: 10, total: 10 }); }
+  else if (name === 'results') { showResults({ shift: 'morning', success: true, score: 3420, stars: 3, coins: 340, timeBonus: 120, delivered: 10, total: 10, needOne: 7, styleThreshold: 1900 }); }
   else if (name === 'settings') { screens.show('settings'); screens.buildSettings(qualityName); }
   else if (name === 'howTo') { screens.show('howTo'); }
   else if (name === 'pause') { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; }
@@ -1107,9 +1107,15 @@ function autoplayerRestock() {
   for (let r = 0; r < 75; r++) simStep(1 / 60); // ~1.25 s: the 1.0 s restock ring fills
 }
 
-function autoplayRun() {
+// M15a.16: `autoplayRun({ doorstepOnly: true })` is the "careful player" — it
+// walks to every door and hands over, never throws, and does NOT burn the
+// 45% "reposition / look for the next target" time the normal autoplayer does.
+// It finishes the whole shift, so it earns the "all delivered" star. The normal
+// autoplayer (no opts) keeps the real-courier pace and is the ~1★ baseline.
+function autoplayRun(opts) {
   if (!delivery || !player || !mission) return null;
   const m = mission, d = delivery; // endShift (on the auto-end) nulls the module vars; keep refs
+  const doorstepOnly = !!(opts && opts.doorstepOnly);
   const T = 1 / 60;
   const outcomes = [];
   let lastRes = null, guard = 0, lastTid = '', retries = 0;
@@ -1140,7 +1146,8 @@ function autoplayRun() {
     if (d.lastResult) outcomes.push(d.lastResult.outcome);
     // A "reposition / look for the next target" pause burns ~45% of the shift's
     // window spread across the deliveries, so the autoplayer plays at a real-courier pace.
-    const reposition = Math.floor((m.shiftSpanMin * 0.45) / T / Math.max(1, d.targets.length));
+    // The careful player (doorstepOnly) skips the burn and finishes everything.
+    const reposition = doorstepOnly ? 0 : Math.floor((m.shiftSpanMin * 0.45) / T / Math.max(1, d.targets.length));
     for (let p = 0; p < reposition && !m.lastResult; p++) simStep(T);
   }
   if (!lastRes) { m.end(); lastRes = m.lastResult; }

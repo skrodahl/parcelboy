@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { starNeed } from '../data/shifts.js';
 
 // M15a.8: one shared "action strip" component replaces the dispatch card and the
 // courier/vehicle select screens. It is used by every in-world interactive spot:
@@ -138,7 +139,15 @@ export function createActionStrip(ctx) {
     else {
       const best = progress.bestFor(s.id).stars;
       c.append(el('div', 'as-card-go', best ? best + '★ best' : 'Ready'));
-      c.append(el('div', 'as-card-detail', ''));
+      // M15a.16: the three star goals (revealed when the card is the big one).
+      const n = starNeed(s);
+      const stars = el('div', 'as-card-stars');
+      stars.append(
+        el('div', 'as-card-star', '1★ Delivered ' + n.needOne + ' of ' + n.total),
+        el('div', 'as-card-star', '2★ All delivered'),
+        el('div', 'as-card-star', '3★ Style ' + n.style),
+      );
+      c.append(stars, el('div', 'as-card-detail', ''));
     }
     return c;
   }
