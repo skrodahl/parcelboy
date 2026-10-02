@@ -16,7 +16,12 @@ export function createProgression(saveData, { refresh = () => {}, onGolden = () 
     for (const k of Object.keys(d.best)) { const b = d.best[k]; if (b && b.stars) s += b.stars; }
     return s;
   }
-  function totalGolden() { return d.goldenParcels.length; }
+  // M15a.1: golden parcels are per-suburb (`d.goldenParcels[nbId] = [idx…]`).
+  function totalGolden() { let s = 0; for (const k of Object.keys(d.goldenParcels)) s += (d.goldenParcels[k] || []).length; return s; }
+  function goldenCount(nbId) { return (d.goldenParcels[nbId] || []).length; }
+  // A golden-bike requirement maps suburb → needed count; met when every suburb
+  // has at least its number. The bike is `{ 'maple-hollow': 12 }` (§2.13).
+  function goldenReqMet(req) { for (const nb of Object.keys(req)) if (goldenCount(nb) < req[nb]) return false; return true; }
   function isUnlocked(id, kind) { return d.unlocked[kind].indexOf(id) >= 0; }
   function save() { writeSave(d); }
 
@@ -26,12 +31,14 @@ export function createProgression(saveData, { refresh = () => {}, onGolden = () 
     get data() { return d; },
     totalStars,
     totalGolden,
-    goldenBikeUnlocked() { return totalGolden() >= 12; },
+    goldenCount,
+    goldenBikeUnlocked() { return goldenReqMet({ 'maple-hollow': 12 }); },
     // §2.11: a locked mission's marker still shows; its card says the star need.
     canStart(shift) { return totalStars() >= (shift.unlockStars || 0); },
     canBuy(def) {
       if (def.unlockCost === 0) return true;
-      if (def.unlock) return totalGolden() >= def.unlock.goldenParcels;
+      // M15a.1: a golden unlock is a per-suburb requirement, not a flat count.
+      if (def.unlock && def.unlock.goldenParcels) return goldenReqMet(def.unlock.goldenParcels);
       return isUnlocked(def.id, kindOf(def));
     },
     // Buy with coins (golden items unlock by finding, not buying).
@@ -52,12 +59,17 @@ export function createProgression(saveData, { refresh = () => {}, onGolden = () 
       save();
     },
     bestFor(shiftId) { return d.best[shiftId] || { score: 0, stars: 0 }; },
-    // §2.13: finding a Golden Parcel (by index). Returns the new total.
-    foundGolden(index) {
-      if (d.goldenParcels.indexOf(index) < 0) { d.goldenParcels.push(index); save(); onGolden(totalGolden()); }
-      return totalGolden();
+    // M15a.1: finding a Golden Parcel (by suburb + index). Marks it in that
+    // suburb's list; returns { isNew, count } where count is the suburb's found
+    // total. Re-finding (already saved) is a no-op.
+    foundGolden(nbId, index) {
+      let arr = d.goldenParcels[nbId];
+      if (!arr) { arr = []; d.goldenParcels[nbId] = arr; }
+      const isNew = arr.indexOf(index) < 0;
+      if (isNew) { arr.push(index); save(); onGolden(nbId); }
+      return { isNew, count: goldenCount(nbId) };
     },
-    foundSet() { return d.goldenParcels; },
+    foundSet(nbId) { return d.goldenParcels[nbId] || []; },
     // §2.11: remember the last courier / vehicle so Continue restores them.
     setLast(charId, vehId) { d.last.character = charId; d.last.vehicle = vehId; save(); },
     get last() { return d.last; },

@@ -1,118 +1,773 @@
 [
-  { "name": "m0-cube", "url": "/?scene=cube&debug=1&mute=1" },
-  { "name": "m1-test-morning", "url": "/?scene=test&tod=morning&mute=1" },
-  { "name": "m1-test-dusk", "url": "/?scene=test&tod=dusk&mute=1" },
-  { "name": "m1-test-battery", "url": "/?scene=test&tod=morning&quality=battery&mute=1" },
-  { "name": "m2-overview", "url": "/?cam=overview&mute=1&paused=1" },
-  { "name": "m2-street", "url": "/?cam=street&mute=1&paused=1" },
-  { "name": "m2-park", "url": "/?cam=park&mute=1&paused=1" },
-  { "name": "m3-overview", "url": "/?cam=overview&mute=1&paused=1" },
-  { "name": "m3-porch", "url": "/?cam=porch:h06&mute=1&paused=1" },
-  { "name": "m3-depot", "url": "/?cam=depot&mute=1&paused=1" },
-  { "name": "m3-dusk-street", "url": "/?cam=street&tod=dusk&mute=1&paused=1" },
-  { "name": "m4-follow", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1" },
-  { "name": "m4-bike", "url": "/?autostart=morning&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(12,16,90); __pb.step(30);"] },
-  { "name": "m4-cast", "url": "/?lineup=1&mute=1&paused=1" },
-  { "name": "m5-throw-midair", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,15); __pb.step(12);"] },
-  { "name": "m5-perfect", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,15,0); __pb.throwAt(12,15); __pb.step(70);"] },
-  { "name": "m5-roof", "url": "/?autostart=morning&char=juno&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,16,0); __pb.throwAt(12,11); __pb.step(70);"] },
-  { "name": "m6-hub", "url": "/?char=pip&veh=feet&mute=1&paused=1" },
-  { "name": "m6-freeroam", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(24,16,180); __pb.step(20);"] },
-  { "name": "m6-card", "url": "/?showCard=1&mute=1&paused=1" },
-  { "name": "m6-hud", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(60);"] },
-  { "name": "m6-side-cake", "url": "/?autostart=cake&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(30);"] },
-  { "name": "m6-results", "url": "/?screen=results&mute=1&paused=1" },
-  { "name": "m6b-radar-freeroam", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(31,12,0); __pb.step(20);"] },
-  { "name": "m6b-radar-mission", "url": "/?autostart=morning&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(30,17,0); __pb.step(20);"] },
-  { "name": "m6b-fullmap", "url": "/?screen=fullMap&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.setWaypoint(8,37);"] },
-  { "name": "m6b-radar-turned", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(31,12,90); __pb.step(5);"] },
-  { "name": "m7-traffic", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(30,20,0); __pb.step(300);"] },
-  { "name": "m7-dog-chase", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,12,0); __pb.setCamDist(9,6); __pb.step(90);"] },
-  { "name": "m7-sprinkler", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(6,15,0); __pb.setCamDist(8,5); __pb.step(150);"] },
-  { "name": "m7-knockdown", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,12,0); __pb.step(30); __pb.aimAt(50,50, 45,50, 3);"] },
-  { "name": "m7-pancake", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(30,18,0); __pb.step(240); __pb.aimAt(122,74, 122,68, 4);"] },
-  { "name": "m7-lunch", "url": "/?autostart=lunch&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(300);"] },
-  { "name": "m7-bees-idle", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(8,18,0); __pb.step(40); __pb.aimAt(34,46, 34,41, 7);"] },
-  { "name": "m7-bees-chase", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(12,11,0); __pb.angerBees(); __pb.step(60); var c=__pb.debugBees().swarms[0]; __pb.aimAt(c.cx, c.cz, c.cx, c.cz-7, 6.5);"] },
-  { "name": "m7-puffy", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(8,12,0); __pb.angerBees(); __pb.step(50); __pb.aimAt(34,50, 38,50, 2.6);"] },
-  { "name": "m7b-bowling", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["var w=__pb.debugMischief().walkers[0]; __pb.teleport((w[0]/4)|0,(w[1]/4)|0,0); __pb.bowl(w[0],w[1]); __pb.step(8); var w2=__pb.debugMischief().walkers[0]; __pb.aimAt(w2[0],w2[1], w2[0]-5, w2[1]-3, 5);"] },
-  { "name": "m7b-strike", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["var wk=__pb.debugMischief().walkers; __pb.teleport((wk[0][0]/4)|0,(wk[0][1]/4)|0,0); __pb.bowl(wk[0][0],wk[0][1]); __pb.bowl(wk[1][0],wk[1][1]); __pb.step(8); __pb.aimAt(wk[0][0],wk[0][1], wk[0][0]-5, wk[0][1], 5);"] },
-  { "name": "m7b-grump-house", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.setCam('porch:'+__pb.debugMischief().grumps[0]);"] },
-  { "name": "m7b-window-crash", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["var g=__pb.debugMischief().grumps[0]; __pb.crashGrump(); __pb.step(3); __pb.setCam('porch:'+g);"] },
-  { "name": "m7b-watch-chase", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.heat(8); __pb.teleport(30,17,0); __pb.step(24); var p=__pb.state().player, w=__pb.debugMischief().watchPos[0]; if(w) __pb.aimAt((w[0]+p.x)/2, (w[1]+p.z)/2, (w[0]+p.x)/2 - 3, (w[1]+p.z)/2, 4.5);"] },
-  { "name": "m7b-busted", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.heat(6); __pb.step(30); __pb.bust(); __pb.step(3);"] },
-  { "name": "m8-title", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title", "eval": [] },
-  { "name": "m8-howto", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=howTo", "eval": [] },
-  { "name": "m8-select-courier", "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier", "eval": [] },
-  { "name": "m8-select-vehicle", "url": "/?char=pip&veh=cargo&mute=1&paused=1&screen=selectVehicle", "eval": [] },
-  { "name": "m8-mission-card-locked", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=missionCard:golden", "eval": [] },
-  { "name": "m8-pause-mission", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning&screen=pause", "eval": ["__pb.bowl(160,140); __pb.bowl(156,138); __pb.bowl(162,142); __pb.step(15); __pb.openPause();"] },
-  { "name": "m8-results", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=results", "eval": [] },
-  { "name": "m8-settings", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=settings", "eval": [] },
-  { "name": "m8-select-courier-640", "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier", "width": 1024, "height": 640, "eval": [] },
-  { "name": "m8-title-640", "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title", "width": 1024, "height": 640, "eval": [] },
-  { "name": "m9-audio-debug", "url": "/?char=pip&veh=bike&mute=1&debug=1&paused=1", "eval": ["__pb.debugAudio();"] },
-  { "name": "m10-tod-morning-street", "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-morning-overview", "url": "/?tod=morning&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-noon-street", "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-noon-overview", "url": "/?tod=noon&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-golden-street", "url": "/?tod=golden&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-golden-overview", "url": "/?tod=golden&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-dusk-street", "url": "/?tod=dusk&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-tod-dusk-overview", "url": "/?tod=dusk&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m10-blend", "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setTod(0, 0.5); __pb.step(3); __pb.setCam('street');"] },
-  { "name": "m10-golden-parcel", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.teleport(28, 52); __pb.setCam('golden:0');"] },
-  { "name": "m10-golden-pickup", "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.collectGolden(0); __pb.teleport(28, 52); __pb.setCam('golden:0'); for (let i = 0; i < 20; i++) __pb.stepFloat();"] },
-  { "name": "m11-life-street", "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.scatterBirds(); __pb.step(24); __pb.setCam('street');"] },
-  { "name": "m11-park", "url": "/?tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('park');"] },
-  { "name": "m11-cul-de-sac", "url": "/?tod=noon&cam=bulb&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('bulb');"] },
-  { "name": "m11-golden-overview", "url": "/?tod=golden&cam=overview&char=pip&veh=bike&mute=1&paused=1", "eval": [] },
-  { "name": "m11-hub-busy", "url": "/?tod=noon&cam=hub&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('hub');"] },
-  { "name": "m11-trampoline", "url": "/?tod=noon&cam=trampoline:0&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.boing(0); __pb.step(27); __pb.setCam('trampoline:0'); for (let i = 0; i < 18; i++) __pb.stepFloat();"] },
-  { "name": "m11-handlebars", "url": "/?tod=noon&cam=handlebars&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.handlebars(); __pb.step(22); __pb.setCam('handlebars');"] },
-  { "name": "m11-battery-life", "url": "/?quality=battery&tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(30); __pb.setCam('park');"] },
-  { "name": "fix-golden-banner", "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.collectGolden(0); __pb.step(6);"] },
-  { "name": "fix-burst-streak", "url": "/?char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.teleport(30,20,0); __pb.strike(); __pb.step(8);"] },
-  { "name": "m12a-start-shift", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.nearMarker('dispatch'); __pb.step(24);"] },
-  { "name": "m12a-side-cake", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('bakery');"] },
-  { "name": "m12a-locker", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.openMarker('locker');"] },
-  { "name": "m12a-clouds", "url": "/?cam=overview&mute=1&paused=1", "eval": ["__pb.step(600); __pb.setCam('overview');"] },
-  { "name": "m12a-walkers", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.step(500);"] },
-  { "name": "m12a-birds", "url": "/?cam=overview&mute=1&paused=1", "eval": ["__pb.scatterBirds(); __pb.step(18); __pb.setCam('overview');"] },
-  { "name": "m12a-restock", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning", "eval": ["__pb.setCam('follow'); for(var i=0;i<5;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.teleport(39,35,90); __pb.step(42); __pb.setCam('follow');"] },
-  { "name": "m12a-parcels", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning", "eval": ["for(var i=0;i<2;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.setCam('follow');"] },
-  { "name": "m12a-fullmap", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab' })); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' })); __pb.step(3);"] },
-  { "name": "m12a-heat", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setHeat(7); __pb.setCam('follow');"] },
-  { "name": "m12b-clock-hud", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(660); __pb.step(3); __pb.setCam('follow');"] },
-  { "name": "m12b-card-closed", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(720); __pb.nearMarker('dispatch'); __pb.step(3);"] },
-  { "name": "m12b-report-partial", "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning", "eval": ["__pb.setCam('follow'); for(var i=0;i<4;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.setClock(659); __pb.step(90); __pb.setCam('follow');"] },
-  { "name": "m12b-bench", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(480); var b=__pb.benchZone; __pb.playerTeleportWorld(b.x, b.z); __pb.step(3); __pb.setCam('follow');"] },
-  { "name": "m12b-dusk-by-clock", "url": "/?char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.setClock(1230); __pb.step(3); __pb.setCam('overview');"] },
-  { "name": "m13-hud-address", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(20); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"] },
-  { "name": "m13-cycle", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.cycle(); __pb.step(3); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"] },
-  { "name": "m13-wrong-address", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); var r=__pb.wrongAddressDemo(); __pb.settleParcel(); for(var i=0;i<9;i++) __pb.stepFloat(); __pb.camAt(r.x, r.z, 11, 4.2);"], "waitMs": 500 },
-  { "name": "m13-locker-full", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.lockerView(0);"] },
-  { "name": "m13-locker-empty", "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(6); __pb.emptyLocker(0); __pb.lockerView(0);"] },
-  { "name": "m14-hills-ramp", "url": "/?nb=test-hills&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(18, 42); __pb.step(8); __pb.camAt(24, 38, 15, 7);"] },
-  { "name": "m14-hills-wall", "url": "/?nb=test-hills&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.aimAt(26, 33, 34, 48, 14);"] },
-  { "name": "m14-hills-throw-up", "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(30, 46); __pb.throwAt(10, 7); __pb.step(12); __pb.camAt(42, 30, 15, 7);"] },
-  { "name": "m14-exit-sign", "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.holdTransition('Maple Hollow', 'Maple Hollow — the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"] },
-  { "name": "m14-exit-locked", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.camAt(90, 10, 12, 5);"] },
-  { "name": "m14-region-map", "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.camAt(160, 140, 22, 10);"] },
-  { "name": "m14-leak-fresh", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.step(3);"] },
-  { "name": "m14-leak-trip", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.gotoNeighborhood('test-hills'); __pb.step(5); __pb.gotoNeighborhood('maple-hollow'); __pb.step(5);"], "waitMs": 300 },
-  { "name": "m15-overview", "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(58, 16, 0); __pb.step(3); __pb.camAt(60, 80, 64, 52);"] },
-  { "name": "m15-switchback", "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(44, 76); __pb.step(8); __pb.camAt(44, 76, 17, 12);"] },
-  { "name": "m15-stairs", "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(60, 76); __pb.step(6); __pb.camAt(60, 76, 12, 7);"] },
-  { "name": "m15-watertower", "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1&tod=morning", "eval": ["__pb.playerTeleportWorld(58, 16); __pb.step(6); __pb.camAt(58, 17, 33, 23);"] },
-  { "name": "m15-bin-roll", "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('cedarLunch'); __pb.kickBin(0); for (var i = 0; i < 40; i++) __pb.step(1); var r = __pb.debugRunaway()[0]; __pb.playerTeleportWorld(r.x + 7, r.z + 7); __pb.step(2); __pb.camAt(r.x, r.z, 14, 8);"] },
-  { "name": "m15-shift", "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('cedarMorning'); __pb.step(6); var t=__pb.topParcel(); __pb.playerTeleportWorld(t.x+6, t.z+6, 225); __pb.step(3); __pb.camAt(t.x, t.z, 15, 9);"] },
-  { "name": "m15-exit-locked", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(6); __pb.camAt(90, 10, 12, 5);"] },
-  { "name": "m15-exit-travel", "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=8", "eval": ["__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.gotoNeighborhood('cedar-heights'); __pb.playerTeleportWorld(58, 16, 0); __pb.step(3); __pb.camAt(60, 80, 64, 52);"] },
-  { "name": "m16-overview", "url": "/?nb=lakeside&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(60, 60); __pb.step(5); __pb.camAt(68, 80, 66, 54);"] },
-  { "name": "m16-bridge", "url": "/?nb=lakeside&char=pip&veh=bike&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(106, 66); __pb.step(6); __pb.camAt(106, 66, 20, 12);"] },
-  { "name": "m16-pier-dusk", "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.playerTeleportWorld(110, 118); __pb.step(5); __pb.setTod(3); __pb.aimAt(116, 119, 136, 132, 15);"] },
-  { "name": "m16-geese", "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('lakeMorning'); __pb.playerTeleportWorld(74, 50); __pb.step(40); __pb.setCam('follow'); __pb.setCamDist(18, 8);"] },
-  { "name": "m16-float", "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('lakeMorning'); __pb.step(4); __pb.throwRaw(110, 82); for (var i=0;i<200;i++){ __pb.step(1); var a=__pb.debugParcels().filter(function(p){return p.vis;}); if (a.length && a[0].s==='floating') break; } __pb.aimAt(110, 82, 104, 74, 7);"] },
-  { "name": "m16-shift", "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1", "eval": ["__pb.startShift('lakeMorning'); __pb.step(6); var t=__pb.topParcel(); __pb.playerTeleportWorld(t.x+8, t.z+8); __pb.step(3); __pb.aimAt(t.x, t.z, t.x+10, t.z+10, 8);"] }
+  {
+    "name": "m0-cube",
+    "url": "/?scene=cube&debug=1&mute=1"
+  },
+  {
+    "name": "m1-test-morning",
+    "url": "/?scene=test&tod=morning&mute=1"
+  },
+  {
+    "name": "m1-test-dusk",
+    "url": "/?scene=test&tod=dusk&mute=1"
+  },
+  {
+    "name": "m1-test-battery",
+    "url": "/?scene=test&tod=morning&quality=battery&mute=1"
+  },
+  {
+    "name": "m2-overview",
+    "url": "/?cam=overview&mute=1&paused=1"
+  },
+  {
+    "name": "m2-street",
+    "url": "/?cam=street&mute=1&paused=1"
+  },
+  {
+    "name": "m2-park",
+    "url": "/?cam=park&mute=1&paused=1"
+  },
+  {
+    "name": "m3-overview",
+    "url": "/?cam=overview&mute=1&paused=1"
+  },
+  {
+    "name": "m3-porch",
+    "url": "/?cam=porch:h06&mute=1&paused=1"
+  },
+  {
+    "name": "m3-depot",
+    "url": "/?cam=depot&mute=1&paused=1"
+  },
+  {
+    "name": "m3-dusk-street",
+    "url": "/?cam=street&tod=dusk&mute=1&paused=1"
+  },
+  {
+    "name": "m4-follow",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1"
+  },
+  {
+    "name": "m4-bike",
+    "url": "/?autostart=morning&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,16,90); __pb.step(30);"
+    ]
+  },
+  {
+    "name": "m4-cast",
+    "url": "/?lineup=1&mute=1&paused=1"
+  },
+  {
+    "name": "m5-throw-midair",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,16,0); __pb.throwAt(12,15); __pb.step(12);"
+    ]
+  },
+  {
+    "name": "m5-perfect",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,15,0); __pb.throwAt(12,15); __pb.step(70);"
+    ]
+  },
+  {
+    "name": "m5-roof",
+    "url": "/?autostart=morning&char=juno&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,16,0); __pb.throwAt(12,11); __pb.step(70);"
+    ]
+  },
+  {
+    "name": "m6-hub",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1"
+  },
+  {
+    "name": "m6-freeroam",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(24,16,180); __pb.step(20);"
+    ]
+  },
+  {
+    "name": "m6-card",
+    "url": "/?showCard=1&mute=1&paused=1"
+  },
+  {
+    "name": "m6-hud",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(60);"
+    ]
+  },
+  {
+    "name": "m6-side-cake",
+    "url": "/?autostart=cake&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(30);"
+    ]
+  },
+  {
+    "name": "m6-results",
+    "url": "/?screen=results&mute=1&paused=1"
+  },
+  {
+    "name": "m6b-radar-freeroam",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(31,12,0); __pb.step(20);"
+    ]
+  },
+  {
+    "name": "m6b-radar-mission",
+    "url": "/?autostart=morning&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(30,17,0); __pb.step(20);"
+    ]
+  },
+  {
+    "name": "m6b-fullmap",
+    "url": "/?screen=fullMap&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.setWaypoint(8,37);"
+    ]
+  },
+  {
+    "name": "m6b-radar-turned",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(31,12,90); __pb.step(5);"
+    ]
+  },
+  {
+    "name": "m7-traffic",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(30,20,0); __pb.step(300);"
+    ]
+  },
+  {
+    "name": "m7-dog-chase",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,12,0); __pb.setCamDist(9,6); __pb.step(90);"
+    ]
+  },
+  {
+    "name": "m7-sprinkler",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(6,15,0); __pb.setCamDist(8,5); __pb.step(150);"
+    ]
+  },
+  {
+    "name": "m7-knockdown",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,12,0); __pb.step(30); __pb.aimAt(50,50, 45,50, 3);"
+    ]
+  },
+  {
+    "name": "m7-pancake",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(30,18,0); __pb.step(240); __pb.aimAt(122,74, 122,68, 4);"
+    ]
+  },
+  {
+    "name": "m7-lunch",
+    "url": "/?autostart=lunch&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(300);"
+    ]
+  },
+  {
+    "name": "m7-bees-idle",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(8,18,0); __pb.step(40); __pb.aimAt(34,46, 34,41, 7);"
+    ]
+  },
+  {
+    "name": "m7-bees-chase",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(12,11,0); __pb.angerBees(); __pb.step(60); var c=__pb.debugBees().swarms[0]; __pb.aimAt(c.cx, c.cz, c.cx, c.cz-7, 6.5);"
+    ]
+  },
+  {
+    "name": "m7-puffy",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(8,12,0); __pb.angerBees(); __pb.step(50); __pb.aimAt(34,50, 38,50, 2.6);"
+    ]
+  },
+  {
+    "name": "m7b-bowling",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "var w=__pb.debugMischief().walkers[0]; __pb.teleport((w[0]/4)|0,(w[1]/4)|0,0); __pb.bowl(w[0],w[1]); __pb.step(8); var w2=__pb.debugMischief().walkers[0]; __pb.aimAt(w2[0],w2[1], w2[0]-5, w2[1]-3, 5);"
+    ]
+  },
+  {
+    "name": "m7b-strike",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "var wk=__pb.debugMischief().walkers; __pb.teleport((wk[0][0]/4)|0,(wk[0][1]/4)|0,0); __pb.bowl(wk[0][0],wk[0][1]); __pb.bowl(wk[1][0],wk[1][1]); __pb.step(8); __pb.aimAt(wk[0][0],wk[0][1], wk[0][0]-5, wk[0][1], 5);"
+    ]
+  },
+  {
+    "name": "m7b-grump-house",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.setCam('porch:'+__pb.debugMischief().grumps[0]);"
+    ]
+  },
+  {
+    "name": "m7b-window-crash",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "var g=__pb.debugMischief().grumps[0]; __pb.crashGrump(); __pb.step(3); __pb.setCam('porch:'+g);"
+    ]
+  },
+  {
+    "name": "m7b-watch-chase",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.heat(8); __pb.teleport(30,17,0); __pb.step(24); var p=__pb.state().player, w=__pb.debugMischief().watchPos[0]; if(w) __pb.aimAt((w[0]+p.x)/2, (w[1]+p.z)/2, (w[0]+p.x)/2 - 3, (w[1]+p.z)/2, 4.5);"
+    ]
+  },
+  {
+    "name": "m7b-busted",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.heat(6); __pb.step(30); __pb.bust(); __pb.step(3);"
+    ]
+  },
+  {
+    "name": "m8-title",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title",
+    "eval": []
+  },
+  {
+    "name": "m8-howto",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=howTo",
+    "eval": []
+  },
+  {
+    "name": "m8-select-courier",
+    "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier",
+    "eval": []
+  },
+  {
+    "name": "m8-select-vehicle",
+    "url": "/?char=pip&veh=cargo&mute=1&paused=1&screen=selectVehicle",
+    "eval": []
+  },
+  {
+    "name": "m8-mission-card-locked",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=missionCard:golden",
+    "eval": []
+  },
+  {
+    "name": "m8-pause-mission",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning&screen=pause",
+    "eval": [
+      "__pb.bowl(160,140); __pb.bowl(156,138); __pb.bowl(162,142); __pb.step(15); __pb.openPause();"
+    ]
+  },
+  {
+    "name": "m8-results",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=results",
+    "eval": []
+  },
+  {
+    "name": "m8-settings",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=settings",
+    "eval": []
+  },
+  {
+    "name": "m8-select-courier-640",
+    "url": "/?char=marlo&veh=bike&mute=1&paused=1&screen=selectCourier",
+    "width": 1024,
+    "height": 640,
+    "eval": []
+  },
+  {
+    "name": "m8-title-640",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=title",
+    "width": 1024,
+    "height": 640,
+    "eval": []
+  },
+  {
+    "name": "m9-audio-debug",
+    "url": "/?char=pip&veh=bike&mute=1&debug=1&paused=1",
+    "eval": [
+      "__pb.debugAudio();"
+    ]
+  },
+  {
+    "name": "m10-tod-morning-street",
+    "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-morning-overview",
+    "url": "/?tod=morning&cam=overview&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-noon-street",
+    "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-noon-overview",
+    "url": "/?tod=noon&cam=overview&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-golden-street",
+    "url": "/?tod=golden&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-golden-overview",
+    "url": "/?tod=golden&cam=overview&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-dusk-street",
+    "url": "/?tod=dusk&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-tod-dusk-overview",
+    "url": "/?tod=dusk&cam=overview&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m10-blend",
+    "url": "/?tod=morning&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setTod(0, 0.5); __pb.step(3); __pb.setCam('street');"
+    ]
+  },
+  {
+    "name": "m10-golden-parcel",
+    "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(28, 52); __pb.setCam('golden:0');"
+    ]
+  },
+  {
+    "name": "m10-golden-pickup",
+    "url": "/?tod=golden&cam=golden:0&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.collectGolden(0); __pb.teleport(28, 52); __pb.setCam('golden:0'); for (let i = 0; i < 20; i++) __pb.stepFloat();"
+    ]
+  },
+  {
+    "name": "m11-life-street",
+    "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.scatterBirds(); __pb.step(24); __pb.setCam('street');"
+    ]
+  },
+  {
+    "name": "m11-park",
+    "url": "/?tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(30); __pb.setCam('park');"
+    ]
+  },
+  {
+    "name": "m11-cul-de-sac",
+    "url": "/?tod=noon&cam=bulb&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(30); __pb.setCam('bulb');"
+    ]
+  },
+  {
+    "name": "m11-golden-overview",
+    "url": "/?tod=golden&cam=overview&char=pip&veh=bike&mute=1&paused=1",
+    "eval": []
+  },
+  {
+    "name": "m11-hub-busy",
+    "url": "/?tod=noon&cam=hub&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(30); __pb.setCam('hub');"
+    ]
+  },
+  {
+    "name": "m11-trampoline",
+    "url": "/?tod=noon&cam=trampoline:0&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.boing(0); __pb.step(27); __pb.setCam('trampoline:0'); for (let i = 0; i < 18; i++) __pb.stepFloat();"
+    ]
+  },
+  {
+    "name": "m11-handlebars",
+    "url": "/?tod=noon&cam=handlebars&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.handlebars(); __pb.step(22); __pb.setCam('handlebars');"
+    ]
+  },
+  {
+    "name": "m11-battery-life",
+    "url": "/?quality=battery&tod=noon&cam=park&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(30); __pb.setCam('park');"
+    ]
+  },
+  {
+    "name": "fix-golden-banner",
+    "url": "/?tod=noon&cam=street&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.collectGolden(0); __pb.step(6);"
+    ]
+  },
+  {
+    "name": "fix-burst-streak",
+    "url": "/?char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.teleport(30,20,0); __pb.strike(); __pb.step(8);"
+    ]
+  },
+  {
+    "name": "m12a-start-shift",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.nearMarker('dispatch'); __pb.step(24);"
+    ]
+  },
+  {
+    "name": "m12a-side-cake",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.openMarker('bakery');"
+    ]
+  },
+  {
+    "name": "m12a-locker",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.openMarker('locker');"
+    ]
+  },
+  {
+    "name": "m12a-clouds",
+    "url": "/?cam=overview&mute=1&paused=1",
+    "eval": [
+      "__pb.step(600); __pb.setCam('overview');"
+    ]
+  },
+  {
+    "name": "m12a-walkers",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(500);"
+    ]
+  },
+  {
+    "name": "m12a-birds",
+    "url": "/?cam=overview&mute=1&paused=1",
+    "eval": [
+      "__pb.scatterBirds(); __pb.step(18); __pb.setCam('overview');"
+    ]
+  },
+  {
+    "name": "m12a-restock",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning",
+    "eval": [
+      "__pb.setCam('follow'); for(var i=0;i<5;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.teleport(39,35,90); __pb.step(42); __pb.setCam('follow');"
+    ]
+  },
+  {
+    "name": "m12a-parcels",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning",
+    "eval": [
+      "for(var i=0;i<2;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.setCam('follow');"
+    ]
+  },
+  {
+    "name": "m12a-fullmap",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab' })); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' })); __pb.step(3);"
+    ]
+  },
+  {
+    "name": "m12a-heat",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setHeat(7); __pb.setCam('follow');"
+    ]
+  },
+  {
+    "name": "m12b-clock-hud",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setClock(660); __pb.step(3); __pb.setCam('follow');"
+    ]
+  },
+  {
+    "name": "m12b-card-closed",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setClock(720); __pb.nearMarker('dispatch'); __pb.step(3);"
+    ]
+  },
+  {
+    "name": "m12b-report-partial",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&autostart=morning",
+    "eval": [
+      "__pb.setCam('follow'); for(var i=0;i<4;i++){__pb.throwAt(12,10);__pb.step(24);} __pb.setClock(659); __pb.step(90); __pb.setCam('follow');"
+    ]
+  },
+  {
+    "name": "m12b-bench",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setClock(480); var b=__pb.benchZone; __pb.playerTeleportWorld(b.x, b.z); __pb.step(3); __pb.setCam('follow');"
+    ]
+  },
+  {
+    "name": "m12b-dusk-by-clock",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setClock(1230); __pb.step(3); __pb.setCam('overview');"
+    ]
+  },
+  {
+    "name": "m13-hud-address",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(20); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"
+    ]
+  },
+  {
+    "name": "m13-cycle",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(6); __pb.cycle(); __pb.step(3); var t=__pb.topParcel(); __pb.camAt(t.x, t.z, 14, 5.5);"
+    ]
+  },
+  {
+    "name": "m13-wrong-address",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(6); var r=__pb.wrongAddressDemo(); __pb.settleParcel(); for(var i=0;i<9;i++) __pb.stepFloat(); __pb.camAt(r.x, r.z, 11, 4.2);"
+    ],
+    "waitMs": 500
+  },
+  {
+    "name": "m13-locker-full",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(6); __pb.lockerView(0);"
+    ]
+  },
+  {
+    "name": "m13-locker-empty",
+    "url": "/?autostart=morning&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(6); __pb.emptyLocker(0); __pb.lockerView(0);"
+    ]
+  },
+  {
+    "name": "m14-hills-ramp",
+    "url": "/?nb=test-hills&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(18, 42); __pb.step(8); __pb.camAt(24, 38, 15, 7);"
+    ]
+  },
+  {
+    "name": "m14-hills-wall",
+    "url": "/?nb=test-hills&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.aimAt(26, 33, 34, 48, 14);"
+    ]
+  },
+  {
+    "name": "m14-hills-throw-up",
+    "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(30, 46); __pb.throwAt(10, 7); __pb.step(12); __pb.camAt(42, 30, 15, 7);"
+    ]
+  },
+  {
+    "name": "m14-exit-sign",
+    "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.holdTransition('Maple Hollow', 'Maple Hollow — the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"
+    ]
+  },
+  {
+    "name": "m14-exit-locked",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.camAt(90, 10, 12, 5);"
+    ]
+  },
+  {
+    "name": "m14-region-map",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.camAt(160, 140, 22, 10);"
+    ]
+  },
+  {
+    "name": "m14-leak-fresh",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.step(3);"
+    ]
+  },
+  {
+    "name": "m14-leak-trip",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.gotoNeighborhood('test-hills'); __pb.step(5); __pb.gotoNeighborhood('maple-hollow'); __pb.step(5);"
+    ],
+    "waitMs": 300
+  },
+  {
+    "name": "m15-overview",
+    "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(58, 16, 0); __pb.step(3); __pb.camAt(60, 80, 64, 52);"
+    ]
+  },
+  {
+    "name": "m15-switchback",
+    "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(44, 76); __pb.step(8); __pb.camAt(44, 76, 17, 12);"
+    ]
+  },
+  {
+    "name": "m15-stairs",
+    "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(60, 76); __pb.step(6); __pb.camAt(60, 76, 12, 7);"
+    ]
+  },
+  {
+    "name": "m15-watertower",
+    "url": "/?nb=cedar-heights&char=pip&veh=bike&mute=1&paused=1&tod=morning",
+    "eval": [
+      "__pb.playerTeleportWorld(58, 16); __pb.step(6); __pb.camAt(58, 17, 33, 23);"
+    ]
+  },
+  {
+    "name": "m15-bin-roll",
+    "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('cedarLunch'); __pb.kickBin(0); for (var i = 0; i < 40; i++) __pb.step(1); var r = __pb.debugRunaway()[0]; __pb.playerTeleportWorld(r.x + 7, r.z + 7); __pb.step(2); __pb.camAt(r.x, r.z, 14, 8);"
+    ]
+  },
+  {
+    "name": "m15-shift",
+    "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('cedarMorning'); __pb.step(6); var t=__pb.topParcel(); __pb.playerTeleportWorld(t.x+6, t.z+6, 225); __pb.step(3); __pb.camAt(t.x, t.z, 15, 9);"
+    ]
+  },
+  {
+    "name": "m15-exit-locked",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(90, 10); __pb.step(6); __pb.camAt(90, 10, 12, 5);"
+    ]
+  },
+  {
+    "name": "m15-exit-travel",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=8",
+    "eval": [
+      "__pb.playerTeleportWorld(90, 10); __pb.step(3); __pb.gotoNeighborhood('cedar-heights'); __pb.playerTeleportWorld(58, 16, 0); __pb.step(3); __pb.camAt(60, 80, 64, 52);"
+    ]
+  },
+  {
+    "name": "m16-overview",
+    "url": "/?nb=lakeside&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(60, 60); __pb.step(5); __pb.camAt(68, 80, 66, 54);"
+    ]
+  },
+  {
+    "name": "m16-bridge",
+    "url": "/?nb=lakeside&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(106, 66); __pb.step(6); __pb.camAt(106, 66, 20, 12);"
+    ]
+  },
+  {
+    "name": "m16-pier-dusk",
+    "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(110, 118); __pb.step(5); __pb.setTod(3); __pb.aimAt(116, 119, 136, 132, 15);"
+    ]
+  },
+  {
+    "name": "m16-geese",
+    "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('lakeMorning'); __pb.playerTeleportWorld(74, 50); __pb.step(40); __pb.setCam('follow'); __pb.setCamDist(18, 8);"
+    ]
+  },
+  {
+    "name": "m16-float",
+    "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('lakeMorning'); __pb.step(4); __pb.throwRaw(110, 82); for (var i=0;i<200;i++){ __pb.step(1); var a=__pb.debugParcels().filter(function(p){return p.vis;}); if (a.length && a[0].s==='floating') break; } __pb.aimAt(110, 82, 104, 74, 7);"
+    ]
+  },
+  {
+    "name": "m16-shift",
+    "url": "/?nb=lakeside&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('lakeMorning'); __pb.step(6); var t=__pb.topParcel(); __pb.playerTeleportWorld(t.x+8, t.z+8); __pb.step(3); __pb.aimAt(t.x, t.z, t.x+10, t.z+10, 8);"
+    ]
+  },
+  {
+    "name": "m15a-golden-reload",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "localStorage.removeItem(\"\"); // noop keep shape",
+      "localStorage.removeItem(\"parcelboy.save.v1\"); __pb.setGolden(2);"
+    ],
+    "reload": true,
+    "evalAfter": [
+      "(function(){ var g=window.__pb.goldenFound(); if(!g||g.nb!==\"maple-hollow\") throw new Error(\"goldenFound missing\"); if(g.hidden!==2) throw new Error(\"expected 2 hidden after reload, got \"+g.hidden); if(g.found.length!==2) throw new Error(\"save has \"+g.found.length+\" not 2\"); var h=document.querySelector(\".hud-golden\"); if(h && h.textContent!==\"2 / 12\") throw new Error(\"HUD says \"+(h&&h.textContent)+\" not 2 / 12\"); })()"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-golden-cedar-hud",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "localStorage.removeItem(\"parcelboy.save.v1\"); __pb.setGolden(1);"
+    ],
+    "reload": true,
+    "evalAfter": [
+      "(function(){ __pb.gotoNeighborhood(\"cedar-heights\"); __pb.collectGolden(0); var c=window.__pb.goldenFound(); if(!c||c.nb!==\"cedar-heights\") throw new Error(\"expect cedar, got \"+(c&&c.nb)); if(c.found.length!==1) throw new Error(\"cedar found \"+c.found.length+\" not 1\"); var h=document.querySelector(\".hud-golden\"); if(!h||h.textContent!==\"1 / 8\") throw new Error(\"cedar HUD \"+(h&&h.textContent)+\" not 1 / 8\"); })()"
+    ],
+    "waitMs": 500
+  },
+  {
+    "name": "m15a-golden-banner-suburb",
+    "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "localStorage.removeItem(\"parcelboy.save.v1\");"
+    ],
+    "reload": true,
+    "evalAfter": [
+      "(function(){ __pb.collectGolden(0); var t=document.querySelector(\".pb-banner-title\"), q=document.querySelector(\".pb-banner-sub\"); if(!t||!q) throw new Error(\"banner missing\"); if(t.textContent!==\"GOLDEN PARCEL!\") throw new Error(\"title: \"+t.textContent); if(q.textContent.indexOf(\"1 / 8 found in Cedar Heights\")<0) throw new Error(\"sub: \"+q.textContent); })()"
+    ],
+    "waitMs": 500
+  }
 ]

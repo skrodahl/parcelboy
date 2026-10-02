@@ -256,8 +256,15 @@ export function createDebugHooks(ctx) {
         best: progress.data.best, last: progress.data.last, settings: progress.data.settings,
       };
     },
-    setGolden(n) { for (let i = 0; i < (n | 0); i++) progress.foundGolden(i); ctx.refreshGolden(); return progress.totalGolden(); },
-    collectGolden(i) { const c = R.collectibles; if (c) { c.collect(i | 0); ctx.refreshGolden(); } return progress.totalGolden(); },
+    // M15a.1: golden finds are per-suburb; the hooks act on the current suburb.
+    setGolden(n) { const nb = R.world ? R.world.def.id : 'maple-hollow'; for (let i = 0; i < (n | 0); i++) progress.foundGolden(nb, i); ctx.refreshGolden(nb); return progress.goldenCount(nb); },
+    collectGolden(i) { const c = R.collectibles; if (c) c.collect(i | 0); const nb = R.world ? R.world.def.id : 'maple-hollow'; ctx.refreshGolden(nb); return progress.goldenCount(nb); },
+    // M15a.1: read the current suburb's found set + whether the collectibles hide them.
+    goldenFound() {
+      const c = R.collectibles, w = R.world, nb = w ? w.def.id : null;
+      if (!nb) return null;
+      return { nb, found: progress.foundSet(nb), total: (w.def.goldenParcels || []).length, hidden: c ? w.def.goldenParcels.filter((_, i) => c.found(i)).length : -1 };
+    },
     // M12a.1: place the player at a marker (the "walked up to it" position) so the
     // next sim step's proximity edge opens the card; or open the card directly.
     nearMarker(id) { const mk = R.markers, p = R.player; const m = mk && mk.byId[id]; if (m && p) { p.pos.x = m.x; p.pos.z = m.z; ctx.setPrevM(null); } return m ? id : null; },

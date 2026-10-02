@@ -7,8 +7,11 @@ import * as THREE from 'three';
 
 export function createCollectibles({ scene, world, mat, progression, floatText, events }) {
   const T = world.tilemap.tileSize;
+  const nbId = world.def.id;
+  // M15a.1: already-found parcels (from the save) start hidden and stay so.
+  const saved = new Set(progression.foundSet(nbId));
   const spots = (world.def.goldenParcels || []).map(([tx, tz], i) => ({
-    x: tx * T + T / 2, z: tz * T + T / 2, found: false, spin: i * 0.7, bob: i * 1.3,
+    x: tx * T + T / 2, z: tz * T + T / 2, found: saved.has(i), spin: i * 0.7, bob: i * 1.3,
   }));
   const count = spots.length;
   const geo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
@@ -36,13 +39,15 @@ export function createCollectibles({ scene, world, mat, progression, floatText, 
   function collect(i) {
     const sp = spots[i];
     if (sp.found) return;
+    // M15a.1: only a genuinely new find (not already in the save) pays + coins.
+    const r = progression.foundGolden(nbId, i);
+    if (!r.isNew) { sp.found = true; return; }
     sp.found = true;
-    const total = progression.foundGolden(i);
     progression.earn(50);
     // Small world popup at the parcel; the count + "GOLDEN PARCEL!" banner are
     // a separate screen-space banner (main.js, on the `golden` event).
     if (floatText) floatText.pop('+50', sp.x, 2.4, sp.z, { color: '#ffd24a', burst: true });
-    if (events) events.emit('golden', { total, count });
+    if (events) events.emit('golden', { nb: nbId, name: world.def.name, count: r.count, total: spots.length, all: r.count === spots.length });
   }
 
   function tick(dt, time, player) {

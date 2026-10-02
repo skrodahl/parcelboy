@@ -27,6 +27,6 @@ export const VEHICLES = [
   {
     id: 'golden', name: 'Golden Bike', model: 'bike', riding: 'pedal', colors: 'gold',
     stats: { maxSpeed: 11, accel: 14, turnRate: 3.2, capacityBonus: 1, throwRange: 12 },
-    canJump: true, unlockCost: null, unlock: { goldenParcels: 12 },
+    canJump: true, unlockCost: null, unlock: { goldenParcels: { 'maple-hollow': 12 } }, // M15a.1: per-suburb
   },
 ];

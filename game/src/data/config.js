@@ -71,7 +71,6 @@ export const PARCEL = {
 export const FREE_ROAM = {
   hazards: { car: 5, dog: 3, sprinkler: 3, skater: 2, bees: 2, bin: 8, cone: 0, goose: 3 },
   grumps: 4,
-  goldenParcels: 12,
   minutesPerPhase: 2, // M10 day cycle: each ToD preset held this long (blend 30 s)
 };
 

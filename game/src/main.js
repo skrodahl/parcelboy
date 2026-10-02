@@ -115,26 +115,39 @@ let charRegistry = null, vehRegistry = null; // filled at boot; reused by the lo
 // settings) loaded from localStorage (corrupt → defaults). Every mutation
 // persists via progression.save(). `saveData` is loaded at the top of the file.
 function refreshCoins() { if (hud) hud.coins.textContent = progress.coins; }
-function refreshGolden() { if (hud) hud.golden.textContent = progress.data.goldenParcels.length + '/12'; }
+// M15a.1: the golden counter is the *current suburb's* found/total (never a
+// global /12). `nbId` (from the onGolden callback) or the current world's suburb.
+function refreshGolden(nbId) {
+  if (!hud) return;
+  const nb = nbId || (world ? world.def.id : null);
+  if (!nb) { hud.golden.textContent = ''; return; }
+  const total = (getNeighborhood(nb).goldenParcels || []).length;
+  hud.golden.textContent = progress.goldenCount(nb) + ' / ' + total;
+}
 
 // §2.13 / M12a.0: the golden-parcel banner — a reused top-center DOM element
 // (pop-in, held, fade; no per-frame work). The HUD golden counter pulses too.
 let goldenBanner = null, goldenBannerTitle = null, goldenBannerSub = null, goldenT1 = 0, goldenT2 = 0;
-function showGoldenBanner(total, count) {
+// M15a.1: the banner is per-suburb. A normal find says "n / total found in
+// <Suburb>"; completing a suburb says "ALL FOUND IN <SUBURB>!" once; the Golden
+// Bike line shows only on the pickup that completes Maple Hollow's 12.
+function showGoldenBanner(d) {
   if (!goldenBanner) return;
-  const all = total >= count;
-  goldenBannerTitle.textContent = all ? 'ALL 12 FOUND!' : 'GOLDEN PARCEL!';
-  goldenBannerSub.textContent = all ? 'Golden Bike unlocked!' : total + ' / ' + count + ' found · +50 coins';
+  const bike = d.nb === 'maple-hollow' && d.all && progress.goldenBikeUnlocked();
+  goldenBannerTitle.textContent = d.all ? 'ALL FOUND IN ' + d.name.toUpperCase() + '!' : 'GOLDEN PARCEL!';
+  goldenBannerSub.textContent = d.all
+    ? (bike ? 'Golden Bike unlocked!' : 'All ' + d.total + ' found in ' + d.name)
+    : d.count + ' / ' + d.total + ' found in ' + d.name + ' · +50 coins';
   goldenBanner.style.display = 'block';
   goldenBanner.classList.remove('fade');
   goldenBanner.classList.add('show');
-  const hold = all ? 4000 : 2500;
+  const hold = d.all ? 4000 : 2500;
   clearTimeout(goldenT1); clearTimeout(goldenT2);
   goldenT1 = setTimeout(() => goldenBanner.classList.add('fade'), hold);
   goldenT2 = setTimeout(() => { goldenBanner.style.display = 'none'; goldenBanner.classList.remove('show', 'fade'); }, hold + 400);
 }
 function pulseGolden() { if (hud && hud.golden) { const g = hud.golden; g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse'); } }
-events.on('golden', (d) => { pulseGolden(); showGoldenBanner(d.total, d.count); });
+events.on('golden', (d) => { pulseGolden(); refreshGolden(d.nb); showGoldenBanner(d); });
 
 // §2.15 / M12a.9: the heat whistles — a DOM row of 3 whistle icons above the
 // radar (the old in-canvas 4px dots were invisible). Filled red per level,
@@ -465,6 +478,7 @@ function gotoNeighborhood(nbId, viaExit) {
   radarState.world = world;
   spawnCourier(activeChar, activeVeh);
   bindNeighborhood();
+  refreshGolden(nbId); // M15a.1: re-point the golden HUD counter at the new suburb
   saveData.neighborhood = nbId; writeSave(saveData);
   if (events) events.emit('neighborhoodChange', { to: nbId, viaExit: !!viaExit });
 }
@@ -770,7 +784,7 @@ function buildHUD() {
   const ui = document.getElementById('ui');
   const chip = el('div', 'hud-chip', 'FREE ROAM');
   const coins = el('div', 'hud-coins', '0');
-  const golden = el('div', 'hud-golden', progress.data.goldenParcels.length + '/12');
+  const golden = el('div', 'hud-golden', ''); // M15a.1: set per-suburb by refreshGolden()
   const panel = el('div', 'hud-mission');
   const pName = el('div', 'hud-mission-name');
   const pTimer = el('div', 'hud-mission-timer');

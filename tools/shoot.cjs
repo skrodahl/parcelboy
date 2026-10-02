@@ -22,6 +22,13 @@ const list = JSON.parse(fs.readFileSync('/tools/shots.json', 'utf8')).filter(s =
       await page.goto(BASE + shot.url, { waitUntil: 'load' });
       await page.waitForFunction(() => window.__pb && window.__pb.ready === true, null, { timeout: 30000 });
       for (const js of shot.eval || []) await page.evaluate(js);
+      // M15a: optional hard reload (tests save round-trip through localStorage);
+      // re-wait for boot, then run any post-reload evals before the screenshot.
+      if (shot.reload) {
+        await page.reload({ waitUntil: 'load' });
+        await page.waitForFunction(() => window.__pb && window.__pb.ready === true, null, { timeout: 30000 });
+        for (const js of shot.evalAfter || []) await page.evaluate(js);
+      }
       await page.waitForTimeout(shot.waitMs ?? 1500);
       await page.screenshot({ path: `/shots/${shot.name}.png` });
       const stats = await page.evaluate(() => window.__pb.stats());

@@ -10,7 +10,7 @@ export function defaultSave() {
     coins: 0,
     unlocked: { characters: [], vehicles: [] },
     best: {},
-    goldenParcels: [],
+    goldenParcels: {}, // M15a.1: per-suburb { [nbId]: [found indices] } (was a flat array)
     last: { character: 'pip', vehicle: 'feet' },
     settings: { quality: 'balanced', musicVol: 0.35, sfxVol: 0.8, showFps: false },
     clock: 360, // §2.20: the world day clock (game minutes since 00:00), persisted
@@ -34,7 +34,16 @@ export function loadSave() {
     if (Array.isArray(data.unlocked.vehicles)) d.unlocked.vehicles = data.unlocked.vehicles.filter((x) => typeof x === 'string');
   }
   if (data.best && typeof data.best === 'object') d.best = data.best; // shape checked at read sites
-  if (Array.isArray(data.goldenParcels)) d.goldenParcels = data.goldenParcels.filter((x) => typeof x === 'number');
+  if (data.goldenParcels) {
+    if (Array.isArray(data.goldenParcels)) {
+      // M15a.1 migration: the pre-suburbs flat array was Maple Hollow's finds.
+      d.goldenParcels = { 'maple-hollow': data.goldenParcels.filter((x) => typeof x === 'number') };
+    } else if (typeof data.goldenParcels === 'object') {
+      for (const k of Object.keys(data.goldenParcels)) {
+        if (Array.isArray(data.goldenParcels[k])) d.goldenParcels[k] = data.goldenParcels[k].filter((x) => typeof x === 'number');
+      }
+    }
+  }
   if (typeof data.clock === 'number' && isFinite(data.clock)) d.clock = ((data.clock % 1440) + 1440) % 1440; // §2.20
   if (typeof data.neighborhood === 'string' && data.neighborhood) d.neighborhood = data.neighborhood; // §2.18
   if (data.last && typeof data.last === 'object') {
