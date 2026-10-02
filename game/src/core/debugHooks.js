@@ -72,6 +72,12 @@ export function createDebugHooks(ctx) {
       if (p) p.teleport(tileX, tileZ, headingDeg === undefined ? 0 : headingDeg);
     },
     press(action, ms) { input.press(action, ms); },
+    // M15a.7: dispatch a DOM keydown + keyup (screens react to e.code, not the
+    // input-action holds that press() drives). For cycling the select panels.
+    pressKey(code) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true }));
+    },
     // §2.16: rotate the parcel stack (top → bottom), like the R key.
     cycle() { if (R.delivery) R.delivery.cycle(); },
     // §2.16: the top parcel's house + address (for the HUD-address shot).

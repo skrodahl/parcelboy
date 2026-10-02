@@ -42,15 +42,26 @@ export function createScreens(ctx) {
     setCam('showroom');
   }
 
-  // -- stat bar rows --------------------------------------------------------
-  function barRows(container, rows) {
-    for (const r of rows) {
+  // -- stat bar rows (M15a.7) ----------------------------------------------
+  // The 4 rows are built ONCE per panel (in makePanel); each render only
+  // updates the label text and the fill width — no new DOM per ←/→ press.
+  function buildStatRows(container) {
+    const refs = [];
+    for (let i = 0; i < 4; i++) {
       const row = el('div', 'stat-row');
-      const lbl = el('div', 'stat-lbl', r.label);
+      const lbl = el('div', 'stat-lbl', '');
       const track = el('div', 'stat-track');
       const fill = el('div', 'stat-fill');
-      fill.style.width = Math.round(r.value * 100) + '%';
+      fill.style.width = '0%';
       track.append(fill); row.append(lbl, track); container.append(row);
+      refs.push({ label: lbl, fill });
+    }
+    return refs;
+  }
+  function setStatRows(refs, rows) {
+    for (let i = 0; i < rows.length && i < refs.length; i++) {
+      refs[i].label.textContent = rows[i].label;
+      refs[i].fill.style.width = Math.round(Math.max(0, Math.min(1, rows[i].value)) * 100) + '%';
     }
   }
 
@@ -60,11 +71,11 @@ export function createScreens(ctx) {
     charPanel.querySelector('.select-name').textContent = c.name;
     charPanel.querySelector('.select-blurb').textContent = c.blurb;
     charPanel.querySelector('.select-ability').textContent = c.ability ? c.ability[0].toUpperCase() + c.ability.slice(1) : '—';
-    barRows(charPanel.querySelector('.stat-wrap'), [
-      { label: 'Speed', value: c.stats.speed / 1.2 },
-      { label: 'Capacity', value: c.stats.capacity / 8 },
-      { label: 'Throw range', value: c.stats.throwRange },
-      { label: 'Accuracy', value: c.stats.accuracy },
+    setStatRows(charPanel._statRefs, [
+      { label: 'Speed', value: c.stats.speed / CHAR_MAX.speed },
+      { label: 'Capacity', value: c.stats.capacity / CHAR_MAX.capacity },
+      { label: 'Throw range', value: c.stats.throwRange / CHAR_MAX.throwRange },
+      { label: 'Accuracy', value: c.stats.accuracy / CHAR_MAX.accuracy },
     ]);
     const lock = charPanel.querySelector('.select-lock');
     const unlocked = progress.canBuy(c);
@@ -77,11 +88,11 @@ export function createScreens(ctx) {
     const v = vehRegistry.get(selVeh);
     vehPanel.querySelector('.select-name').textContent = v.name;
     vehPanel.querySelector('.select-blurb').textContent = v.id === 'feet' ? 'Walk, hop, and slide.' : (v.canJump ? 'Bunny-hop over curbs.' : 'Fast and stable.');
-    barRows(vehPanel.querySelector('.stat-wrap'), [
-      { label: 'Speed', value: v.stats.maxSpeed / 14 },
-      { label: 'Capacity', value: (1 + v.stats.capacityBonus) / 6 },
-      { label: 'Turning', value: v.stats.turnRate / 5.5 },
-      { label: 'Top speed', value: v.stats.maxSpeed / 14 },
+    setStatRows(vehPanel._statRefs, [
+      { label: 'Speed', value: v.stats.maxSpeed / VEH_MAX.maxSpeed },
+      { label: 'Acceleration', value: v.stats.accel / VEH_MAX.accel },
+      { label: 'Turning', value: v.stats.turnRate / VEH_MAX.turnRate },
+      { label: 'Capacity', value: (1 + v.stats.capacityBonus) / VEH_MAX.capacity },
     ]);
     const lock = vehPanel.querySelector('.select-lock');
     const unlocked = progress.canBuy(v);
@@ -93,22 +104,41 @@ export function createScreens(ctx) {
 
   function makePanel(title, hint) {
     const p = el('div', 'select-panel');
+    const wrap = el('div', 'stat-wrap');
     p.append(
       el('h3', 'select-title', title),
       el('div', 'select-name', '—'),
       el('div', 'select-blurb', ''),
-      el('div', 'stat-wrap'),
+      wrap,
       el('div', 'select-ability'),
       el('div', 'select-lock'),
       el('div', 'select-hint', hint),
     );
     const buy = el('button', 'select-buy');
     p.append(buy);
+    p._statRefs = buildStatRows(wrap); // the 4 stat rows, built once
     root.append(p);
     return p;
   }
   const charPanel = makePanel('Choose a Courier', '←/→ cycle');
   const vehPanel = makePanel('Choose a Vehicle', '←/→ cycle');
+
+  // M15a.7: scale every stat bar against the max of that stat in the registry
+  // (never a hard-coded divisor), so bars are comparable across the roster.
+  function statMax(list, pick) { let m = 0; for (let i = 0; i < list.length; i++) { const v = pick(list[i]); if (v > m) m = v; } return m; }
+  const _charAll = charRegistry.all(), _vehAll = vehRegistry.all();
+  const CHAR_MAX = {
+    speed: statMax(_charAll, (c) => c.stats.speed),
+    capacity: statMax(_charAll, (c) => c.stats.capacity),
+    throwRange: statMax(_charAll, (c) => c.stats.throwRange),
+    accuracy: statMax(_charAll, (c) => c.stats.accuracy),
+  };
+  const VEH_MAX = {
+    maxSpeed: statMax(_vehAll, (v) => v.stats.maxSpeed),
+    accel: statMax(_vehAll, (v) => v.stats.accel),
+    turnRate: statMax(_vehAll, (v) => v.stats.turnRate),
+    capacity: statMax(_vehAll, (v) => 1 + v.stats.capacityBonus),
+  };
   const buyBtn = charPanel.querySelector('.select-buy');
   const vBuyBtn = vehPanel.querySelector('.select-buy');
 

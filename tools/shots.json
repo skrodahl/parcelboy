@@ -825,5 +825,21 @@
       "__pb.step(40); var sk=__pb.debugSkaters(); if(sk.length){ var s0=sk[0]; __pb.camAt(s0.x, s0.z, 5, 9); }"
     ],
     "waitMs": 400
+  },
+  {
+    "name": "m15a-select-cycle",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=selectCourier",
+    "eval": [
+      "(function(){ var p=document.querySelector('.select-panel:not(.hidden)'); if(!p) throw new Error('no select panel open'); var h0=p.offsetHeight; for(var i=0;i<6;i++) __pb.pressKey('ArrowRight'); var rows=p.querySelectorAll('.stat-row').length; if(rows!==4) throw new Error('M15a.7 FAIL: expected 4 stat rows, got '+rows); if(p.offsetHeight!==h0) throw new Error('M15a.7 FAIL: panel height grew '+h0+'->'+p.offsetHeight); })();"
+    ],
+    "waitMs": 300
+  },
+  {
+    "name": "m15a-select-cycle-veh",
+    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=selectVehicle",
+    "eval": [
+      "(function(){ var p=document.querySelector('.select-panel:not(.hidden)'); if(!p) throw new Error('no select panel open'); var h0=p.offsetHeight; for(var i=0;i<6;i++) __pb.pressKey('ArrowRight'); var rows=p.querySelectorAll('.stat-row').length; if(rows!==4) throw new Error('M15a.7 FAIL: expected 4 stat rows, got '+rows); if(p.offsetHeight!==h0) throw new Error('M15a.7 FAIL: panel height grew '+h0+'->'+p.offsetHeight); })();"
+    ],
+    "waitMs": 300
   }
 ]
