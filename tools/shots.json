@@ -617,7 +617,7 @@
     "name": "m14-region-map",
     "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
     "eval": [
-      "__pb.camAt(160, 140, 22, 10);"
+      "window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab' })); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Tab' })); __pb.step(2);"
     ]
   },
   {
@@ -827,19 +827,35 @@
     "waitMs": 400
   },
   {
-    "name": "m15a-select-cycle",
-    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=selectCourier",
+    "name": "m15a-prompt-dispatch",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
     "eval": [
-      "(function(){ var p=document.querySelector('.select-panel:not(.hidden)'); if(!p) throw new Error('no select panel open'); var h0=p.offsetHeight; for(var i=0;i<6;i++) __pb.pressKey('ArrowRight'); var rows=p.querySelectorAll('.stat-row').length; if(rows!==4) throw new Error('M15a.7 FAIL: expected 4 stat rows, got '+rows); if(p.offsetHeight!==h0) throw new Error('M15a.7 FAIL: panel height grew '+h0+'->'+p.offsetHeight); })();"
+      "__pb.showPrompt('dispatch'); __pb.step(20);"
     ],
-    "waitMs": 300
+    "waitMs": 400
   },
   {
-    "name": "m15a-select-cycle-veh",
-    "url": "/?char=pip&veh=bike&mute=1&paused=1&screen=selectVehicle",
+    "name": "m15a-strip-dispatch",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
     "eval": [
-      "(function(){ var p=document.querySelector('.select-panel:not(.hidden)'); if(!p) throw new Error('no select panel open'); var h0=p.offsetHeight; for(var i=0;i<6;i++) __pb.pressKey('ArrowRight'); var rows=p.querySelectorAll('.stat-row').length; if(rows!==4) throw new Error('M15a.7 FAIL: expected 4 stat rows, got '+rows); if(p.offsetHeight!==h0) throw new Error('M15a.7 FAIL: panel height grew '+h0+'->'+p.offsetHeight); })();"
+      "__pb.openStrip('dispatch'); var pp=__pb.playerPos(); __pb.camAt(pp[0], pp[1], 12, 5); __pb.step(4);"
     ],
-    "waitMs": 300
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-strip-locker",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.openStrip('locker', { row: 0 }); __pb.pressKey('ArrowRight'); var pp=__pb.playerPos(); __pb.camAt(pp[0], pp[1], 12, 5); __pb.step(4);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-hud-clean",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setCam('follow'); __pb.step(4);"
+    ],
+    "waitMs": 400
   }
 ]

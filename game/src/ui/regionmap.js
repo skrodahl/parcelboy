@@ -1,6 +1,8 @@
-// §2.18: the region-map inset — a small top-right card showing the suburb you're
-// in + the other suburbs reachable from it (its exits), with locked ones dimmed.
-// Pure DOM (no GPU draw calls); it re-renders only when the suburb changes.
+// §2.18 / M15a.8: the region-map card — the suburb you're in + the other suburbs
+// reachable from it (its exits), with locked ones dimmed. M15a.8: it lives in
+// the Tab FULL MAP, not the permanent HUD (it used to cover the panels). Pure
+// DOM (no GPU draw calls); it re-renders only when the suburb changes.
+// Hidden by default; `show()` is called when the full map opens.
 
 function make(cls, text) {
   const e = document.createElement('div');
@@ -13,8 +15,9 @@ export function createRegionMap(ui, getWorld) {
   const root = make('nb-region-map');
   root.style.display = 'none';
   ui.appendChild(root);
+  let shown = false;
 
-  function refresh() {
+  function render() {
     const w = getWorld();
     if (!w || !w.def || !(w.def.exits || []).length) { root.style.display = 'none'; return; }
     const def = w.def;
@@ -30,8 +33,12 @@ export function createRegionMap(ui, getWorld) {
       row.appendChild(chip);
     }
     root.append(title, row);
-    root.style.display = '';
   }
+  function apply() { root.style.display = (shown) ? '' : 'none'; }
+  // Refresh the content; only visible while the full map is open.
+  function refresh() { render(); apply(); }
+  function show() { shown = true; render(); apply(); }
+  function hide() { shown = false; root.style.display = 'none'; }
 
-  return { refresh, root };
+  return { refresh, show, hide, root };
 }

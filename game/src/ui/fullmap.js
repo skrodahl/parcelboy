@@ -7,7 +7,7 @@ import { renderMapCanvas } from './mapcanvas.js';
 const KIND_COLOR = { target: '#00b4a6', pickup: '#ffbe0b', depot: '#00b4a6', marker: '#8338ec', waypoint: '#ff5d5d', bee: '#ffe14d', locker: '#00b4a6' };
 const KIND_LABEL = { target: 'Deliver', pickup: 'Pickup', depot: 'Quickbox Q', marker: 'Mission', waypoint: 'Waypoint', bee: 'Angry bees', locker: 'Parcel locker' };
 
-export function createFullMap({ tm, state, radar, onPause }) {
+export function createFullMap({ tm, state, radar, onPause, onOpen, onClose }) {
   const map = renderMapCanvas(tm);
   const worldW = tm.width * tm.tileSize, worldH = tm.height * tm.tileSize;
 
@@ -103,6 +103,7 @@ export function createFullMap({ tm, state, radar, onPause }) {
     root.style.display = 'block';
     root.style.pointerEvents = 'auto';
     onPause(true);
+    if (onOpen) onOpen(); // M15a.8: show the region-map card inside the full map
     draw();
   }
   function close() {
@@ -111,6 +112,7 @@ export function createFullMap({ tm, state, radar, onPause }) {
     root.style.display = 'none';
     root.style.pointerEvents = 'none';
     onPause(false);
+    if (onClose) onClose(); // M15a.8: hide the region-map card
   }
   function tick(dt) {
     if (!mapOpen) return;

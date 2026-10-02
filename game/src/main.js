@@ -33,6 +33,7 @@ import { createFullMap } from './ui/fullmap.js';
 import { createExits } from './gameplay/exits.js';
 import { createTransition } from './ui/transition.js';
 import { createRegionMap } from './ui/regionmap.js';
+import { createActionStrip } from './ui/actionStrip.js';
 import { createHeat } from './gameplay/heat.js';
 import { createMischief } from './gameplay/mischief.js';
 import { createAmbient } from './entities/ambient.js';
@@ -193,6 +194,7 @@ let dayClock = null, clockSaveGap = 0;
 let benchZone = null, benchIn = false, benchFF = false, benchMesh = null, benchPromptEl = null, benchFFTarget = -1;
 // M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
 let markers = null, prevM = null, prevLocker = -1;
+let actionStrip = null; // M15a.8: the shared prompt + bottom action strip
 let MARKER_RADIUS = 8; // ~2 tiles; set from the tilemap's tile size at boot
 // §9: crickets only at dusk/golden (a preset with meaningful glow).
 function setCricketsForPreset(p) { if (audio) audio.setCrickets(!!p && p.glow > 0.4); }
@@ -389,6 +391,18 @@ if (params.scene === 'test') {
     // M12a.1: the tall mission/locker/side marker columns + their proximity card.
     markers = createMissionMarkers({ scene, def: world.def, T: world.tilemap.tileSize });
     MARKER_RADIUS = 2 * world.tilemap.tileSize; // ~2 tiles
+    // M15a.8: the shared action strip (prompt + bottom cards). Replaces the
+    // dispatch card + the courier/vehicle select screens for in-world markers.
+    actionStrip = createActionStrip({
+      ui: document.getElementById('ui'), camera, progress, charRegistry, vehRegistry,
+      getNb: () => (world ? world.def.id : null),
+      getCapacity: () => activeChar ? activeChar.stats.capacity + (activeVeh ? activeVeh.stats.capacityBonus : 0) : null,
+      mainShifts: MAIN_SHIFTS, sideShifts: SIDE_SHIFTS,
+      startShift, redress, getMarkerPos,
+      getCharId: () => (activeChar ? activeChar.id : null),
+      getVehId: () => (activeVeh ? activeVeh.id : null),
+      closeScreens: () => { if (screens) screens.close(); },
+    });
     dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
     dayCycle.startAt(preset.id); // sync the cycle to the boot time of day
     setCricketsForPreset(preset);
@@ -423,7 +437,7 @@ if (params.scene === 'test') {
     });
     window.addEventListener('keydown', (e) => {
       if (screens && screens.active) screens.handleKey(e);
-      else if (getMarkerState()) mcKey(e); // M12a.1: the free-roam marker card
+      else if (actionStrip && actionStrip.isOpen()) actionStrip.handleKey(e); // M15a.8
     });
     if (params.showCard && !params.screen) showShiftCard();
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
@@ -593,6 +607,9 @@ function spawnCourier(charDef, vehDef) {
     fullMap = createFullMap({
       tm: world.tilemap, state: radarState, radar,
       onPause: (p) => { if (p) simPaused = true; else if (!params.paused) simPaused = false; },
+      // M15a.8: the region-map card lives inside the full map (not the HUD).
+      onOpen: () => { if (regionMap) regionMap.show(); },
+      onClose: () => { if (regionMap) regionMap.hide(); },
     });
   }
   setupMischief(); // M7b: heat + Grumps + breakables + Watch (free-roam Grumps)
@@ -750,6 +767,35 @@ function changeCourier(charId, vehId) {
   gameState.name = 'freeRoam';
 }
 function gotoFreeRoam() { if (mission) endShift(false); if (screens) screens.close(); }
+// M15a.8: the locker strip "live re-dress" — swap courier/vehicle where the
+// player is standing (no teleport to spawn), with a small camera sway.
+function redress(charId, vehId) {
+  const p = player;
+  const px = p ? p.pos.x : 0, pz = p ? p.pos.z : 0, ph = p ? p.heading : 0;
+  changeCourier(charId, vehId);
+  if (player && followCam) {
+    // Restore where the player was standing (teleport sets pos + heading).
+    const T = world.tilemap.tileSize;
+    player.teleport(Math.floor(px / T), Math.floor(pz / T), (ph * 180) / Math.PI);
+    camTgt.pos = player.pos; camTgt.heading = player.heading;
+    followCam.snap(camTgt, camLook); followCam.shake(0.4); // the "small camera sway"
+  }
+}
+// M15a.8: the world position of a marker (for the prompt's world→screen anchor).
+function getMarkerPos(id) {
+  const m = markers && markers.byId ? markers.byId[id] : null;
+  if (!m) return null;
+  return { x: m.x, z: m.z, y: 5 };
+}
+// M15a.8: stand by a marker and open its strip (the `?screen=` routes + debug).
+function openStripFor(id, opts) {
+  const m = markers && markers.byId ? markers.byId[id] : null;
+  if (!m || !actionStrip) return;
+  if (player) { player.pos.x = m.x; player.pos.z = m.z; }
+  actionStrip.setNear(id);
+  actionStrip.openStrip(Object.assign({ id }, opts || {}));
+  prevM = id;
+}
 
 function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.className = cls; if (txt) n.textContent = txt; return n; }
 
@@ -915,13 +961,14 @@ function updateHudClock() {
 function routeScreen(name, params) {
   if (!name) return;
   if (name === 'title') { screens.show('title'); }
-  else if (name === 'selectCourier') { screens.show('selectCourier', { char: params.char }); }
-  else if (name === 'selectVehicle') { screens.show('selectVehicle', { veh: params.veh }); }
+  // M15a.8: the select screens + dispatch card are the shared action strip now.
+  else if (name === 'selectCourier') { openStripFor('locker', { row: 0 }); }
+  else if (name === 'selectVehicle') { openStripFor('locker', { row: 1 }); }
   else if (name === 'results') { showResults({ shift: 'morning', success: true, score: 3420, stars: 3, coins: 340, timeBonus: 120, delivered: 10, total: 10 }); }
   else if (name === 'settings') { screens.show('settings'); screens.buildSettings(qualityName); }
   else if (name === 'howTo') { screens.show('howTo'); }
   else if (name === 'pause') { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; }
-  else if (name.startsWith('missionCard:')) { showShiftCard(name.slice(12)); }
+  else if (name.startsWith('missionCard:')) { openStripFor('dispatch', { focus: name.slice(12) }); }
   else if (name === 'fullMap') { fullMap.open(); }
 }
 
@@ -1022,7 +1069,8 @@ function simStep(dt) {
     dayCycle.setPhase(pb.idx, pb.frac);
     setCricketsForPreset(TIMES_OF_DAY[pb.idx]);
   }
-  if (player && !menuGate()) {
+  if (player && !menuGate() && !(actionStrip && actionStrip.isOpen())) {
+    // M15a.8: the courier locks while the action strip is open (the sim keeps running).
     player.update(dt, input, simTime);
     player.syncVisuals(dt, simTime);
     // §2.12 speed lines: while Sprint/Turbo raise the top speed, a short white
@@ -1042,16 +1090,14 @@ function simStep(dt) {
       followCam.update(dt, simTime, camTgt, camLook);
     }
   }
-  // M12a.1: free-roam proximity to a mission / locker / side marker opens its
-  // card (edge-triggered on the marker id changing, so leaving + re-entering
-  // re-opens it, but a standing-still card doesn't flap).
+  // M15a.8: free-roam proximity to a marker shows its world-anchored prompt;
+  // pressing F opens the shared action strip (the player locks, the sim runs on).
+  // The parcel-locker cabinets still get their "Closed" nudge on approach.
   if (player && markers && !mission && !delivery && !menuGate()) {
-    const nearM = markers.nearest(player.pos.x, player.pos.z, MARKER_RADIUS);
-    if (nearM !== prevM) {
-      prevM = nearM;
-      if (nearM === 'locker') screens.show('selectCourier');
-      else if (nearM) openMarkerCard(nearM);
-      else closeMarkerCard();
+    if (!(actionStrip && actionStrip.isOpen())) {
+      const nearM = markers.nearest(player.pos.x, player.pos.z, MARKER_RADIUS);
+      if (nearM !== prevM) { prevM = nearM; actionStrip.setNear(nearM); } // prompt show/hide
+      if (nearM && input.consume('doorstep')) actionStrip.openStrip({ id: nearM }); // [F] opens
     }
     // §2.17: a parcel locker in free roam does nothing — a "Closed" nudge on approach.
     if (world.lockerBodies && world.lockerBodies.length) {
@@ -1067,6 +1113,7 @@ function simStep(dt) {
       }
     }
   }
+  if (actionStrip) actionStrip.tick(dt); // M15a.8: keep the prompt pinned to its marker
   if (delivery) {
     delivery.handleInput();
     delivery.updateDoorstep(dt);
@@ -1250,6 +1297,7 @@ const debugCtx = {
   get charRegistry() { return charRegistry; },
   get vehRegistry() { return vehRegistry; },
   get markers() { return markers; },
+  get actionStrip() { return actionStrip; }, // M15a.8
   get mcMarker() { return getMarkerState(); },
   get dayCycle() { return dayCycle; },
   get dayClock() { return dayClock; },

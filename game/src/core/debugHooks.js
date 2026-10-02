@@ -290,17 +290,20 @@ export function createDebugHooks(ctx) {
       if (!nb) return null;
       return { nb, found: progress.foundSet(nb), total: (w.def.goldenParcels || []).length, hidden: c ? w.def.goldenParcels.filter((_, i) => c.found(i)).length : -1 };
     },
-    // M12a.1: place the player at a marker (the "walked up to it" position) so the
-    // next sim step's proximity edge opens the card; or open the card directly.
-    nearMarker(id) { const mk = R.markers, p = R.player; const m = mk && mk.byId[id]; if (m && p) { p.pos.x = m.x; p.pos.z = m.z; ctx.setPrevM(null); } return m ? id : null; },
-    openMarker(id) {
-      const mk = R.markers, s = R.screens;
-      if (mk && mk.byId[id]) {
-        if (id === 'locker') { s.show('selectCourier'); } else { ctx.openMarkerCard(id); }
-        ctx.setPrevM(id);
-      }
-      return R.mcMarker || id;
+    // M15a.8: place the player at a marker and show its world-anchored prompt
+    // (the next sim step's proximity edge calls setNear; step() then pins it).
+    nearMarker(id) { const mk = R.markers, p = R.player; const m = mk && mk.byId[id]; if (m && p) { p.pos.x = m.x; p.pos.z = m.z; ctx.setPrevM(null); } if (R.actionStrip) R.actionStrip.setNear(id); return m ? id : null; },
+    // M15a.8: open the shared action strip for a marker (teleports + setNear + open).
+    openStrip(id, opts) {
+      const mk = R.markers, p = R.player; const m = mk && mk.byId[id];
+      if (m && p) { p.pos.x = m.x; p.pos.z = m.z; }
+      if (R.actionStrip) { R.actionStrip.setNear(id); R.actionStrip.openStrip(Object.assign({ id }, opts || {})); }
+      ctx.setPrevM(id);
+      return m ? id : null;
     },
+    // M15a.8: stand by a marker so its prompt shows (nothing else open).
+    showPrompt(id) { this.nearMarker(id); return id; },
+    openMarker(id) { return this.openStrip(id); },
     setTod(i, frac) { const dc = R.dayCycle; if (dc) dc.setPhase(i | 0, frac == null ? 0 : frac); return dc ? dc.phase : null; },
     debugGolden() {
       const c = R.collectibles, w = R.world;
