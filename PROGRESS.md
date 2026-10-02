@@ -1,6 +1,6 @@
 # Progress
 
-Current milestone: **M16 next** (Lakeside, §2.18), then M17 (Old Town), without stopping (AGENTS.md rule 6). **M15 (Cedar Heights, §2.18/§2.19) done**; M14 (terrain heights + multi-neighborhood engine, §2.18/§2.19) done; M13 (addressed parcels + parcel lockers, §2.16/§2.17) done; M12 + M12a (items 0–9) + M12b (day clock + shift windows) done; M0–M11 + M6b + M7b done.
+Current milestone: **M15a next** (play-test fixes, moved ahead of M16 by the user 2026-10-02; park any M16 work first, see PLAN Plan changes), then M16 (Lakeside, §2.18), then M17 (Old Town), without stopping (AGENTS.md rule 6). **M15 (Cedar Heights, §2.18/§2.19) done**; M14 (terrain heights + multi-neighborhood engine, §2.18/§2.19) done; M13 (addressed parcels + parcel lockers, §2.16/§2.17) done; M12 + M12a (items 0–9) + M12b (day clock + shift windows) done; M0–M11 + M6b + M7b done.
 
 ## Decisions
 - (2026-09-30) Git branch is `master` (git default); kept as-is.
