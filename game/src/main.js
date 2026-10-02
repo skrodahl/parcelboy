@@ -55,6 +55,7 @@ import { createDebugHooks } from './core/debugHooks.js';
 import { createShiftFlow } from './gameplay/shiftFlow.js';
 import { createCareer } from './gameplay/career.js';
 import { createDunk } from './gameplay/dunk.js'; // M15a.14: the pond dunk
+import { createMarketGag } from './gameplay/marketGag.js'; // §2.18 M17: the market-stall fruit gag
 import { getAchievement } from './data/achievements.js';
 
 const params = parseParams();
@@ -223,6 +224,7 @@ let collectibles = null, dayCycle = null;
 // §2.20 / M15a.11: the world day clock (drives the time-of-day look; it now runs
 // always and no longer gates shift access — missions are offered any time).
 let dayClock = null, clockSaveGap = 0;
+let prevChimeHour = -1; // §2.18 M17: the clock tower's hour chime (fires once per hour)
 // M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
 let markers = null, prevM = null, prevLocker = -1;
 let actionStrip = null; // M15a.8: the shared prompt + bottom action strip
@@ -247,6 +249,7 @@ const flow = createShiftFlow({
 const { openMarkerCard, closeMarkerCard, mcKey, showShiftCard, showResults, getMarkerState } = flow;
 let hazards = null; // M7 hazard manager (free-roam or per-shift counts)
 let dunk = null; // M15a.14: the pond dunk (teeter/splish/respawn)
+let marketGag = null; // §2.18 M17: the market-stall fruit gag (Old Town)
 let sharedEffects = null, sharedFloatText = null; // M7: created once, shared by hazards + delivery
 let hitStopUntil = 0; // M7: §2.12 hit-stop (sim-time the sim freezes on a knockdown)
 // M5 interim: 5 fixed houses are delivery targets until M6 adds shifts.
@@ -691,6 +694,12 @@ function setupMischief() {
     world, getPlayer: () => player, getDelivery: () => delivery, getDiff: () => diff(), getHazards: () => hazards,
     watch, effects: sharedEffects, floatText: sharedFloatText, events, scene, mat: world.worldMat,
     getVehId: () => (activeVeh ? activeVeh.id : 'feet'), getMaxSpeed: () => (activeVeh && activeChar ? activeVeh.stats.maxSpeed * activeChar.stats.speed : 6),
+  });
+  // §2.18 M17: the market-stall fruit gag (reads the live world/heat; the only
+  // suburb with marketstalls is Old Town, so it's a no-op elsewhere).
+  if (!marketGag) marketGag = createMarketGag({
+    getWorld: () => world, getPlayer: () => player, getHeat: () => heat,
+    effects: sharedEffects, floatText: sharedFloatText,
   });
 }
 
@@ -1145,6 +1154,16 @@ function saveAndQuit() {
   if (screens) screens.show('title');
 }
 
+// §2.18 M17: is the current suburb home to a clock tower? (the chime only
+// plays where the tower stands — Old Town). Plain loop, allocation-free.
+function suburbHasClocktower() {
+  if (!world || !world.def) return false;
+  const bs = world.def.buildings;
+  if (!bs) return false;
+  for (let i = 0; i < bs.length; i++) if (bs[i].kind === 'clocktower') return true;
+  return false;
+}
+
 function simStep(dt) {
   // §2.12 hit-stop: on a knockdown the world freezes ~70 ms (dramatic beat).
   if (simTime < hitStopUntil) return;
@@ -1163,6 +1182,7 @@ function simStep(dt) {
     const bt = (activeVeh && activeVeh.id === 'feet') ? MISCHIEF.bowlFootSpeed : MISCHIEF.bowlVehicleSpeed;
     ambient.step(dt, player, bt);
   }
+  if (marketGag) marketGag.tick(dt); // §2.18 M17: the market-stall fruit gag
   if (depotLife) depotLife.step(dt);
   // §2.18: the in-world exit travel prompt + the T-key travel.
   stepExits();
@@ -1179,6 +1199,13 @@ function simStep(dt) {
     const pb = dayClock.presetBlend();
     dayCycle.setPhase(pb.idx, pb.frac);
     setCricketsForPreset(TIMES_OF_DAY[pb.idx]);
+  }
+  // §2.18 M17: the clock tower chimes when the day clock crosses an hour (only
+  // where the tower stands). Fires once per hour; the SFX is a resonant bell.
+  if (dayClock) {
+    const chimeHour = Math.floor(dayClock.min / 60) % 24;
+    if (chimeHour !== prevChimeHour && suburbHasClocktower() && events) events.emit('chime');
+    prevChimeHour = chimeHour;
   }
   if (player && !menuGate() && !(actionStrip && actionStrip.isOpen()) && !(fullMap && fullMap.isOpen())) {
     // M15a.8: the courier locks while the action strip is open (the sim keeps running).

@@ -99,6 +99,30 @@ export const SHIFTS = [
     hazards: { car: 5, dog: 3, sprinkler: 1, skater: 1, bees: 0, bin: 6, cone: 0, goose: 4 },
     stars: { deliveredFrac: 0.7, style: 1720 }, unlockStars: 16, grumps: 3, // M15a.16: style = old 2★ (re-tuned to the autoplayer)
   },
+  // M17 §2.18: Old Town's own kiosk shifts. The suburb unlocks at 26★ (the
+  // last suburb — ~all the stars in the game); it has 8 houses, so the
+  // deliveries cap at 8 targets. More skaters + the pigeon flock + sprinklers.
+  {
+    id: 'oldMorning', name: 'Old Town Morning Round', kind: 'main', giver: 'dispatch', pickup: 'depot',
+    neighborhood: 'old-town', hours: 4, deliveries: 10,
+    packageMix: { standard: 0.8, fragile: 0.15, heavy: 0.05 },
+    hazards: { car: 3, dog: 1, sprinkler: 2, skater: 4, bees: 0, bin: 0, cone: 0, pigeon: 3 },
+    stars: { deliveredFrac: 0.7, style: 1500 }, unlockStars: 26, grumps: 3,
+  },
+  {
+    id: 'oldLunch', name: 'Old Town Lunch Rush', kind: 'main', giver: 'dispatch', pickup: 'depot',
+    neighborhood: 'old-town', hours: 3.5, deliveries: 11,
+    packageMix: { standard: 0.5, express: 0.3, heavy: 0.2 },
+    hazards: { car: 4, dog: 2, sprinkler: 2, skater: 4, bees: 0, bin: 0, cone: 0, pigeon: 3 },
+    stars: { deliveredFrac: 0.7, style: 1750 }, unlockStars: 26, grumps: 3,
+  },
+  {
+    id: 'oldDusk', name: 'Old Town Dusk Round', kind: 'main', giver: 'dispatch', pickup: 'depot',
+    neighborhood: 'old-town', hours: 4.5, deliveries: 12,
+    packageMix: { standard: 0.4, fragile: 0.2, express: 0.2, heavy: 0.2 },
+    hazards: { car: 5, dog: 2, sprinkler: 1, skater: 4, bees: 0, bin: 0, cone: 0, pigeon: 3 },
+    stars: { deliveredFrac: 0.7, style: 1720 }, unlockStars: 26, grumps: 3,
+  },
   // Side missions (each has its own shop marker; hazards null = free-roam levels).
   {
     id: 'cake', name: 'Cake Rush', kind: 'side', giver: 'bakery', pickup: 'bakery',

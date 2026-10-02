@@ -2,11 +2,12 @@ import mapleHollow from './maple-hollow.js';
 import testHills from './test-hills.js';
 import cedarHeights from './cedar-heights.js';
 import lakeside from './lakeside.js';
+import oldTown from './old-town.js';
 
 // §2.18: the neighborhoods, looked up by id. `debug` ones (the §2.19 terrain
 // test map) are loadable via `?nb=` but excluded from the region map / save /
 // suburb unlocks.
-export const NEIGHBORHOODS = [mapleHollow, cedarHeights, lakeside, testHills];
+export const NEIGHBORHOODS = [mapleHollow, cedarHeights, lakeside, oldTown, testHills];
 export const DEFAULT_NEIGHBORHOOD = 'maple-hollow';
 
 export function getNeighborhood(id) {

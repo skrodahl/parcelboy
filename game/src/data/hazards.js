@@ -48,6 +48,14 @@ export const HAZARDS = [
     id: 'runawayBin', name: 'Runaway Bin', behavior: 'binRoll', model: 'bin', radius: 0.7, spawn: 'hazardSpots.bin',
     params: { wakeMin: 3, wakeMax: 7, rollTime: 2.4, accel: 5, maxSpeed: 7 }, knockdown: true,
   },
+  // §2.18 M17: Old Town's pigeon flock — the unique gag. A loose flock roosts
+  // at each `hazardSpots.pigeon` pad; when the courier gets close, the whole
+  // flock LIFTS OFF as one big cloud (flaps + scatters up and out), then comes
+  // back down to the roost. Pure slapstick — they never hurt or knock down.
+  {
+    id: 'pigeon', name: 'Pigeon Flock', behavior: 'pigeonFlock', model: 'pigeon', radius: 0.5, spawn: 'hazardSpots.pigeon',
+    params: { wakeRadius: 7, flockTime: 2.6, returnTime: 4 }, knockdown: false,
+  },
   // M15a.14: the pond / any water tile - a cartoon dunk (behavior 'dunk'),
   // triggered when the courier's center enters a water tile (not a spawned
   // entity; the `water` behavior runs the teeter/splish/respawn sequence).

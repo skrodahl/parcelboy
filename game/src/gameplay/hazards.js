@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HAZARD } from '../data/config.js';
+import { HAZARD_BY_ID } from '../data/hazards.js';
 import { buildHazardGeos } from '../world/hazardModels.js';
 import { createTraffic } from '../world/traffic.js';
 import { findDriveways } from '../world/cars.js';
@@ -14,7 +15,7 @@ import { aheadOf, dist2d, inArcOf, loopPerim, pointOnRect } from './hazardGeom.j
 //
 // env = { scene, world, def, charDef, counts, effects, floatText,
 // onKnockdown(kind), onHiveHit(x, z), onDogSteal(), onDogRecover(), onHop() }
-const MAX = { car: 8, dog: 4, sprinkler: 4, skater: 4, beehive: 4, bee: 48, bin: 10, cone: 4, runaway: 6, goose: 5 };
+const MAX = { car: 8, dog: 4, sprinkler: 4, skater: 4, beehive: 4, bee: 48, bin: 10, cone: 4, runaway: 6, goose: 5, pigeon: 24 };
 
 export function createHazards(env) {
   const { scene, world, def, counts, effects, floatText, player } = env;
@@ -47,7 +48,7 @@ export function createHazards(env) {
   }
 
   // -- Spawn per count -----------------------------------------------------
-  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [], bin: spots.bin || [], goose: spots.goose || [] };
+  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [], bin: spots.bin || [], goose: spots.goose || [], pigeon: spots.pigeon || [] };
   const T = world.tilemap.tileSize;
   const wx = (t) => world.tilemap.cx(t[0]), wz = (t) => world.tilemap.cz(t[1]);
 
@@ -89,6 +90,32 @@ export function createHazards(env) {
   const runCount = Math.min(counts.runawayBin || 0, spotOf.bin.length || MAX.runaway);
   const runSt = [];
   for (let i = 0; i < runCount; i++) { const s = spotOf.bin[i % spotOf.bin.length]; runSt.push({ x: wx(s), z: wz(s), hx: wx(s), hz: wz(s), vx: 0, vz: 0, state: 0, t: rng() * 5, roll: 0 }); }
+  // §2.18 M17: the pigeon flock gag. Each `hazardSpots.pigeon` pad is a roost of
+  // PIGEON_PER pigeons. When the courier gets close, the whole flock LIFTS OFF
+  // as one cloud (rises + scatters), then descends and lands back on the pad.
+  // Pure slapstick — no knockdown.
+  const PIGEON_PER = 8;
+  const nRoosts = Math.min(counts.pigeon || 0, spotOf.pigeon.length);
+  const nPigeons = nRoosts * PIGEON_PER;
+  const pigeonRoosts = [];
+  const pigeonHome = new Array(nPigeons); // { x, z } loose cluster offset within the roost
+  const pigeonDir = new Array(nPigeons);  // { x, z } unit scatter direction
+  for (let r = 0; r < nRoosts; r++) {
+    const s = spotOf.pigeon[r % spotOf.pigeon.length];
+    const rx = wx(s), rz = wz(s);
+    for (let p = 0; p < PIGEON_PER; p++) {
+      const i = r * PIGEON_PER + p;
+      const a = rng() * Math.PI * 2, rr = rng() * 1.7;
+      pigeonHome[i] = { x: Math.cos(a) * rr, z: Math.sin(a) * rr };
+      const da = rng() * Math.PI * 2;
+      pigeonDir[i] = { x: Math.cos(da), z: Math.sin(da) };
+    }
+    pigeonRoosts.push({ x: rx, z: rz, state: 'roost', t: 0 });
+  }
+  const pigeonDef = (HAZARD_BY_ID && HAZARD_BY_ID.pigeon) || {};
+  const pigeonWake = (pigeonDef.params || {}).wakeRadius || 7;
+  const pigeonFlockTime = (pigeonDef.params || {}).flockTime || 2.6;
+  const pigeonReturnTime = (pigeonDef.params || {}).returnTime || 4;
 
   // -- Instanced meshes ----------------------------------------------------
   const carM = instanced('car', MAX.car, nCars);
@@ -102,6 +129,7 @@ export function createHazards(env) {
   const binM = instanced('bin', MAX.bin, bins);
   const coneM = instanced('cone', MAX.cone, cones);
   const runM = instanced('bin', MAX.runaway, runCount); // M15 runaway bins (share the bin geo)
+  const pigeonM = instanced('pigeon', MAX.pigeon, nPigeons); // §2.18 M17 pigeon flock
   const mapW = world.tilemap.width * T, mapH = world.tilemap.height * T; // M15: clamp the roll to the map
 
   // Static placement (bins/cones/hives/sprinklers sit; set once).
@@ -394,10 +422,46 @@ export function createHazards(env) {
   // M12a.5: the shared geometry helpers (dist2d / inArcOf / loopPerim /
   // pointOnRect + aheadOf) live in gameplay/hazardGeom.js.
 
+  // §2.18 M17: the pigeon flock. A roost lifts off as one cloud when the
+  // courier gets close, hangs a beat at height, then descends + lands back on
+  // the pad. `L` is the lift factor (0 = roosting on the pad, 1 = full height).
+  function easeOutCubic(x) { const t = 1 - x; return 1 - t * t * t; }
+  function easeInOut(x) { return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
+  function stepPigeons(dt) {
+    if (!nRoosts) return;
+    const cx = player.pos.x, cz = player.pos.z;
+    for (let r = 0; r < nRoosts; r++) {
+      const ro = pigeonRoosts[r];
+      const dist = Math.hypot(ro.x - cx, ro.z - cz);
+      if (ro.state === 'roost') { if (dist < pigeonWake) { ro.state = 'up'; ro.t = 0; } }
+      else {
+        ro.t += dt;
+        if (ro.state === 'up' && ro.t >= pigeonFlockTime) { ro.state = 'return'; ro.t = 0; }
+        else if (ro.state === 'return' && ro.t >= pigeonReturnTime) { ro.state = 'roost'; ro.t = 0; }
+      }
+      let L;
+      if (ro.state === 'roost') L = 0;
+      else if (ro.state === 'up') L = easeOutCubic(Math.min(1, ro.t / pigeonFlockTime));
+      else L = 1 - easeInOut(Math.min(1, ro.t / pigeonReturnTime));
+      for (let p = 0; p < PIGEON_PER; p++) {
+        const i = r * PIGEON_PER + p;
+        const hm = pigeonHome[i], dm = pigeonDir[i];
+        const spread = 1 + L * 2.6;
+        const px = ro.x + hm.x * spread + dm.x * L * 5;
+        const pz = ro.z + hm.z * spread + dm.z * L * 5;
+        const gy = world.terrain ? world.terrain.baseYAt(px, pz) : 0;
+        const py = gy + 0.15 + L * 6.5 + Math.sin(ro.t * 4 + p) * 0.25 * L;
+        const ry = L > 0.08 ? Math.atan2(dm.x, dm.z) : (i % 2 ? 0.5 : -0.5);
+        placeY(pigeonM, i, px, py, pz, ry, 0.85);
+      }
+    }
+    pigeonM.instanceMatrix.needsUpdate = true;
+  }
+
   // Public API -------------------------------------------------------------
   function step(dt) {
     if (player) player.spraySlow = 1; // reset; sprinklers raise it this frame
-    stepCars(dt); stepDogs(dt); stepGooles(dt); stepSprinklers(dt); stepSkaters(dt); stepBees(dt); stepBins(dt); stepRunaway(dt);
+    stepCars(dt); stepDogs(dt); stepGooles(dt); stepSprinklers(dt); stepSkaters(dt); stepBees(dt); stepBins(dt); stepRunaway(dt); stepPigeons(dt);
     collide();
   }
   function angersSwarmAt(x, z) {
@@ -424,9 +488,9 @@ export function createHazards(env) {
     return {
       step, angersSwarmAt, tipBin, carDebug,
       cars, dogs, skaters, hives, bins, cones, gooses,
-      dogSt, hiveSt, spSt, skSt, binSt, runSt, gooseSt, // internal state (for __pb hooks + tests)
+      dogSt, hiveSt, spSt, skSt, binSt, runSt, gooseSt, pigeonRoosts, // internal state (for __pb hooks + tests)
       dispose() {
-        for (const m of [carM, dogM, gooseM, spM, skM, hiveM, beeM, binM, coneM, runM]) { scene.remove(m); m.dispose && m.dispose(); }
+        for (const m of [carM, dogM, gooseM, spM, skM, hiveM, beeM, binM, coneM, runM, pigeonM]) { scene.remove(m); m.dispose && m.dispose(); }
         for (const k of Object.keys(geos)) geos[k].dispose(); // §2.18: free the hazard geos (built per suburb)
       },
     };

@@ -37,6 +37,10 @@ export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects
   if (tm.def.buildings.some((b) => b.kind === 'depot')) buildDepot(grid, tm, glow, signQuads, colliders);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'watertower')) buildWaterTower(grid, tm, glow, signQuads, colliders, b);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'lighthouse')) buildLighthouse(grid, tm, glow, signQuads, colliders, b);
+  // M17 §2.18: Old Town landmarks + the market-stall fruit gag.
+  for (const b of tm.def.buildings.filter((b) => b.kind === 'clocktower')) buildClockTower(grid, tm, glow, signQuads, colliders, b);
+  for (const b of tm.def.buildings.filter((b) => b.kind === 'church')) buildChurch(grid, tm, glow, signQuads, colliders, b);
+  for (const b of tm.def.buildings.filter((b) => b.kind === 'marketstall')) buildMarketStall(grid, tm, glow, signQuads, colliders, b);
   parkCars(grid, tm, colliders);
   return flag || { flagGeo: null, flagPos: null };
 }
@@ -282,4 +286,90 @@ function buildLighthouse(grid, tm, glow, signQuads, colliders, b) {
   // Compact collider at the tower base (a full-footprint box would block the pier).
   const cxw = b.x * T + (b.w * T) / 2, czw = b.z * T + (b.d * T) / 2, half = 1.8;
   colliders.push({ type: 'box', minX: cxw - half, maxX: cxw + half, minZ: czw - half, maxZ: czw + half, h: baseY + 9 });
+}
+
+// M17 §2.18: Old Town's clock tower — a tall stone tower with a glowing clock
+// face + a pyramidal slate cap and finial. It's a landmark (taller than the
+// row houses). The hour chime is audio (main.js triggers it on the clock).
+function buildClockTower(grid, tm, glow, signQuads, colliders, b) {
+  const op = new VoxelBuilder(323);
+  const gl = new GlowBuilder();
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
+  const ch = grid.chunkAt(b.x, b.z);
+  const stone = PALETTE.stone, cap = PALETTE.roof[2]; // slate
+  const H = 9.0;
+  op.box(0, H / 2, 0, 2.8, H, 2.8, stone, { skipFaces: ['bottom'] }); // the tower body
+  op.box(0, H, 0, 3.2, 0.5, 3.2, cap); // cap band
+  op.box(0, H + 0.5, 0, 2.4, 0.7, 2.4, cap); // the pyramid base
+  op.box(0, H + 1.1, 0, 1.4, 0.6, 1.4, cap);
+  op.box(0, H + 1.6, 0, 0.4, 1.2, 0.4, cap); // finial
+  // The clock face (front, +Z) glows day/night; hands baked in stone-dark.
+  const fy = H - 2.2;
+  gl.box(0, fy, 1.42, 1.6, 1.6, 0.1, PALETTE.windowDay, PALETTE.windowNight);
+  op.box(0, fy + 0.6, 1.5, 0.4, 0.4, 0.06, '#2f333d'); // the hands' hub
+  op.box(0, fy + 0.9, 1.52, 0.09, 0.5, 0.05, '#2f333d'); // minute hand
+  op.box(0.35, fy + 0.4, 1.52, 0.4, 0.09, 0.05, '#2f333d'); // hour hand
+  op.box(0, 0.4, 1.44, 1.2, 1.8, 0.1, PALETTE.door[4], { skipFaces: ['bottom'] }); // entrance door
+  ch.opaque.merge(op, m);
+  glow.merge(gl, m);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, H + 2.4, baseY);
+}
+
+// M17 §2.18: the old chapel on the town's low rise — a stone nave with a tall
+// steeple + a cross, and arched windows that glow at night.
+function buildChurch(grid, tm, glow, signQuads, colliders, b) {
+  const op = new VoxelBuilder(324);
+  const gl = new GlowBuilder();
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
+  const ch = grid.chunkAt(b.x, b.z);
+  const W = b.w * T, D = b.d * T;
+  const stone = PALETTE.stone, roof = PALETTE.roof[2]; // slate
+  const naveH = 4.6;
+  op.box(0, naveH / 2, 0, W - 0.8, naveH, D - 0.8, stone, { skipFaces: ['bottom'] }); // nave
+  op.box(0, naveH + 1.1, -D / 2 + 1.4, W - 0.8, 2.2, D - 1.6, roof, { skipFaces: ['bottom'] }); // nave roof
+  // The steeple (tall tower + spire) on the front-left corner.
+  const sx = -W / 2 + 1.6, sz = D / 2 - 1.6, spH = 7.5;
+  op.box(sx, spH / 2, sz, 2.2, spH, 2.2, stone, { skipFaces: ['bottom'] });
+  op.box(sx, spH + 0.9, sz, 2.6, 1.8, 2.6, roof); // spire base
+  op.box(sx, spH + 2.0, sz, 1.6, 1.2, 1.6, roof);
+  op.box(sx, spH + 2.9, sz, 0.3, 1.4, 0.3, roof); // finial
+  op.box(sx + 0.9, spH + 3.6, sz, 0.3, 0.9, 0.9, PALETTE.trim); // the cross (vertical + arm)
+  op.box(sx + 0.9, spH + 3.9, sz, 0.9, 0.3, 0.3, PALETTE.trim);
+  // Arched nave windows (glow) + the steeple bell window.
+  for (let i = -1; i <= 1; i++) gl.box(i * (W / 4), 2.4, D / 2 - 0.4, 1.1, 1.6, 0.1, PALETTE.windowDay, PALETTE.windowNight);
+  gl.box(sx, spH - 1.4, sz + 1.12, 0.9, 1.1, 0.1, PALETTE.windowDay, PALETTE.windowNight);
+  // Entrance doors + steps on the front.
+  op.box(W / 4, 0.5, D / 2 - 0.2, 1.4, 2.4, 0.1, PALETTE.door[1], { skipFaces: ['bottom'] });
+  ch.opaque.merge(op, m);
+  glow.merge(gl, m);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, spH + 4.2, baseY);
+}
+
+// M17 §2.18: the market stall — the unique gag. A low wooden counter with a
+// striped awning + a row of colorful fruit crates on top (bowl into fruit, +heat).
+// The fruit-crate "break" + burst is driven by gameplay/marketGag.js (the crate
+// tops sit at a known offset this module records via `signQuads`-free data).
+function buildMarketStall(grid, tm, glow, signQuads, colliders, b) {
+  const op = new VoxelBuilder(325 + (b.x % 7));
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
+  const ch = grid.chunkAt(b.x, b.z);
+  const W = b.w * T, D = b.d * T;
+  const wood = PALETTE.porch, accent = b.accent || PALETTE.roof[0];
+  const counterH = 1.1;
+  op.box(0, counterH / 2, 0, W - 0.4, counterH, D - 0.4, wood, { skipFaces: ['bottom'] }); // counter
+  op.box(0, counterH + 0.05, 0, W - 0.2, 0.1, D - 0.2, PALETTE.roof[5]); // counter top
+  // 3 fruit crates on the counter (the colorful "fruit everywhere" payoff).
+  const fruits = ['#e63946', '#f4a261', '#ffd166', '#57cc99'];
+  for (let i = 0; i < 3; i++) {
+    const fx = -W / 2 + 1.2 + i * (W - 2.4) / 2;
+    op.box(fx, counterH + 0.4, 0, 1.1, 0.7, 1.1, fruits[(i + b.x) % fruits.length], { skipFaces: ['bottom'] });
+  }
+  // The striped awning overhanging the front + two support posts.
+  for (let i = 0; i < 4; i++) op.box(-W / 2 + (i + 0.5) * (W / 4), counterH + 0.9, D / 2 - 0.2, W / 4 - 0.1, 0.12, 1.6, i % 2 ? accent : PALETTE.trim, { skipFaces: ['bottom'] });
+  for (const s of [-1, 1]) op.box(s * (W / 2 - 0.3), counterH / 2, D / 2 - 0.5, 0.2, counterH + 0.4, 0.2, wood, { skipFaces: ['bottom'] });
+  ch.opaque.merge(op, m);
+  buildingColliders(tm.def, colliders, b.id, b.x, b.z, b.w, b.d, counterH + 1.0, baseY);
 }

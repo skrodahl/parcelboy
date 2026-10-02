@@ -207,10 +207,24 @@ export function createDebugHooks(ctx) {
       if (!h) return null;
       return {
         cars: h.cars.length, dogs: h.dogs, skaters: h.skaters, hives: h.hives, bins: h.bins, cones: h.cones,
+        pigeon: h.pigeonRoosts ? h.pigeonRoosts.length : 0, // §2.18 M17
         hiveStates: h.hiveSt ? h.hiveSt.map((hs) => hs.state) : [],
         dogStates: h.dogSt ? h.dogSt.map((ds) => ds.state) : [],
         dogSteal: h.dogSt ? h.dogSt.map((ds) => ds.stealT) : [],
       };
+    },
+    // §2.18 M17: the pigeon flock states (roost x/z + lift state) so a shot can
+    // frame a lifted flock; `triggerPigeons(i)` force-lifts roost i now.
+    debugPigeons() {
+      const h = R.hazards;
+      if (!h || !h.pigeonRoosts) return [];
+      return h.pigeonRoosts.map((r) => ({ x: +r.x.toFixed(1), z: +r.z.toFixed(1), state: r.state }));
+    },
+    triggerPigeons(i) {
+      const h = R.hazards;
+      if (!h || !h.pigeonRoosts || !h.pigeonRoosts[i]) return -1;
+      h.pigeonRoosts[i].state = 'up'; h.pigeonRoosts[i].t = 0;
+      return i;
     },
     // M15: the runaway-bin states (x,z,home,rolling flag) so a shot can frame
     // one mid-roll; `kickBin(i)` forces bin i into its rolling state now.

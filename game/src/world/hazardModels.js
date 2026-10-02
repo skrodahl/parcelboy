@@ -96,6 +96,17 @@ function gooseGeo(seed) {
   return op.toGeometry();
 }
 
+function pigeonGeo(seed) {
+  // §2.18 M17: the pigeon — a small grey round bird. Forward = +Z.
+  const op = new VoxelBuilder(seed);
+  op.box(0, 0.3, 0, 0.5, 0.4, 0.72, '#8d99ae', { skipFaces: ['bottom'] }); // body
+  op.box(0, 0.54, 0.28, 0.32, 0.3, 0.32, '#8d99ae'); // head
+  op.box(0, 0.5, 0.48, 0.14, 0.12, 0.2, '#e8e8e8'); // beak
+  for (const s of [-1, 1]) op.box(s * 0.24, 0.32, -0.05, 0.14, 0.22, 0.5, '#6d597a'); // wings
+  for (const s of [-1, 1]) op.box(s * 0.08, 0.05, -0.15, 0.1, 0.1, 0.1, '#e8e8e8'); // feet
+  return op.toGeometry();
+}
+
 function sprinklerGeo(seed) {
   const op = new VoxelBuilder(seed);
   op.box(0, 0.3, 0, 0.5, 0.6, 0.5, '#118ab2', { skipFaces: ['bottom'] }); // base
@@ -118,5 +129,6 @@ export function buildHazardGeos(seed = 1) {
     cone: coneGeo(seed + 6),
     sprinkler: sprinklerGeo(seed + 7),
     goose: gooseGeo(seed + 8),
+    pigeon: pigeonGeo(seed + 9),
   };
 }

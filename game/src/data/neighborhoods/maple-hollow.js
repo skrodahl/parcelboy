@@ -676,7 +676,7 @@ export default {
         ]
       ],
       "entry": "spawn",
-      "unlockStars": 3
+      "unlockStars": 26
     }
   ],
   "kiosk": {

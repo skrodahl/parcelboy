@@ -106,6 +106,7 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     results: () => sfx.play('star'),
     golden: () => sfx.play('golden'),
     dunk: () => sfx.play('splash'), // M15a.14: the SPLOOSH! of the pond gag
+    chime: () => sfx.play('chime'), // §2.18 M17: the clock tower's hour chime
     // mischief (§2.15)
     crash: () => sfx.play('crash'), strike: () => sfx.play('strike'),
       whistle: () => sfx.play('whistle'), grumble: () => sfx.play('grumble'),

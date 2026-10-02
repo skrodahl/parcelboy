@@ -124,6 +124,29 @@ const STYLES = {
     porch(op, c, 3.0, 3.0, false);
     return { roofTop: H + 0.9, garage: false };
   },
+  rowhouse(op, gl, rec, c, rng, side, facing) {
+    // M17 §2.18: a narrow, 3-story townhouse with solid joined side walls, a low
+    // parapet roof, and a grid of windows. Built narrow (4.6 wide) so a row of
+    // them reads as row houses / joined walls.
+    const H = 6.6;
+    const w = 4.6;
+    op.box(0, H / 2, 3.4, w, H, 0.4, c.wall, { skipFaces: ['bottom'] });
+    op.box(0, H / 2, -3.4, w, H, 0.4, c.wall, { skipFaces: ['bottom'] });
+    op.box(-w / 2 + 0.2, H / 2, 0, 0.4, H, 6.4, c.wall, { skipFaces: ['bottom'] }); // joined side walls
+    op.box(w / 2 - 0.2, H / 2, 0, 0.4, H, 6.4, c.wall, { skipFaces: ['bottom'] });
+    op.box(0, H, 0, w + 0.4, 0.4, 7.2, c.roof, { skipFaces: ['bottom'] }); // flat roof
+    op.box(0, H, 3.85, w + 0.4, 0.4, 0.3, c.roof); // parapet
+    op.box(0, H, -3.85, w + 0.4, 0.4, 0.3, c.roof);
+    op.box(w / 2 - 0.6, H, 0, 0.5, 1.4, 0.5, PALETTE.roof[3]); // a chimney
+    for (const y of [1.3, 3.3, 5.3]) { // 3 floors × 2 windows
+      for (const x of [-1.35, 1.35]) win(gl, rec, x, y, 3.66, 1.0, 1.2, 0, 1);
+      for (const s of [-1, 1]) win(gl, rec, (w / 2 + 0.22) * s, y, 0, 1.0, 1.2, s, 0);
+    }
+    op.box(0, 0, 3.66, 1.0, 2.2, 0.12, c.door, { skipFaces: ['bottom'] }); // narrow front door
+    op.box(0, 0.1, 4.4, 1.6, 0.06, 0.9, PALETTE.brand, { skipFaces: ['bottom', 'top'] }); // doormat (M5 target)
+    op.box(0, 0.12, 3.9, 1.8, 0.24, 0.9, PALETTE.sidewalk, { skipFaces: ['bottom'] }); // stoop
+    return { roofTop: H + 1.4, garage: false };
+  },
   bungalow(op, gl, rec, c, rng) {
     const H = 3.6;
     walls(op, c, H);
@@ -192,7 +215,9 @@ export function buildHouses(grid, tm, glowAll, signQuads, colliders, windowRects
   const names = Object.keys(STYLES);
   for (const h of tm.def.houses) {
     const rng = mulberry32(idSeed(h.id));
-    const style = STYLES[names[(rng() * names.length) | 0]];
+    // M17 §2.18: a house can pin its own style (`h.style`, e.g. Old Town's
+    // row houses); otherwise it's picked by the seeded rng as before.
+    const style = (h.style && STYLES[h.style]) || STYLES[names[(rng() * names.length) | 0]];
     const c = {
       wall: PALETTE.wall[(rng() * PALETTE.wall.length) | 0],
       roof: PALETTE.roof[(rng() * PALETTE.roof.length) | 0],

@@ -69,7 +69,7 @@ export const PARCEL = {
 // these levels; missions override per-shift (§2.6). Day cycle + golden parcels
 // land in M10/M8; this block seeds the free-roam hazard manager (M7).
 export const FREE_ROAM = {
-  hazards: { car: 5, dog: 3, sprinkler: 3, skater: 2, bees: 2, bin: 8, cone: 0, goose: 3 },
+  hazards: { car: 5, dog: 3, sprinkler: 3, skater: 2, bees: 2, bin: 8, cone: 0, goose: 3, pigeon: 3 },
   grumps: 4,
   minutesPerPhase: 2, // M10 day cycle: each ToD preset held this long (blend 30 s)
 };

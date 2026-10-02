@@ -86,6 +86,13 @@ export function createSfx(mgr) {
     golden: () => arp([N.C6, N.G6, N.E6, N.C7, N.E6, N.C7], 0.05, 'triangle', 0.28),
     // §2.20: the Quickbox bench's fast-forward ticking-clock blip.
     tick: () => tone({ freq: 1900, type: 'sine', atk: 0.004, dec: 0.06, gain: 0.12 }),
+    // §2.18 M17: the clock tower's hour chime — a resonant bell (fundamental +
+    // two partials, a long decay).
+    chime: () => {
+      tone({ freq: 523, type: 'sine', atk: 0.01, dec: 1.7, gain: 0.22 });
+      tone({ freq: 523 * 2.75, type: 'sine', atk: 0.01, dec: 1.2, gain: 0.09 });
+      tone({ freq: 523 * 1.5, type: 'triangle', atk: 0.01, dec: 1.4, gain: 0.07 });
+    },
   };
 
   function play(name, data) {

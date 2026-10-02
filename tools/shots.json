@@ -727,6 +727,48 @@
     ]
   },
   {
+    "name": "m17-overview",
+    "url": "/?nb=old-town&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(60, 136); __pb.step(5); __pb.camAt(52, 72, 60, 50);"
+    ]
+  },
+  {
+    "name": "m17-alley",
+    "url": "/?nb=old-town&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(82, 34); __pb.step(4); __pb.camAt(82, 34, 14, 8);"
+    ]
+  },
+  {
+    "name": "m17-market",
+    "url": "/?nb=old-town&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(72, 84); __pb.step(4); __pb.camAt(72, 78, 15, 9);"
+    ]
+  },
+  {
+    "name": "m17-clocktower",
+    "url": "/?nb=old-town&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.playerTeleportWorld(36, 56); __pb.step(4); __pb.camAt(36, 56, 42, 32);"
+    ]
+  },
+  {
+    "name": "m17-pigeons",
+    "url": "/?nb=old-town&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.triggerPigeons(0); __pb.step(70); __pb.camAt(58, 74, 16, 11);"
+    ]
+  },
+  {
+    "name": "m17-shift",
+    "url": "/?nb=old-town&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.startShift('oldMorning'); __pb.step(6); var t=__pb.topParcel(); __pb.playerTeleportWorld(t.x+6, t.z+6, 225); __pb.step(3); __pb.camAt(t.x, t.z, 15, 9);"
+    ]
+  },
+  {
     "name": "m15a-golden-reload",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
     "eval": [

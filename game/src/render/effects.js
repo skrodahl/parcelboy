@@ -8,6 +8,9 @@ import { CARTOON } from '../data/config.js';
 
 const MAX = 128;
 const CONFETTI_COLORS = [PALETTE.brand, PALETTE.brandAccent, '#ff8fab', '#4cc9f0', '#80b918', '#f4a261'];
+// §2.18 M17: the market-stall fruit gag — a scatter of colorful fruit (the
+// "bowl into fruit" payoff).
+const FRUIT_COLORS = ['#e63946', '#f4a261', '#ffd166', '#57cc99', '#ff6b6b', '#f4d35e'];
 
 export function createEffects(scene) {
   const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
@@ -73,6 +76,8 @@ export function createEffects(scene) {
     dust(x, y, z) { burst('dust', x, y, z, 6, { speed: 1.6, up: 0.4, life: 0.5, colors: ['#cfc4b8', '#b8ad9e'], scale: 1.4 }); },
     splash(x, y, z) { burst('splash', x, y, z, 12, { speed: 2.4, up: 1.8, life: 0.7, colors: ['#4cc9f0', '#90e0ef', '#bde0fe'], scale: 1.0 }); },
     splat(x, y, z) { burst('splat', x, y, z, 12, { speed: 2.0, up: 0.8, life: 0.6, colors: ['#ff8fab', '#fffaf0', '#f4acb7'], scale: 1.3 }); },
+    // §2.18 M17: fruit flying out of a market stall (colorful + a little bounce).
+    fruit(x, y, z) { if (CARTOON.enabled) burst('splat', x, y, z, 18, { speed: 2.8, up: 1.3, life: 0.8, colors: FRUIT_COLORS, scale: 1.5 }); },
     // §2.15: broken-window glass shards (a quick, sharp cyan/white burst).
     shards(x, y, z) { if (CARTOON.enabled) burst('shards', x, y, z, 22, { speed: 3.4, up: 1.0, life: 1.0, colors: ['#bde0fe', '#fffaf0', '#90e0ef', '#ffffff'], scale: 1.8 }); },
     // §2.7: a sprinkler's rotating spray — a few light-blue droplets arcing
