@@ -1195,7 +1195,7 @@ function update(dt) {
   if (bustedEl && simTime >= bustedUntil) { bustedEl.remove(); bustedEl = null; }
   if (sky) sky.follow(camera); // dome tracks the cam so it is always enclosed
   if (world && world.flag) world.flag.rotation.y = Math.sin(simTime * 2.0) * 0.3;
-  if (markers) markers.tick(dt); // M12a.1: the marker icons keep spinning (even while paused)
+  if (markers) markers.tick(dt, player ? player.pos.x : 0, player ? player.pos.z : 0); // M15a.9: arrows bob/spin, rings pulse (in-range aware)
   // Distance-scaled fog + far clip (§7.3 plan change): near/far track the
   // camera's distance d to its look target, updated every frame with no
   // allocation. updateProjectionMatrix only when far actually changes.

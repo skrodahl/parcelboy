@@ -603,7 +603,7 @@
     "name": "m14-exit-sign",
     "url": "/?nb=test-hills&char=pip&veh=feet&mute=1&paused=1",
     "eval": [
-      "__pb.holdTransition('Maple Hollow', 'Maple Hollow — the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"
+      "__pb.holdTransition('Maple Hollow', 'Maple Hollow \u2014 the Quickbox suburb: houses, Hollow Elementary, and the Distribution Center.');"
     ]
   },
   {
@@ -855,6 +855,22 @@
     "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
     "eval": [
       "__pb.setCam('follow'); __pb.step(4);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-marker-far",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.step(6); __pb.camAt(158, 138, 34, 16);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-marker-near",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.showPrompt('dispatch'); __pb.step(16); __pb.setCamDist(24, 11); __pb.step(8);"
     ],
     "waitMs": 400
   }

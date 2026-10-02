@@ -303,6 +303,13 @@ export function createDebugHooks(ctx) {
     },
     // M15a.8: stand by a marker so its prompt shows (nothing else open).
     showPrompt(id) { this.nearMarker(id); return id; },
+    // M15a.9: frame a marker's world position with a fixed close-up cam.
+    frameMarker(id, dist, up) {
+      const m = R.markers && R.markers.byId[id];
+      if (!m) return null;
+      this.camAt(m.x, m.z, dist || 18, up || 8);
+      return id;
+    },
     openMarker(id) { return this.openStrip(id); },
     setTod(i, frac) { const dc = R.dayCycle; if (dc) dc.setPhase(i | 0, frac == null ? 0 : frac); return dc ? dc.phase : null; },
     debugGolden() {
