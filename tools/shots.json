@@ -529,13 +529,6 @@
     ]
   },
   {
-    "name": "m12b-bench",
-    "url": "/?char=pip&veh=bike&mute=1&paused=1",
-    "eval": [
-      "__pb.setClock(480); var b=__pb.benchZone; __pb.playerTeleportWorld(b.x, b.z); __pb.step(3); __pb.setCam('follow');"
-    ]
-  },
-  {
     "name": "m12b-dusk-by-clock",
     "url": "/?char=pip&veh=bike&mute=1&paused=1",
     "eval": [
@@ -847,6 +840,30 @@
     "url": "/?nb=cedar-heights&char=pip&veh=feet&mute=1&paused=1",
     "eval": [
       "__pb.step(4); __pb.camFree(62, 144, 62, 134, 7);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-dispatch-anytime",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.setClock(180); __pb.nearMarker('dispatch'); __pb.openStrip('dispatch'); __pb.step(4);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-nightowl-teaser",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=8",
+    "eval": [
+      "__pb.setClock(600); __pb.nearMarker('dispatch'); __pb.openStrip('dispatch', { focus: 'dusk' }); __pb.step(4);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-night-world",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1",
+    "eval": [
+      "__pb.setClock(1320); __pb.step(6); __pb.startShift('morning'); __pb.step(6); __pb.setCam('follow');"
     ],
     "waitMs": 400
   },

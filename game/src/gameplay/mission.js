@@ -1,14 +1,16 @@
 import { mulberry32 } from '../core/rng.js';
 import { PACKAGES } from '../data/packages.js';
 
-// §2.10 / §2.6 / §2.20: a shift runner. It picks the delivery targets and owns
-// the shift's end conditions: a main shift ends when all are delivered, when
-// its window closes (the world clock), or when the courier clocks out early; a
-// side mission ends when all are delivered and never fails — it just stops
-// paying the tip once it's past its soft `deliverBy`. The delivery session's
-// running score becomes a result (stars, coins, early-finish bonus / tip).
-// Nothing ever reads as a failure: an unfinished shift is a partial-pay report.
-// `env = { def, shift, seed, clock, onResults, onActiveChange }`.
+// §2.10 / §2.6 / §2.20 / M15a.11: a shift runner. It picks the delivery targets
+// and owns the shift's end conditions. M15a.11 (any-time): a main shift has
+// `hours` (game hours from acceptance) — it ends when all are delivered, when
+// those `hours` run out on the world clock, or when the courier clocks out
+// early. It has no fixed window / time of day; starting it never moves the
+// clock. A side mission ends when all are delivered and never fails — it just
+// stops paying the tip once it's past its soft `deliverBy`. The delivery
+// session's running score becomes a result (stars, coins, early-finish bonus /
+// tip). Nothing ever reads as a failure: an unfinished shift is a partial-pay
+// report. `env = { def, shift, seed, clock, onResults, onActiveChange }`.
 
 // §2.6: pick `count` houses, at most 3 per 4×4-tile region, seeded.
 function selectTargets(def, count, seed) {
@@ -67,27 +69,36 @@ export function createMission(env) {
   let active = false;
   let ended = false;
   let lastRes = null;
-  // §2.20: the shift's deadline on the world clock (game minutes).
-  let deadlineMin = 0;   // main: the window end; the shift closes here
-  let tipByMin = 0;     // side: the soft deliver-by (full pay + tip before it)
+  // M15a.11: the shift's deadline on the world clock (game minutes), `hours`
+  // after acceptance for a main shift; the soft deliver-by for a side mission.
+  let deadlineMin = 0;   // main: start + hours; the shift closes here
+  let startMin = 0;      // main: the clock minute the shift was accepted
+  let tipByMin = 0;      // side: the soft deliver-by (full pay + tip before it)
+  const spanMin = isMain ? shift.hours * 60 : shift.deliverBy; // M15a.11: hours → minutes
 
   function start(s) {
     session = s; active = true; ended = false;
     if (clock) {
-      if (isMain) deadlineMin = shift.window[1];
+      startMin = clock.min;
+      if (isMain) deadlineMin = (startMin + shift.hours * 60) % 1440;
       else tipByMin = (clock.min + shift.deliverBy) % 1440;
     }
     if (env.onActiveChange) env.onActiveChange(true);
   }
 
   function allDelivered() { return session && session.remaining() === 0; }
-  // §2.20: a main shift closes when the clock reaches the window end.
-  function windowClosed() { return clock && isMain && clock.min >= deadlineMin && clock.min < deadlineMin + 1440; }
+  // M15a.11: a main shift closes when its `hours` run out on the world clock
+  // (elapsed game minutes since acceptance ≥ the span, wrap-aware).
+  function hoursRanOut() {
+    if (!clock || !isMain) return false;
+    const elapsed = (clock.min - startMin + 1440) % 1440;
+    return elapsed >= shift.hours * 60;
+  }
 
   function update(dt) {
     if (!active || ended) return;
     if (allDelivered()) { end(); return; }
-    if (windowClosed()) end(); // the window closes: a partial-pay report
+    if (hoursRanOut()) end(); // the hours ran out: a partial-pay report
   }
 
   function end() {
@@ -99,9 +110,11 @@ export function createMission(env) {
     let timeBonus = 0, tip = 0;
     if (clock && success) {
       if (isMain) {
-        // §2.20: an early finish (all delivered before the window closes) pays
-        // a bonus of the remaining game minutes × 2.
-        const remaining = Math.max(0, deadlineMin - clock.min);
+        // M15a.11: an early finish (all delivered before the shift's `hours`
+        // run out) pays a bonus of the remaining game minutes of the mission's
+        // own hours × 2.
+        const elapsed = (clock.min - startMin + 1440) % 1440;
+        const remaining = Math.max(0, shift.hours * 60 - elapsed);
         timeBonus = Math.floor(remaining) * 2;
       } else {
         // §2.20: a side mission delivered in time (before its soft deliverBy)
@@ -119,7 +132,7 @@ export function createMission(env) {
     const coins = Math.max(0, Math.floor(score / 10)); // §2.6 (never negative)
     const res = {
       shift: shift.id, score, timeBonus, stars, coins, delivered, total, success,
-      tip, windowClosed: !success && windowClosed(), base,
+      tip, hoursOut: !success && hoursRanOut(), base,
     };
     lastRes = res;
     if (env.onResults) env.onResults(res);
@@ -138,7 +151,8 @@ export function createMission(env) {
     get lastResult() { return lastRes; },
     get deadlineMin() { return deadlineMin; },
     get tipByMin() { return tipByMin; },
-    // §2.20: the shift's span in game minutes (the autopayer's pacing proxy).
-    get shiftSpanMin() { return isMain ? shift.window[1] - shift.window[0] : shift.deliverBy; },
+    // §2.20 / M15a.11: the shift's span in game minutes (the autopayer's pacing
+    // proxy). A main shift's span is its `hours`.
+    get shiftSpanMin() { return spanMin; },
   };
 }

@@ -21,7 +21,7 @@ import { buildCourier } from './entities/courierModel.js';
 import { buildModel } from './entities/vehicleModels.js';
 import { createBlobShadows } from './entities/blobShadows.js';
 import { createFollowCam } from './render/camera.js';
-import { FREE_ROAM, HAZARD, CARTOON, MISCHIEF } from './data/config.js';
+import { FREE_ROAM, HAZARD, CARTOON, MISCHIEF, TOD_HAZARDS } from './data/config.js';
 import { SHIFTS, MAIN_SHIFTS, SIDE_SHIFTS } from './data/shifts.js';
 import { createDelivery } from './gameplay/delivery.js';
 import { createMission } from './gameplay/mission.js';
@@ -47,7 +47,7 @@ import { loadSave, defaultSave, writeSave } from './core/save.js';
 import { createProgression } from './gameplay/progression.js';
 import { createCollectibles } from './gameplay/collectibles.js';
 import { createDayCycle } from './gameplay/dayCycle.js';
-import { createDayClock, setNextOpen } from './gameplay/dayClock.js';
+import { createDayClock } from './gameplay/dayClock.js';
 import { createMissionMarkers } from './gameplay/missionMarkers.js';
 import { createDebugHooks } from './core/debugHooks.js';
 import { createShiftFlow } from './gameplay/shiftFlow.js';
@@ -186,12 +186,9 @@ function updateHeatRow() {
 const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
-// §2.20 (M12b): the world day clock (drives the time-of-day look + shift windows).
+// §2.20 / M15a.11: the world day clock (drives the time-of-day look; it now runs
+// always and no longer gates shift access — missions are offered any time).
 let dayClock = null, clockSaveGap = 0;
-// §2.20: the Quickbox bench (next to the dispatch marker) — sitting + holding F
-// fast-forwards the clock to the next shift window opening. `benchIn` tracks whether
-// the courier is in the bench zone (so the fast-forward + its prompt show only there).
-let benchZone = null, benchIn = false, benchFF = false, benchMesh = null, benchPromptEl = null, benchFFTarget = -1;
 // M12a.1: the visible mission/locker/side markers + their free-roam proximity card.
 let markers = null, prevM = null, prevLocker = -1;
 let actionStrip = null; // M15a.8: the shared prompt + bottom action strip
@@ -401,20 +398,17 @@ if (params.scene === 'test') {
       startShift, redress, getMarkerPos,
       getCharId: () => (activeChar ? activeChar.id : null),
       getVehId: () => (activeVeh ? activeVeh.id : null),
+      getHour: () => (dayClock ? Math.floor(dayClock.min / 60) : 12), // M15a.11: the Night Owl teaser
       closeScreens: () => { if (screens) screens.close(); },
     });
     dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
     dayCycle.startAt(preset.id); // sync the cycle to the boot time of day
     setCricketsForPreset(preset);
-    // §2.20: the world clock (restored from the save; drives the time-of-day look +
-    // shift windows). Its preset blend feeds the day cycle each frame in free roam.
+    // §2.20 / M15a.11: the world clock (restored from the save; drives the
+    // time-of-day look). The day clock is the source of truth and now runs
+    // always (free roam AND missions); it no longer gates shift access.
     dayClock = createDayClock(saveData);
     dayClock.min = saveData.clock != null ? saveData.clock : 360; // 06:00 default
-    // Register the main shifts' window openings so the bench knows where to fast-forward.
-    setNextOpen(MAIN_SHIFTS.map((s) => s.window[0]));
-    // §2.20: the Quickbox bench — a small seat next to the dispatch marker. Sitting
-    // in its zone + holding F fast-forwards the clock to the next window opening.
-    createBench();
     // §2.13: a `?cam=` param frames the screenshots (street / overview / golden).
     if (params.cam) camPreset(params.cam);
     // §10: the menu / select / pause / settings screens + keyboard navigation.
@@ -466,9 +460,6 @@ function gotoNeighborhood(nbId, viaExit) {
   if (watch) { watch.dispose(); watch = null; }
   if (mischief) { mischief.dispose(); mischief = null; }
   heat = null;
-  if (benchMesh) { scene.remove(benchMesh.seat, benchMesh.post); benchMesh.seat.geometry.dispose(); benchMesh.post.geometry.dispose(); benchMesh.seat.material.dispose(); benchMesh = null; }
-  benchZone = null;
-  if (benchPromptEl) { benchPromptEl.remove(); benchPromptEl = null; }
   if (radar) { if (radar.canvas) radar.canvas.remove(); radar = null; }
   if (fullMap) { fullMap.dispose(); fullMap = null; }
   if (sky) { sky.dispose(); sky = null; }
@@ -487,7 +478,6 @@ function gotoNeighborhood(nbId, viaExit) {
   MARKER_RADIUS = 2 * world.tilemap.tileSize;
   dayCycle = createDayCycle({ lighting, sky, world, minutesPerPhase: FREE_ROAM.minutesPerPhase, blendTime: 30 });
   dayCycle.startAt(preset.id);
-  createBench();
   // re-point the courier + camera + radar + hazards + mischief at the new world
   radarState.world = world;
   spawnCourier(activeChar, activeVeh);
@@ -684,13 +674,30 @@ function onStrike() {
   if (events) events.emit('strike');
 }
 
+// M15a.11: apply the time-of-day hazard multipliers (TOD_HAZARDS) on top of a
+// hazard-count set — the clock changes the world, not access. Returns a new
+// counts object (called only when hazards (re)build, never per frame).
+function todApply(counts) {
+  const hour = dayClock ? dayClock.hour : 12;
+  let band = null;
+  for (let i = 0; i < TOD_HAZARDS.length; i++) {
+    const b = TOD_HAZARDS[i];
+    if (hour >= b.from && hour < b.to) { band = b.mul; break; }
+  }
+  if (!band) return counts;
+  const out = {};
+  for (const k of Object.keys(counts)) out[k] = Math.max(0, Math.round((counts[k] || 0) * (band[k] != null ? band[k] : 1)));
+  return out;
+}
+
 // M7: (re)create the hazard manager for a set of counts. Free roam uses the
 // FREE_ROAM levels; a shift uses its own (`hazards: null` → free-roam levels).
+// M15a.11: the counts are scaled by the current time of day (TOD_HAZARDS).
 function setHazards(counts) {
   if (!player || !sharedEffects) return;
   if (hazards) { hazards.dispose(); hazards = null; }
   hazards = createHazards({
-    scene, world, def: world.def, charDef: activeChar, counts: counts || FREE_ROAM.hazards,
+    scene, world, def: world.def, charDef: activeChar, counts: todApply(counts || FREE_ROAM.hazards),
     effects: sharedEffects, floatText: sharedFloatText, player,
     onKnockdown, parcels: delivery ? delivery.parcels : null,
     onDogSteal: () => { if (delivery) delivery.dropParcel(true); },
@@ -730,15 +737,8 @@ function startShift(shiftId) {
   if (world.lockers) world.lockers.setAllFull(); // §2.17: lockers refill when a new shift starts
   mission.start(delivery);
   player.setCarried(delivery.carried);
-  // §2.13: snap to the shift's time of day (the day cycle resumes from here when
-  // the mission ends). Also refreshes the glow + lamp pools + the dusk crickets.
-  if (shift.timeOfDay) {
-    const p = todRegistry.get(shift.timeOfDay);
-    if (p) {
-      if (dayCycle) dayCycle.startAt(shift.timeOfDay); else { if (lighting) lighting.apply(p); if (sky) sky.apply(p); }
-      setCricketsForPreset(p);
-    }
-  }
+  // M15a.11: starting a mission never moves the clock or the lighting — the
+  // world clock keeps running and drives the time-of-day mood (TOD_HAZARDS).
   gameState.name = 'mission';
   if (hud) hud.missionStart(delivery, shift);
 }
@@ -801,29 +801,6 @@ function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.c
 
 // §2.13 + §10: the free-roam chip + the mission HUD (timer / targets / next /
 // score). Built once; `tick` refreshes the live values each sim step.
-// §2.20: the Quickbox bench — a small seat next to the dispatch marker + a zone.
-// Sitting in the zone + holding F fast-forwards the clock to the next shift
-// window opening. `benchZone` (the AABB) + `benchMesh` (a seat + post) + a DOM
-// prompt ("Sit + hold F to fast-forward to the next shift").
-function createBench() {
-  const T = world.tilemap.tileSize;
-  const disp = (world.def.missionMarkers || []).find((m) => m.id === 'dispatch');
-  if (!disp) return;
-  // Placed just outside the dispatch marker's ~2-tile proximity radius, so the
-  // dispatch card doesn't auto-open here (F at the bench fast-forwards, not start).
-  const bx = (disp.x + 3.0) * T, bz = (disp.z + 0.0) * T; // next to, but beside, the marker
-  benchZone = { minX: bx - 2.2, maxX: bx + 2.2, minZ: bz - 2.2, maxZ: bz + 2.2, x: bx, z: bz };
-  const mat = new THREE.MeshStandardMaterial({ color: 0x00b4a6 });
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, 1.1), mat);
-  const post = new THREE.Mesh(new THREE.BoxGeometry(0.35, 2.0, 0.35), mat);
-  seat.position.set(bx, 0.5, bz); seat.rotation.y = 0.4;
-  post.position.set(bx - 1.0, 1.0, bz - 0.5); post.rotation.y = 0.4;
-  scene.add(seat, post);
-  benchMesh = { seat, post };
-  benchPromptEl = el('div', 'bench-prompt', 'Sit · hold F to fast-forward to the next shift');
-  benchPromptEl.style.display = 'none';
-  document.getElementById('ui').append(benchPromptEl);
-}
 
 function buildHUD() {
   if (hud) return;
@@ -948,8 +925,6 @@ function updateHudClock() {
   }
   hud.clockEl.textContent = txt;
   hud.clockEl.classList.toggle('urgent', !!urgent);
-  // §2.20: the bench prompt shows when the courier is sitting in the bench zone.
-  if (benchPromptEl) benchPromptEl.style.display = benchIn && !mission ? '' : 'none';
 }
 
 // M12a.5: the results screen, the dispatch card and the free-roam marker card
@@ -1042,28 +1017,10 @@ function simStep(dt) {
   // M10: the hidden Golden Parcels (spin/bob + collect on contact) + the free-roam
   // day cycle (a mission holds its own time of day, so it only ticks in free roam).
   if (collectibles && player) collectibles.tick(dt, simTime, player);
-  // §2.20: the Quickbox bench — sitting in its zone + holding F (in free roam, no
-  // dispatch card open) fast-forwards the clock ×20 to the next shift window's
-  // opening; walking off or releasing F stops it.
-  benchIn = !!(benchZone && player && !mission && !delivery && !menuGate()
-    && player.pos.x >= benchZone.minX && player.pos.x <= benchZone.maxX
-    && player.pos.z >= benchZone.minZ && player.pos.z <= benchZone.maxZ);
-  benchFF = benchIn && !menuGate() && !!input.isHeld('doorstep');
-  // §2.20: the world clock always advances (the HUD + shift windows follow it);
-  // the time-of-day look is clock-driven in free roam, held at the shift's preset
-  // while a shift is running (snapped at its start).
-  if (dayClock) {
-    if (benchFF) {
-      // §2.20: fast-forward ×20 to the next window opening, stopping there (the
-      // target is captured on the first frame of the fast-forward, then clamped).
-      if (benchFFTarget < 0) benchFFTarget = dayClock.nextWindowOpen();
-      if (benchFFTarget > 0) dayClock.min = Math.min(dayClock.min + dt * 20, benchFFTarget);
-      if (audio && simTime % 0.12 < dt) audio.tickFast(); // a ticking-clock blip
-    } else {
-      benchFFTarget = -1;
-      dayClock.tick(dt);
-    }
-  }
+  // §2.20 / M15a.11: the world clock always advances (free roam AND missions).
+  // It drives the time-of-day mood and now the day cycle runs in free roam (M15a.15
+  // extends that to missions). No bench fast-forward — missions are any time.
+  if (dayClock) dayClock.tick(dt);
   if (dayClock && dayCycle && !mission && !delivery) {
     const pb = dayClock.presetBlend();
     dayCycle.setPhase(pb.idx, pb.frac);
@@ -1302,12 +1259,10 @@ const debugCtx = {
   get dayCycle() { return dayCycle; },
   get dayClock() { return dayClock; },
   get shifts() { return SHIFTS; },
-  get benchZone() { return benchZone; },
   get transition() { return transition; },
   get regionMap() { return regionMap; },
   get exits() { return exits; },
   setClock(min) { if (dayClock) dayClock.min = min; },
-  get benchState() { return { in: benchIn, ff: benchFF, zone: !!benchZone, isHeldF: input.isHeld('doorstep'), menuGate: menuGate() }; },
   get simTime() { return simTime; },
   events, gameState, M5_TARGETS, input, camTgt, camLook, camera, scene, renderer, progress, params,
   stats, camPreset, startShift, gotoFreeRoam, endShift, routeScreen, openMarkerCard,

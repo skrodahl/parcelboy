@@ -12,12 +12,10 @@ export function createDebugHooks(ctx) {
   return {
     ready: false,
     stats: ctx.stats,
-    // §2.20 (M12b): the world day clock + the Quickbox bench zone (shots set the
-    // clock to specific times; the bench fast-forward is testable via holdF + step).
+    // §2.20 / M15a.11: the world day clock (shots set the clock to specific times;
+    // the bench fast-forward was removed with the bench — missions are any time).
     get dayClock() { return R.dayClock; },
     setClock(min) { R.setClock && R.setClock(min); },
-    get benchZone() { return R.benchZone; },
-    get benchState() { return R.benchState; },
     audio() { const a = R.audio; return { muted: a.muted, lastSounds: a.lastSounds(), musicVol: a.musicVol, sfxVol: a.sfxVol }; },
     setAudioVol(musicVol, sfxVol) { const a = R.audio; if (musicVol != null) a.setMusicVol(musicVol); if (sfxVol != null) a.setSfxVol(sfxVol); },
     debugAudio() {
@@ -372,10 +370,11 @@ export function createDebugHooks(ctx) {
      soak(shiftId, times) {
       const runs = [];
       for (let i = 0; i < (times || 3); i++) {
-        // §2.20: start the shift at the open of its window (main) so the autoplayer
-        // has the full window; side missions run from the current clock.
+        // M15a.11: missions run any time (no fixed window). Start from a neutral
+        // 08:00 clock (main) or 06:40 (side) so the soak run is deterministic; the
+        // clock still advances over the mission's own `hours`.
         const sh = ctx.shifts && ctx.shifts.find((s) => s.id === shiftId);
-        if (sh && ctx.setClock) ctx.setClock(sh.kind === 'side' ? 400 : sh.window[0]);
+        if (sh && ctx.setClock) ctx.setClock(sh.kind === 'side' ? 400 : 480);
         ctx.startShift(shiftId);
         const out = ctx.autoplayRun();
         const r = out && out.res;

@@ -1,11 +1,11 @@
-// §2.20: the world day clock. One clock drives the whole neighborhood: the day
-// (06:00–24:00) runs at 1 game hour = 60 real seconds, and the night
+// §2.20 / M15a.11: the world day clock. One clock drives the whole neighborhood:
+// the day (06:00–24:00) runs at 1 game hour = 60 real seconds, and the night
 // (00:00–06:00) is compressed so it passes in 60 real seconds total (6× faster).
-// It is the single source of truth for the time-of-day look (replacing the old
-// free-roam phase cycle) and for shift windows. No per-frame allocations: the
-// preset blend is read from a fixed keyframe table into a preallocated slot.
+// It is the single source of truth for the time-of-day mood (M15a.11: the clock
+// no longer gates shift access — it runs always, in free roam and missions).
+// No per-frame allocations: the preset blend is read from a fixed keyframe table
+// into a preallocated slot.
 const _blend = { idx: 0, frac: 0 };
-let nextOpen = []; // game-minutes of "next window openings", set by main.js
 
 // Time-of-day keyframes: [gameMinute, presetIndex]. Each segment blends from the
 // start preset to the end preset; equal indices = a hold. Every transition is
@@ -65,25 +65,11 @@ export function createDayClock(save = null) {
     return (h < 10 ? '0' : '') + h + ':' + (mm < 10 ? '0' + mm : mm);
   }
 
-  // §2.20: the next "window opening" game-minute strictly after the clock (the
-  // bench fast-forwards here). main.js registers the openings via setNextOpen.
-  function nextWindowOpen() {
-    let best = -1;
-    for (let i = 0; i < nextOpen.length; i++) {
-      const t = nextOpen[i];
-      if (t > min + 0.01 && (best < 0 || t < best)) best = t;
-    }
-    return best; // a game minute in (min, 1440], or -1 if none left today
-  }
-
   return {
-    tick, presetBlend, timeStr, nextWindowOpen,
+    tick, presetBlend, timeStr,
     get min() { return min; },
     set min(v) { min = ((v % 1440) + 1440) % 1440; },
     get isNight() { return isNight(); },
+    get hour() { return Math.floor(min / 60); },
   };
 }
-
-// main.js registers the shift-window openings (game minutes) after the shift
-// data is known, so the bench knows where to fast-forward to.
-export function setNextOpen(list) { nextOpen = list; }

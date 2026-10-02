@@ -74,6 +74,19 @@ export const FREE_ROAM = {
   minutesPerPhase: 2, // M10 day cycle: each ToD preset held this long (blend 30 s)
 };
 
+// M15a.11: the day clock changes the WORLD, not access. Per time-of-day hazard
+// multipliers applied on top of a mission's (or free-roam's) hazard counts —
+// NOT hard-coded per mission. Picked by the hour, so a mission accepted at
+// night runs with fewer dogs/sprinklers/bees, and around lunch more cars.
+// `from`/`to` are game hours [0..24); a hazard key absent from a band = ×1.
+export const TOD_HAZARDS = [
+  { from: 5,  to: 11,  mul: { car: 1, dog: 1, sprinkler: 1, bees: 1 } },                       // morning
+  { from: 11, to: 16,  mul: { car: 1.5, dog: 1, sprinkler: 1, bees: 1 } },                     // lunch: more traffic
+  { from: 16, to: 19,  mul: { car: 1, dog: 1, sprinkler: 0.5, bees: 1 } },                     // late afternoon
+  { from: 19, to: 24,  mul: { car: 0.7, dog: 0, sprinkler: 0, bees: 0, skater: 0.5, bin: 0.5 } }, // night
+  { from: 0,  to: 5,   mul: { car: 0.5, dog: 0, sprinkler: 0, bees: 0, skater: 0.5, bin: 0.5 } }, // deep night
+];
+
 // §2.6 / §2.7 / §2.12: knockdown + hazard-flow tuning shared by every hazard.
 // Per-hazard numbers (wake/chase radii, etc.) live in data/hazards.js params.
 export const HAZARD = {

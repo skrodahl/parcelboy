@@ -19,7 +19,20 @@ function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.c
 export function createActionStrip(ctx) {
   const { ui, camera, progress, charRegistry, vehRegistry, getNb, getCapacity,
     startShift, redress, getMarkerPos, mainShifts, sideShifts,
-    getCharId, getVehId, closeScreens } = ctx;
+    getCharId, getVehId, getHour, closeScreens } = ctx;
+
+  // M15a.11: a mission is offered any time, EXCEPT a shift with `availableHours`
+  // (Night Owl) which is only startable inside those game hours. Outside them it
+  // shows a teaser ("Evenings only · 19:00–24:00"), not a lock.
+  function availableNow(s) {
+    if (s.kind === 'side' || !s.availableHours) return true;
+    const h = getHour ? getHour() : 12;
+    return h >= s.availableHours[0] && h < s.availableHours[1];
+  }
+  function teaser(s) {
+    const h = (n) => ((n < 10 ? '0' : '') + n);
+    return 'Evenings only · ' + h(s.availableHours[0]) + ':00–' + h(s.availableHours[1]) + ':00';
+  }
   const _v = new THREE.Vector3();
   let t = 0;
   let open = false;
@@ -54,7 +67,8 @@ export function createActionStrip(ctx) {
   // The prompt label, per marker.
   function promptLabel(id) {
     if (id === 'dispatch') {
-      const n = listFor('dispatch').filter((s) => progress.canStart(s)).length;
+      // M15a.11: count missions you can start right now (unlocked + available now).
+      const n = listFor('dispatch').filter((s) => progress.canStart(s) && availableNow(s)).length;
       return 'Dispatch · ' + n + ' open';
     }
     if (id === 'locker') return 'Locker · change courier';
@@ -115,11 +129,12 @@ export function createActionStrip(ctx) {
   function makeShiftCard(s) {
     const locked = !progress.canStart(s);
     const cap = getCapacity();
-    const hrs = s.kind === 'side' ? null : Math.round((s.window[1] - s.window[0]) / 60);
+    const hrs = s.kind === 'side' ? null : s.hours; // M15a.11: `hours` (any-time)
     const c = el('div', 'as-card');
     c.append(el('div', 'as-card-name', s.name));
     c.append(el('div', 'as-card-meta', s.deliveries + ' drops' + (hrs != null ? ' · ' + hrs + 'h' : '') + (cap != null ? ' · ' + cap + ' on back' : '')));
     if (locked) c.append(el('div', 'as-card-lock', '🔒 ' + s.unlockStars + '★'));
+    else if (!availableNow(s)) c.append(el('div', 'as-card-teaser', teaser(s))); // M15a.11: Night Owl out of hours
     else {
       const best = progress.bestFor(s.id).stars;
       c.append(el('div', 'as-card-go', best ? best + '★ best' : 'Ready'));
@@ -155,7 +170,7 @@ export function createActionStrip(ctx) {
   }
   function shiftDetail(s) {
     const best = progress.bestFor(s.id).stars;
-    return s.deliveries + ' drops · ' + (s.kind === 'side' ? 'side mission' : Math.round((s.window[1] - s.window[0]) / 60) + 'h') + (best ? ' · best ' + best + '★' : '');
+    return s.deliveries + ' drops · ' + (s.kind === 'side' ? 'side mission' : s.hours + 'h') + (best ? ' · best ' + best + '★' : '');
   }
 
   // -- public API --------------------------------------------------------------
@@ -214,7 +229,7 @@ export function createActionStrip(ctx) {
       else if (progress.buy(d)) redress(row === 0 ? d.id : getCharId(), row === 0 ? getVehId() : d.id);
       return;
     }
-    if (progress.canStart(d)) { close(); startShift(d.id); }
+    if (progress.canStart(d) && availableNow(d)) { close(); startShift(d.id); } // M15a.11: teaser (out of hours) won't start
   }
   function handleKey(e) {
     if (!open) return;
