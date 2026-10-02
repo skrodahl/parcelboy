@@ -82,6 +82,20 @@ function coneGeo(seed) {
   return op.toGeometry();
 }
 
+function gooseGeo(seed) {
+  // §2.17 M16: a lakeside goose — white body, long neck + head, orange beak.
+  // Chases like a dog but honks; never hurts. Forward = +Z (head/beak forward).
+  const op = new VoxelBuilder(seed);
+  op.box(0, 0.32, 0, 0.5, 0.44, 0.78, '#f7f7f7', { skipFaces: ['bottom'] }); // body
+  op.box(0, 0.3, 0.42, 0.42, 0.4, 0.24, '#f7f7f7'); // chest
+  op.box(0, 0.78, 0.28, 0.2, 0.5, 0.2, '#f7f7f7'); // neck (up)
+  op.box(0, 1.0, 0.34, 0.3, 0.24, 0.34, '#f7f7f7'); // head
+  op.box(0, 0.98, 0.56, 0.24, 0.14, 0.3, '#fb8500'); // beak
+  for (const sx of [-1, 1]) op.box(sx * 0.14, 0.02, 0.4, 0.12, 0.14, 0.5, '#fb8500'); // webbed feet
+  for (const sx of [-1, 1]) op.box(sx * 0.26, 0.5, -0.28, 0.18, 0.28, 0.34, '#e8e8e8'); // folded wings
+  return op.toGeometry();
+}
+
 function sprinklerGeo(seed) {
   const op = new VoxelBuilder(seed);
   op.box(0, 0.3, 0, 0.5, 0.6, 0.5, '#118ab2', { skipFaces: ['bottom'] }); // base
@@ -103,5 +117,6 @@ export function buildHazardGeos(seed = 1) {
     bin: binGeo(seed + 5),
     cone: coneGeo(seed + 6),
     sprinkler: sprinklerGeo(seed + 7),
+    goose: gooseGeo(seed + 8),
   };
 }

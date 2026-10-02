@@ -33,6 +33,13 @@ export const HAZARDS = [
     id: 'cone', name: 'Traffic Cone', behavior: 'static', model: 'cone', radius: 0.4, spawn: 'driveways',
     params: {}, knockdown: false,
   },
+  // §2.17 Lakeside M16: lakeside geese — chase the courier like a dog and honk
+  // (honk via env.onHonk), but NEVER hurt or knock down. Pure slapstick nuisance.
+  // Spawn at the `hazardSpots.goose` pads; only Lakeside defines any.
+  {
+    id: 'goose', name: 'Goose', behavior: 'gooseChase', model: 'goose', radius: 0.6, spawn: 'hazardSpots.goose',
+    params: { wakeRadius: 8, chaseSpeed: 6.4, chaseTime: 6, leash: 14, honkEvery: 0.9 }, knockdown: false,
+  },
   // §2.18 Cedar Heights: a tipped bin that rolls downhill along the terrain
   // (rolls on its side, accelerates down the slope, knocks the courier down
   // like a skater when it's moving). Spawns at the bin hazard spots and, on a

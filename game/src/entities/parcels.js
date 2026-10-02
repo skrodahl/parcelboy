@@ -81,6 +81,7 @@ export function createParcels({ scene, material, world, packages, targets, house
         contact: 0, slideT: 0, roofT: 0, jellyT: 0,
         impact: 0, dist: 0, airMail: false, rest: 0, mailHit: false, trick: false,
         gagged: false, rollT: 0, rollVx: 0, rollVz: 0, loseKey: null, // M15: the downhill roll gag
+        floatT: 0, // M16: the lake float bob (§2.17)
       });
   }
   let cooldown = 0;
@@ -106,7 +107,7 @@ export function createParcels({ scene, material, world, packages, targets, house
     p.spin = 0;
     p.contact = 0;
     p.slideT = 0; p.roofT = 0; p.jellyT = 0; p.mailHit = false;
-    p.gagged = false; p.rollT = 0; p.rollVx = 0; p.rollVz = 0; p.loseKey = null;
+    p.gagged = false; p.rollT = 0; p.rollVx = 0; p.rollVz = 0; p.loseKey = null; p.floatT = 0;
     const dx = to.x - from.x, dz = to.z - from.z;
     const dist = Math.hypot(dx, dz);
     p.dist = dist;
@@ -222,10 +223,11 @@ export function createParcels({ scene, material, world, packages, targets, house
           m.position.y = gy;
           const key = world.tilemap.keyAt(Math.floor(m.position.x / world.tilemap.tileSize), Math.floor(m.position.z / world.tilemap.tileSize));
           if (key === 'pond') {
+            // §2.17 M16: a parcel that hits the lake FLOATS and bobs (still lost).
             p.vel.set(0, 0, 0);
-            p.state = 'resting';
-            if (effects) effects.splash(m.position.x, 0, m.position.z);
-            onRest(p, 'splash');
+            p.state = 'floating'; p.floatT = 0; p.gagged = true;
+            if (effects) effects.splash(m.position.x, 0.05, m.position.z);
+            if (onGag) onGag(p, m.position.x, m.position.z);
             continue;
           }
           if (p.contact === 0) firstContact(p);
@@ -262,6 +264,18 @@ export function createParcels({ scene, material, world, packages, targets, house
         m.position.y = groundY(m.position.x, m.position.z);
         m.rotation.x += dt * 8; m.rotation.z += dt * 5;
         if (p.rollT >= 0.8) { p.state = 'resting'; onRest(p, p.loseKey); }
+      } else if (p.state === 'floating') {
+        // §2.17 M16: the parcel bobs on the lake surface for a beat, then settles
+        // (judged 'splash' → lost). The water is a flat plane at the terrain level
+        // top + 0.05 (NOT baseYAt, which ramps within a tile), so ride the flat
+        // level height.
+        p.floatT += dt;
+        const T = world.tilemap.tileSize;
+        const wy = (world.terrain ? world.terrain.levelAt(Math.floor(m.position.x / T), Math.floor(m.position.z / T)) * world.terrain.LEVEL_H : 0) + 0.05;
+        m.position.y = wy + Math.sin(p.floatT * 3) * 0.07;
+        m.rotation.x = Math.sin(p.floatT * 2) * 0.18;
+        m.rotation.z = Math.cos(p.floatT * 2) * 0.18;
+        if (p.floatT >= 2.0) { p.state = 'resting'; onRest(p, 'splash'); }
       } else if (p.state === 'roofWait') {
         p.roofT += dt;
         // §2.12 roof luck: after the slide delay, 35% flip off onto the porch.

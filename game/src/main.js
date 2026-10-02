@@ -665,6 +665,7 @@ function setHazards(counts) {
     onDogSteal: () => { if (delivery) delivery.dropParcel(true); },
     onDogRecover: () => { if (delivery) delivery.recoverParcel(); },
       onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } if (events) events.emit('hop'); },
+      onHonk: () => { if (events) events.emit('honk'); }, // §2.17 M16: the lakeside geese
   });
   radarState.hazards = hazards;
 }

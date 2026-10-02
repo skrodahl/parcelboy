@@ -107,8 +107,8 @@ export function createAudio({ events, muted = false, musicVol = 0.35, sfxVol = 0
     golden: () => sfx.play('golden'),
     // mischief (§2.15)
     crash: () => sfx.play('crash'), strike: () => sfx.play('strike'),
-    whistle: () => sfx.play('whistle'), grumble: () => sfx.play('grumble'),
-    busted: () => sfx.play('busted'), alarm: () => sfx.play('alarm'), bark: () => sfx.play('bark'),
+      whistle: () => sfx.play('whistle'), grumble: () => sfx.play('grumble'),
+      busted: () => sfx.play('busted'), alarm: () => sfx.play('alarm'), bark: () => sfx.play('bark'), honk: () => sfx.play('honk'),
     buzzStart: (d) => startBuzz(d && d.id), buzzStop: (d) => stopBuzz(d && d.id),
   };
   const hooks = [];

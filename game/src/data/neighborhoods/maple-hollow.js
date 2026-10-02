@@ -662,7 +662,7 @@ export default {
         ]
       ],
       "entry": "spawn",
-      "unlockStars": 3
+      "unlockStars": 16
     },
     {
       "id": "west",

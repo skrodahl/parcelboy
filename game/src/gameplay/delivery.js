@@ -160,8 +160,10 @@ export function createDelivery(env) {
       floatText.pop(res.label, wx, wy + 0.4, wz, { color: res.color });
       if (res.points > 0) floatText.pop('+' + res.points, wx, wy + 1.1, wz, { color: res.color });
     } else if (res.outcome === 'splash') {
-      // §2.12 onomatopoeia: a big comic "SPLOOSH!" for the water gag.
-      floatText.pop('SPLOOSH!', wx, 0.6, wz, { color: res.color, burst: true });
+      // §2.12 onomatopoeia: a big comic "SPLOOSH!" for the water gag. The M16
+      // float gag already popped "SPLOOSH! …and it floats" on the splash, so a
+      // bobbed parcel skips the second "SPLOOSH!".
+      if (!parcel.gagged) floatText.pop('SPLOOSH!', wx, 0.6, wz, { color: res.color, burst: true });
     } else {
       floatText.pop(res.label, wx, wy + 0.4, wz, { color: res.color });
     }
@@ -169,7 +171,10 @@ export function createDelivery(env) {
   }
   s.onRest = onRest;
   // §2.12 mailbox gag: a parcel that clips a mailbox pops the flag + "DING!".
-  s.parcels = createParcels({ scene, material: world.worldMat, world, packages: PACKAGES, targets, houseRects, rng, effects, onRest, mailboxes, targetHouseIds, onMailbox: (x, z) => { effects.dust(x, 1.1, z); floatText.pop('DING!', x, 1.8, z, { color: '#ffd166', burst: true }); }, onGag: (p, x, z) => { floatText.pop('Come back!', x, 1.8, z, { color: '#ff6b6b', burst: true }); effects.dust(x, 0.6, z); }, onThrow: (p) => { player.startThrow(); floatText.pop('THWUMP!', p.mesh.position.x, p.mesh.position.y + 0.8, p.mesh.position.z, { burst: true }); } });
+  s.parcels = createParcels({ scene, material: world.worldMat, world, packages: PACKAGES, targets, houseRects, rng, effects, onRest, mailboxes, targetHouseIds, onMailbox: (x, z) => { effects.dust(x, 1.1, z); floatText.pop('DING!', x, 1.8, z, { color: '#ffd166', burst: true }); },     onGag: (p, x, z) => {
+      if (p.state === 'floating') { floatText.pop('SPLOOSH! …and it floats', x, 0.6, z, { color: '#4cc9f0', burst: true }); }
+      else { floatText.pop('Come back!', x, 1.8, z, { color: '#ff6b6b', burst: true }); effects.dust(x, 0.6, z); }
+    }, onThrow: (p) => { player.startThrow(); floatText.pop('THWUMP!', p.mesh.position.x, p.mesh.position.y + 0.8, p.mesh.position.z, { burst: true }); } });
 
   function doThrow(aim) {
     if (s.parcels.cooldownGet() > 0) return;

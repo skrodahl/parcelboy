@@ -36,6 +36,7 @@ export function buildBuildings(grid, tm, glow, signQuads, colliders, windowRects
   for (const b of tm.def.buildings.filter((b) => b.kind === 'shop')) buildShop(grid, tm, glow, signQuads, colliders, b);
   if (tm.def.buildings.some((b) => b.kind === 'depot')) buildDepot(grid, tm, glow, signQuads, colliders);
   for (const b of tm.def.buildings.filter((b) => b.kind === 'watertower')) buildWaterTower(grid, tm, glow, signQuads, colliders, b);
+  for (const b of tm.def.buildings.filter((b) => b.kind === 'lighthouse')) buildLighthouse(grid, tm, glow, signQuads, colliders, b);
   parkCars(grid, tm, colliders);
   return flag || { flagGeo: null, flagPos: null };
 }
@@ -247,4 +248,36 @@ function addBench(grid, tm, tx, tz, colliders) {
   for (const s of [-1, 1]) op.box(wx + s * 1.2, 0.25, wz, 0.16, 0.5, 0.7, PALETTE.roof[5], { skipFaces: ['bottom'] });
   grid.chunkAt(tx, tz).opaque.merge(op);
   colliders.push({ type: 'box', minX: wx - 1.6, maxX: wx + 1.6, minZ: wz - 0.9, maxZ: wz + 0.9, h: baseY + 1.4 });
+}
+
+// §2.17 M16: the Lakeside landmark — a little lighthouse on the pier. A tapered
+// cream tower with red bands, a teal gallery + lantern room, and a lamp that
+// glows at dusk (the glow quads carry the day/night window colors).
+function buildLighthouse(grid, tm, glow, signQuads, colliders, b) {
+  const op = new VoxelBuilder(322);
+  const gl = new GlowBuilder();
+  const baseY = tileBaseY(tm, b.x, b.z);
+  const m = frontMatrix(tm.def, b.x, b.z, b.w, b.d, baseY);
+  const ch = grid.chunkAt(b.x, b.z);
+  const cream = PALETTE.trim; // '#fffaf0'
+  const band = PALETTE.roof[0]; // '#e76f51' red
+  const teal = PALETTE.roof[4]; // '#2a9d8f'
+  // Tapered tower: four stacked boxes, narrower toward the top.
+  const segs = [[1.0, 2.6, 2.0], [2.9, 2.3, 1.8], [4.6, 2.0, 1.7], [6.1, 1.7, 1.5]];
+  for (const [y, w, h] of segs) op.box(0, y, 0, w, h, w, cream, { skipFaces: ['bottom'] });
+  for (const by of [1.95, 3.75, 5.4]) op.box(0, by, 0, 2.7, 0.3, 2.7, band); // red bands
+  const topY = 7.0;
+  op.box(0, topY, 0, 2.3, 0.3, 2.3, teal); // gallery deck
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) op.box(sx * 0.95, topY + 0.15, sz * 0.95, 0.14, 0.3, 0.14, teal); // gallery posts
+  op.box(0, topY + 0.95, 0, 1.5, 1.4, 1.5, teal); // lantern room
+  op.box(0, topY + 1.85, 0, 1.9, 0.3, 1.9, band); // cap
+  op.box(0, topY + 2.2, 0, 0.4, 0.7, 0.4, band); // finial
+  // Glowing lantern glass (two faces) — reads warm at dusk.
+  gl.box(0, topY + 0.95, 0.78, 1.1, 1.0, 0.1, PALETTE.windowDay, PALETTE.windowNight);
+  gl.box(0, topY + 0.95, -0.78, 1.1, 1.0, 0.1, PALETTE.windowDay, PALETTE.windowNight);
+  ch.opaque.merge(op, m);
+  glow.merge(gl, m);
+  // Compact collider at the tower base (a full-footprint box would block the pier).
+  const cxw = b.x * T + (b.w * T) / 2, czw = b.z * T + (b.d * T) / 2, half = 1.8;
+  colliders.push({ type: 'box', minX: cxw - half, maxX: cxw + half, minZ: czw - half, maxZ: czw + half, h: baseY + 9 });
 }

@@ -14,7 +14,7 @@ import { aheadOf, dist2d, inArcOf, loopPerim, pointOnRect } from './hazardGeom.j
 //
 // env = { scene, world, def, charDef, counts, effects, floatText,
 // onKnockdown(kind), onHiveHit(x, z), onDogSteal(), onDogRecover(), onHop() }
-const MAX = { car: 8, dog: 4, sprinkler: 4, skater: 4, beehive: 4, bee: 48, bin: 10, cone: 4, runaway: 6 };
+const MAX = { car: 8, dog: 4, sprinkler: 4, skater: 4, beehive: 4, bee: 48, bin: 10, cone: 4, runaway: 6, goose: 5 };
 
 export function createHazards(env) {
   const { scene, world, def, counts, effects, floatText, player } = env;
@@ -46,7 +46,7 @@ export function createHazards(env) {
   }
 
   // -- Spawn per count -----------------------------------------------------
-  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [], bin: spots.bin || [] };
+  const spotOf = { dog: spots.dog || [], sprinkler: spots.sprinkler || [], beehive: spots.beehive || [], bin: spots.bin || [], goose: spots.goose || [] };
   const T = world.tilemap.tileSize;
   const wx = (t) => world.tilemap.cx(t[0]), wz = (t) => world.tilemap.cz(t[1]);
 
@@ -61,6 +61,10 @@ export function createHazards(env) {
   const dogs = Math.min(counts.dog || 0, spotOf.dog.length);
   const dogSt = [];
   for (let i = 0; i < dogs; i++) { const s = spotOf.dog[i % spotOf.dog.length]; dogSt.push({ x: wx(s), z: wz(s), spot: s, state: 'sleep', t: 0, stealT: -1 }); }
+  // §2.17 M16: lakeside geese (chase like dogs but honk and never hurt).
+  const gooses = Math.min(counts.goose || 0, spotOf.goose.length);
+  const gooseSt = [];
+  for (let i = 0; i < gooses; i++) { const s = spotOf.goose[i % spotOf.goose.length]; gooseSt.push({ x: wx(s), z: wz(s), spot: s, state: 'sleep', t: 0, honkT: 0 }); }
   const sprinks = Math.min(counts.sprinkler || 0, spotOf.sprinkler.length);
   const spSt = [];
   for (let i = 0; i < sprinks; i++) { const s = spotOf.sprinkler[i % spotOf.sprinkler.length]; spSt.push({ x: wx(s), z: wz(s), on: (i % 2 === 0), t: 0, angle: rng() * Math.PI * 2 }); }
@@ -88,6 +92,7 @@ export function createHazards(env) {
   // -- Instanced meshes ----------------------------------------------------
   const carM = instanced('car', MAX.car, nCars);
   const dogM = instanced('dog', MAX.dog, dogs);
+  const gooseM = instanced('goose', MAX.goose, gooses);
   const spM = instanced('sprinkler', MAX.sprinkler, sprinks);
   const skM = instanced('skater', MAX.skater, skaters);
   const hiveM = instanced('beehive', MAX.beehive, hives);
@@ -161,6 +166,35 @@ export function createHazards(env) {
       place(dogM, i, d.x, d.z, Math.atan2(dpx, -dpz), 1);
     }
     dogM.instanceMatrix.needsUpdate = true;
+  }
+
+  // §2.17 M16: geese chase the courier like a dog but honk on the way and never
+  // knock down (slapstick only). Honk is throttled per goose; a "HONK!" pop +
+  // the honk sound (env.onHonk) sells it.
+  function stepGooles(dt) {
+    if (!gooses) return;
+    for (let i = 0; i < gooses; i++) {
+      const g = gooseSt[i];
+      const dpx = player.pos.x - g.x, dpz = player.pos.z - g.z;
+      const dpd = Math.hypot(dpx, dpz);
+      if (g.state === 'sleep') {
+        if (dpd < 8 && !player.dogFriendly) { g.state = 'chase'; g.t = 0; g.honkT = 0; floatText.pop('HONK!', g.x, 1.6, g.z, { color: '#fb8500', burst: true }); if (env.onHonk) env.onHonk(); }
+      } else if (g.state === 'chase') {
+        g.t += dt; g.honkT += dt;
+        const sp = 6.4; g.x += (dpx / (dpd || 1)) * sp * dt; g.z += (dpz / (dpd || 1)) * sp * dt;
+        if (g.honkT >= 0.9) { g.honkT = 0; if (env.onHonk) env.onHonk(); }
+        const sdx = g.x - wx(g.spot), sdz = g.z - wz(g.spot);
+        if (g.t > 6 || Math.hypot(sdx, sdz) > 14) g.state = 'home';
+      } else { // home / give up
+        const hx = wx(g.spot), hz = wz(g.spot);
+        const hdx = hx - g.x, hdz = hz - g.z; const hd = Math.hypot(hdx, hdz);
+        if (hd < 0.4) g.state = 'sleep';
+        else { g.x += (hdx / hd) * 3.5 * dt; g.z += (hdz / hd) * 3.5 * dt; }
+      }
+      // Idle waddle pulse so the geese read as alive at their pad.
+      place(gooseM, i, g.x, g.z, Math.atan2(dpx, -dpz), g.state === 'sleep' ? 1 + Math.sin(performance.now() * 0.003 + i) * 0.03 : 1);
+    }
+    gooseM.instanceMatrix.needsUpdate = true;
   }
 
   function stepSprinklers(dt) {
@@ -330,7 +364,7 @@ export function createHazards(env) {
   // Public API -------------------------------------------------------------
   function step(dt) {
     if (player) player.spraySlow = 1; // reset; sprinklers raise it this frame
-    stepCars(dt); stepDogs(dt); stepSprinklers(dt); stepSkaters(dt); stepBees(dt); stepBins(dt); stepRunaway(dt);
+    stepCars(dt); stepDogs(dt); stepGooles(dt); stepSprinklers(dt); stepSkaters(dt); stepBees(dt); stepBins(dt); stepRunaway(dt);
     collide();
   }
   function angersSwarmAt(x, z) {
@@ -356,10 +390,10 @@ export function createHazards(env) {
 
     return {
       step, angersSwarmAt, tipBin, carDebug,
-      cars, dogs, skaters, hives, bins, cones,
-      dogSt, hiveSt, spSt, skSt, binSt, runSt, // internal state (for __pb hooks + tests)
+      cars, dogs, skaters, hives, bins, cones, gooses,
+      dogSt, hiveSt, spSt, skSt, binSt, runSt, gooseSt, // internal state (for __pb hooks + tests)
       dispose() {
-        for (const m of [carM, dogM, spM, skM, hiveM, beeM, binM, coneM, runM]) { scene.remove(m); m.dispose && m.dispose(); }
+        for (const m of [carM, dogM, gooseM, spM, skM, hiveM, beeM, binM, coneM, runM]) { scene.remove(m); m.dispose && m.dispose(); }
         for (const k of Object.keys(geos)) geos[k].dispose(); // §2.18: free the hazard geos (built per suburb)
       },
     };

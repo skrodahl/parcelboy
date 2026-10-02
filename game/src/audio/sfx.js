@@ -79,6 +79,7 @@ export function createSfx(mgr) {
     alarm: () => { for (let i = 0; i < 4; i++) setTimeout(() => tone({ freq: 600, type: 'square', atk: 0.05, dec: 0.2, gain: 0.14, slideTo: 1200 }), i * 300); },
     horn: () => { tone({ freq: 400, type: 'square', dec: 0.22, gain: 0.18 }); tone({ freq: 430, type: 'square', dec: 0.22, gain: 0.14 }); },
     bark: () => { tone({ freq: 600, type: 'square', atk: 0.005, dec: 0.1, gain: 0.22, slideTo: 250 }); setTimeout(() => tone({ freq: 560, type: 'square', atk: 0.005, dec: 0.1, gain: 0.2, slideTo: 240 }), 90); },
+    honk: () => { tone({ freq: 340, type: 'square', atk: 0.01, dec: 0.16, gain: 0.2, slideTo: 280 }); setTimeout(() => tone({ freq: 390, type: 'square', atk: 0.01, dec: 0.18, gain: 0.16, slideTo: 330 }), 130); },
     restock: () => { tone({ freq: 160, type: 'sine', dec: 0.1, gain: 0.24, slideTo: 90 }); noise({ dur: 0.1, freq: 1000, filter: 'bandpass', gain: 0.18 }); },
     uiClick: () => tone({ freq: 700, type: 'square', atk: 0.005, dec: 0.05, gain: 0.12 }),
     hop: () => tone({ freq: 700, type: 'triangle', atk: 0.01, dec: 0.1, gain: 0.18, slideTo: 1100 }),

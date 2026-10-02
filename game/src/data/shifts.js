@@ -68,6 +68,31 @@ export const SHIFTS = [
     hazards: { car: 5, dog: 3, sprinkler: 0, skater: 1, bees: 0, bin: 8, cone: 0, runawayBin: 4 },
     stars: [1180, 1720, 2150], unlockStars: 8, grumps: 3, // M15: tuned to the autoplayer (1254) → 1 star
   },
+  // M16 §2.17: Lakeside's own kiosk shifts (giver 'dispatch' + pickup 'depot',
+  // both resolved to this suburb's kiosk + restockZone). The suburb unlocks at
+  // 16★; the lakeside geese + extra sprinklers run at these levels. Stars tuned
+  // to the autoplayer in M16 (see PROGRESS).
+  {
+    id: 'lakeMorning', name: 'Lakeside Morning Round', kind: 'main', giver: 'dispatch', pickup: 'depot',
+    neighborhood: 'lakeside', timeOfDay: 'morning', window: [420, 660], deliveries: 10, // 07:00–11:00
+    packageMix: { standard: 0.85, fragile: 0.1, heavy: 0.05 },
+    hazards: { car: 3, dog: 1, sprinkler: 3, skater: 0, bees: 0, bin: 6, cone: 0, goose: 3 },
+    stars: [1050, 1500, 1950], unlockStars: 16, grumps: 3, // M16: tuned to the autoplayer → 1 star
+  },
+  {
+    id: 'lakeLunch', name: 'Lakeside Lunch Rush', kind: 'main', giver: 'dispatch', pickup: 'depot',
+    neighborhood: 'lakeside', timeOfDay: 'noon', window: [690, 900], deliveries: 12, // 11:30–15:00
+    packageMix: { standard: 0.6, express: 0.3, heavy: 0.1 },
+    hazards: { car: 4, dog: 2, sprinkler: 3, skater: 1, bees: 0, bin: 6, cone: 0, goose: 4 },
+    stars: [1200, 1750, 2200], unlockStars: 16, grumps: 3, // M16: tuned to the autoplayer → 1 star
+  },
+  {
+    id: 'lakeDusk', name: 'Lakeside Dusk Round', kind: 'main', giver: 'dispatch', pickup: 'depot',
+    neighborhood: 'lakeside', timeOfDay: 'dusk', window: [1170, 1440], deliveries: 14, // 19:30–24:00
+    packageMix: { standard: 0.4, fragile: 0.2, express: 0.2, heavy: 0.2 },
+    hazards: { car: 5, dog: 3, sprinkler: 1, skater: 1, bees: 0, bin: 6, cone: 0, goose: 4 },
+    stars: [1180, 1720, 2150], unlockStars: 16, grumps: 3, // M16: tuned to the autoplayer → 1 star
+  },
   // Side missions (each has its own shop marker; hazards null = free-roam levels).
   {
     id: 'cake', name: 'Cake Rush', kind: 'side', giver: 'bakery', pickup: 'bakery',
