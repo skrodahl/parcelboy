@@ -4,6 +4,47 @@
 // starts at the Distribution Center.
 export const SAVE_KEY = 'parcelboy.save.v1';
 
+// M15a.13: the career ledger. Additive (missing fields default to 0), so an old
+// save without it upgrades in place. Kept here (core) so loadSave normalizes it.
+export function defaultCareer() {
+  return {
+    shifts: 0,                  // missions worked
+    delivered: 0,              // successful deliveries
+    outcomes: { perfect: 0, nice: 0, sloppy: 0, doorstep: 0, lucky: 0 },
+    wrongAddress: 0,
+    bestStreak: 0,
+    coins: 0,                  // coins earned all-time
+    stars: 0,                  // total stars earned
+    golden: {},                // per-suburb { [nbId]: found count }
+    suburbs: [],               // suburb ids visited
+    bowled: 0, strikes: 0, windows: 0, busted: 0, maxHeat: 0,
+    knockdowns: { car: 0, dog: 0, skater: 0, bees: 0, bin: 0, grump: 0 },
+    stolen: 0, recovered: 0, splats: 0, trampoline: 0, airMail: 0, dunk: 0,
+    cleanMissions: 0,          // missions finished with every parcel delivered
+    cakesClean: 0,             // cake deliveries that did NOT splat
+    holidayMissions: 0,        // missions finished on Holiday Rush!
+    distance: {},              // per-vehicle { [vehId]: metres }
+    achievements: [],          // earned ids
+    achievementDates: {},      // { [id]: 'YYYY-MM-DD' }
+  };
+}
+
+function normalizeCareer(c) {
+  const d = defaultCareer();
+  if (!c || typeof c !== 'object') return d;
+  for (const k of ['shifts', 'delivered', 'wrongAddress', 'bestStreak', 'coins', 'stars', 'bowled', 'strikes', 'windows', 'busted', 'maxHeat', 'stolen', 'recovered', 'splats', 'trampoline', 'airMail', 'dunk', 'cleanMissions', 'cakesClean', 'holidayMissions']) {
+    if (typeof c[k] === 'number' && isFinite(c[k])) d[k] = c[k];
+  }
+  if (c.outcomes) for (const k of Object.keys(d.outcomes)) if (typeof c.outcomes[k] === 'number') d.outcomes[k] = c.outcomes[k];
+  if (c.knockdowns) for (const k of Object.keys(d.knockdowns)) if (typeof c.knockdowns[k] === 'number') d.knockdowns[k] = c.knockdowns[k];
+  if (c.golden && typeof c.golden === 'object') { for (const k of Object.keys(c.golden)) if (typeof c.golden[k] === 'number') d.golden[k] = c.golden[k]; }
+  if (c.distance && typeof c.distance === 'object') { for (const k of Object.keys(c.distance)) if (typeof c.distance[k] === 'number') d.distance[k] = c.distance[k]; }
+  if (c.achievementDates && typeof c.achievementDates === 'object') { for (const k of Object.keys(c.achievementDates)) if (typeof c.achievementDates[k] === 'string') d.achievementDates[k] = c.achievementDates[k]; }
+  if (Array.isArray(c.suburbs)) d.suburbs = c.suburbs.filter((x) => typeof x === 'string');
+  if (Array.isArray(c.achievements)) d.achievements = c.achievements.filter((x) => typeof x === 'string');
+  return d;
+}
+
 export function defaultSave() {
   return {
     version: 1,
@@ -16,6 +57,7 @@ export function defaultSave() {
     clock: 360, // §2.20: the world day clock (game minutes since 00:00), persisted
     neighborhood: 'maple-hollow', // §2.18: the suburb the player is in
     difficulty: 'brutal', // M15a.12: the current skill level (additive; old saves default here)
+    career: defaultCareer(), // M15a.13: the career ledger
   };
 }
 
@@ -57,6 +99,7 @@ export function loadSave() {
       if (typeof data.settings[k] === typeof d.settings[k]) d.settings[k] = data.settings[k];
     }
   }
+  d.career = normalizeCareer(data.career); // M15a.13 (missing fields default to 0)
   return d;
 }
 

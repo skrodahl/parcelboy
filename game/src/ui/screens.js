@@ -2,6 +2,8 @@ import { CHARACTERS } from '../data/characters.js';
 import { VEHICLES } from '../data/vehicles.js';
 import { buildSettingsRows } from './settingsScreen.js';
 import { createDifficultyList } from './difficulty.js';
+import { createPausePanel } from './screens/pause.js';
+import { createCareerPage } from './screens/career.js';
 
 // §10: the menu / select / pause / settings / results screens. Each is a DOM
 // overlay on top of the 3D scene; the select screens show the chosen courier or
@@ -15,7 +17,11 @@ function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.c
 export function createScreens(ctx) {
   const { ui, scene, camera, charRegistry, vehRegistry, buildCourier, buildModel, mat,
     progress, pickChar, pickVeh, getBowled, startShift, gotoFreeRoam, setCam, qualityName,
-    currentDifficulty, onPickDifficulty } = ctx;
+    currentDifficulty, onPickDifficulty, careerData, achievements, saveAndQuit } = ctx;
+  // M15a.13: sub-screens opened from the pause hub return to the hub; from the
+  // title they return to the title. Career is a view *inside* the pause screen.
+  let subParent = 'title';
+  let pauseView = 'menu'; // 'menu' (the row panel) | 'career'
   const root = el('div', 'screens');
   ui.append(root);
 
@@ -149,9 +155,9 @@ export function createScreens(ctx) {
   const titleHow = el('button', 'title-btn', 'How to play');
   const titleSettings = el('button', 'title-btn', 'Settings');
   const titleNewGame = el('button', 'title-btn title-newgame', 'New Game');
-  titleHow.addEventListener('click', () => show('howTo'));
-  titleSettings.addEventListener('click', () => { buildSettings(qualityName); show('settings'); });
-  titleNewGame.addEventListener('click', () => show('difficulty')); // M15a.12: pick a difficulty
+  titleHow.addEventListener('click', () => { subParent = 'title'; show('howTo'); });
+  titleSettings.addEventListener('click', () => { subParent = 'title'; buildSettings(qualityName); show('settings'); });
+  titleNewGame.addEventListener('click', () => { subParent = 'title'; show('difficulty'); }); // M15a.12: pick a difficulty
   const titleMenu = el('div', 'title-menu');
   titleMenu.append(titleNewGame, titleHow, titleSettings);
   title.append(
@@ -219,16 +225,22 @@ export function createScreens(ctx) {
     diffList = createDifficultyList(diffContainer, {
       el,
       currentId: currentDifficulty ? currentDifficulty() : 'brutal',
-      onPick: (id) => { onPickDifficulty && onPickDifficulty(id); show('title'); },
-      onCancel: () => show('title'),
+      onPick: (id) => { onPickDifficulty && onPickDifficulty(id); show(subParent); }, // M15a.13: back to the hub (or title)
+      onCancel: () => show(subParent),
     });
   }
 
-  // -- pause menu -----------------------------------------------------------
+  // -- pause hub (M15a.13) ---------------------------------------------------
+  // A panel on the left third, the paused world behind it. "Career" is a view
+  // inside this screen (not a separate active screen), so Esc never double-fires.
   const pause = el('div', 'screen screen-pause');
-  const pauseList = el('div', 'pause-list');
-  pause.append(el('h3', null, 'Paused'), pauseList, el('div', 'select-hint', 'ESC resume'));
+  const pauseMenuWrap = el('div', 'pause-menu-wrap');
+  const careerWrap = el('div', 'career-wrap');
+  careerWrap.classList.add('hidden');
+  pause.append(pauseMenuWrap, careerWrap);
   root.append(pause);
+  let pausePanel = null;
+  let careerPage = null;
 
   // Hide every screen + panel by default (only the active one is shown).
   root.querySelectorAll('.screen, .select-panel').forEach((s) => s.classList.add('hidden'));
@@ -255,7 +267,7 @@ export function createScreens(ctx) {
     else if (name === 'settings') { settings.classList.remove('hidden'); setCam('overview'); }
     else if (name === 'howTo') { howTo.classList.remove('hidden'); }
     else if (name === 'difficulty') { difficulty.classList.remove('hidden'); buildDifficultyList(); setCam('overview'); }
-    else if (name === 'pause') { pause.classList.remove('hidden'); }
+    else if (name === 'pause') { buildPause(); pause.classList.remove('hidden'); }
   }
 
   function close() {
@@ -282,10 +294,17 @@ export function createScreens(ctx) {
       else if (code === 'Escape') show('selectCourier');
     } else if (activeName === 'difficulty') {
       if (diffList) diffList.handleKey(e); // M15a.12: the Doom-style list drives its own keys
+      else if (code === 'Escape' || code === 'KeyP') show(subParent);
     } else if (activeName === 'howTo' || activeName === 'settings') {
-      if (code === 'Escape') show('title');
+      if (code === 'Escape' || code === 'KeyP') show(subParent); // M15a.13: back to the hub (or title)
     } else if (activeName === 'pause') {
-      if (code === 'Escape') ctx.resumePause && ctx.resumePause();
+      if (pauseView === 'career') {
+        if (code === 'Escape' || code === 'KeyP') buildPause(); // back to the hub menu
+        else if (careerPage) careerPage.handleKey(e);
+      } else {
+        if (code === 'Escape' || code === 'KeyP') ctx.resumePause && ctx.resumePause(); // resume
+        else if (pausePanel) pausePanel.handleKey(e);
+      }
     }
   }
 
@@ -313,21 +332,23 @@ export function createScreens(ctx) {
     buildSettingsRows(setList, el, ctx, active);
   }
 
-  // -- pause rows -----------------------------------------------------------
+  // -- pause hub rows (M15a.13) --------------------------------------------
   function buildPause() {
-    pauseList.textContent = '';
-    const inMission = ctx.isInMission && ctx.isInMission();
-    const item = (label, fn) => {
-      const it = el('div', 'pause-item' + (fn ? ' clickable' : ''), label);
-      if (fn) it.addEventListener('click', fn);
-      return it;
+    pauseView = 'menu';
+    subParent = 'pause';
+    pauseMenuWrap.classList.remove('hidden');
+    careerWrap.classList.add('hidden');
+    const actions = {
+      resume: () => ctx.resumePause && ctx.resumePause(),
+      restart: () => ctx.restartShift && ctx.restartShift(),
+      clockout: () => ctx.abandonShift && ctx.abandonShift(),
+      career: () => { pauseView = 'career'; pauseMenuWrap.classList.add('hidden'); careerWrap.classList.remove('hidden'); if (!careerPage) careerPage = createCareerPage(careerWrap, { el, careerData: careerData || null, achievements: achievements || null, difficultyName: ctx.difficultyName, openDifficulty: () => show('difficulty') }); careerPage.render(); },
+      settings: () => { subParent = 'pause'; buildSettings(qualityName); show('settings'); },
+      howto: () => { subParent = 'pause'; show('howTo'); },
+      quit: () => { saveAndQuit && saveAndQuit(); },
     };
-    pauseList.append(el('div', 'pause-bowled', 'People bowled: ' + getBowled()));
-    pauseList.append(item('▶  Resume (ESC)', () => ctx.resumePause && ctx.resumePause()));
-    if (inMission) {
-      pauseList.append(item('↻  Restart shift', () => ctx.restartShift && ctx.restartShift()));
-      pauseList.append(item('⎋  Clock out early', () => ctx.abandonShift && ctx.abandonShift()));
-    }
+    if (!pausePanel) pausePanel = createPausePanel(pauseMenuWrap, { el, isInMission: ctx.isInMission, getBowled, difficultyName: ctx.difficultyName, actions });
+    else pausePanel.render();
   }
 
   function tick(dt) {
@@ -335,8 +356,19 @@ export function createScreens(ctx) {
     void dt;
   }
 
+  // M15a.13: open the Career view directly (the pause hub with pauseView='career').
+  function openCareer() {
+    buildPause();
+    pauseView = 'career';
+    pauseMenuWrap.classList.add('hidden');
+    careerWrap.classList.remove('hidden');
+    if (!careerPage) careerPage = createCareerPage(careerWrap, { el, careerData: careerData || null, achievements: achievements || null, difficultyName: ctx.difficultyName, openDifficulty: () => show('difficulty') });
+    careerPage.render();
+    pause.classList.remove('hidden');
+  }
+
   return {
-    show, close, handleKey, tick, buildSettings, buildPause,
+    show, close, handleKey, tick, buildSettings, buildPause, openCareer,
     get active() { return activeName; },
   };
 }

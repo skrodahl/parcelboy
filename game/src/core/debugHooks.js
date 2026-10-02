@@ -439,5 +439,22 @@ export function createDebugHooks(ctx) {
       };
     },
     get currentNeighborhood() { return R.world ? R.world.def.id : null; },
+    // M15a.13: the career ledger + the pause hub / career view for the shots.
+    seedCareer(obj) {
+      const c = R.career && R.career.career;
+      if (!c || !obj) return c;
+      for (const k of ['shifts', 'delivered', 'wrongAddress', 'bestStreak', 'coins', 'stars', 'bowled', 'strikes', 'windows', 'busted', 'maxHeat', 'stolen', 'recovered', 'splats', 'trampoline', 'airMail', 'dunk', 'cleanMissions', 'cakesClean', 'holidayMissions']) if (typeof obj[k] === 'number') c[k] = obj[k];
+      if (obj.outcomes) for (const k of Object.keys(obj.outcomes)) if (typeof obj.outcomes[k] === 'number') c.outcomes[k] = obj.outcomes[k];
+      if (obj.knockdowns) for (const k of Object.keys(obj.knockdowns)) if (typeof obj.knockdowns[k] === 'number') c.knockdowns[k] = obj.knockdowns[k];
+      if (obj.golden) for (const k of Object.keys(obj.golden)) if (typeof obj.golden[k] === 'number') c.golden[k] = obj.golden[k];
+      if (obj.distance) for (const k of Object.keys(obj.distance)) if (typeof obj.distance[k] === 'number') c.distance[k] = obj.distance[k];
+      if (Array.isArray(obj.suburbs)) c.suburbs = obj.suburbs.slice();
+      if (Array.isArray(obj.achievements)) c.achievements = obj.achievements.slice();
+      if (obj.achievementDates) for (const k of Object.keys(obj.achievementDates)) c.achievementDates[k] = obj.achievementDates[k];
+      return c;
+    },
+    openCareer() { const s = R.screens; s && s.openCareer && s.openCareer(); R.setSimPaused(true); },
+    careerScroll(px) { const sc = document.querySelector('.career-scroll'); if (sc) sc.scrollTop = px; },
+    toastAchievement(id) { R.toastAchievement && R.toastAchievement(id); },
   };
 }

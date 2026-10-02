@@ -932,6 +932,38 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-pause",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&screen=pause",
+    "eval": [
+      "__pb.step(2);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-career",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&screen=pause",
+    "eval": [
+      "__pb.seedCareer({ shifts: 42, delivered: 300, outcomes: { perfect: 120, nice: 80, sloppy: 30, doorstep: 50, lucky: 20 }, wrongAddress: 5, bestStreak: 7, coins: 4500, stars: 96, bowled: 55, strikes: 3, windows: 2, busted: 6, maxHeat: 3, knockdowns: { car: 10, dog: 8, skater: 12, bees: 15, bin: 4, grump: 2 }, stolen: 3, recovered: 2, splats: 4, trampoline: 9, airMail: 2, dunk: 1, golden: { 'maple-hollow': 12 }, suburbs: ['maple-hollow', 'cedar-heights'], distance: { feet: 12000, bike: 8000 } }); __pb.openCareer(); __pb.step(2);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-achievements",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&screen=pause",
+    "eval": [
+      "__pb.seedCareer({ achievements: ['first-drop', 'strike', 'most-wanted', 'ticket-collector', 'air-mail'], achievementDates: { 'first-drop': '2026-09-01', 'strike': '2026-09-05', 'most-wanted': '2026-09-09', 'ticket-collector': '2026-09-12', 'air-mail': '2026-09-15' } }); __pb.openCareer(); __pb.careerScroll(99999); __pb.step(2);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-achievement-toast",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.seedCareer({}); __pb.toastAchievement('first-drop'); __pb.step(2);"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-skater",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
     "eval": [

@@ -51,6 +51,8 @@ import { createDayClock } from './gameplay/dayClock.js';
 import { createMissionMarkers } from './gameplay/missionMarkers.js';
 import { createDebugHooks } from './core/debugHooks.js';
 import { createShiftFlow } from './gameplay/shiftFlow.js';
+import { createCareer } from './gameplay/career.js';
+import { getAchievement } from './data/achievements.js';
 
 const params = parseParams();
 // §2.11: load the save once at boot (corrupt → defaults). A `?coins=` param seeds
@@ -152,6 +154,24 @@ function showGoldenBanner(d) {
 function pulseGolden() { if (hud && hud.golden) { const g = hud.golden; g.classList.remove('pulse'); void g.offsetWidth; g.classList.add('pulse'); } }
 events.on('golden', (d) => { pulseGolden(); refreshGolden(d.nb); showGoldenBanner(d); });
 
+// M15a.13: the achievement toast (one reused element, ~3 s, top-center like the
+// golden banner). A single earn queues a short line; several earn at once stacks
+// their names. Wired from the career ledger when a counter crosses a threshold.
+let achToastEl = null, achToastT = 0;
+function showAchievementToast(list) {
+  if (!achToastEl) return;
+  const a = list[0];
+  achToastEl.querySelector('.pb-toast-name').textContent = a.name;
+  achToastEl.querySelector('.pb-toast-desc').textContent = a.description;
+  achToastEl.querySelector('.pb-toast-icon').textContent = a.icon;
+  achToastEl.style.display = 'block';
+  achToastEl.classList.remove('fade');
+  achToastEl.classList.add('show');
+  clearTimeout(achToastT);
+  achToastT = setTimeout(() => { achToastEl.classList.add('fade'); setTimeout(() => { achToastEl.style.display = 'none'; achToastEl.classList.remove('show', 'fade'); }, 400); }, 3000);
+}
+// (career.onAchievement is wired below, once the `career` ledger exists.)
+
 // §2.15 / M12a.9: the heat whistles — a DOM row of 3 whistle icons above the
 // radar (the old in-canvas 4px dots were invisible). Filled red per level,
 // wobbling + a tick when heat rises, flashing while the Watch is losing you,
@@ -176,6 +196,7 @@ function updateHeatRow() {
   }
   heatRowEl.style.display = '';
   for (let i = 0; i < 3; i++) heatWhistles[i].classList.toggle('on', i < lvl);
+  if (career && lvl > career.career.maxHeat) career.career.maxHeat = lvl; // M15a.13: highest heat reached
   if (lvl > prevHeatLevel) {
     heatRowEl.classList.remove('wobble'); void heatRowEl.offsetWidth; heatRowEl.classList.add('wobble');
     if (events) events.emit('whistle'); // the short tick
@@ -189,6 +210,10 @@ const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: 
 // M15a.12: the live difficulty def. Everything reads its fields (grants,
 // hazardMul, …), never its id; the player can change it in Settings any time.
 function diff() { return progress.difficulty(); }
+// M15a.13: the career ledger (event-driven). Suburb count = the non-debug
+// suburbs (drives the "visit every suburb" achievement as M16/M17 add more).
+const career = createCareer({ saveData, progress, events, suburbCount: NEIGHBORHOODS.filter((n) => !n.debug).length });
+career.onAchievement(showAchievementToast); // M15a.13: fire the top-center toast on a new earn
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
 // §2.20 / M15a.11: the world day clock (drives the time-of-day look; it now runs
@@ -438,11 +463,18 @@ if (params.scene === 'test') {
         difficultyName: () => progress.difficulty().name,
         onPickDifficulty: (id) => reapplyDifficulty(id),
         openDifficulty: () => { if (screens) screens.show('difficulty'); },
+        // M15a.13: the career ledger + the "save & quit to title" hub row.
+        careerData: () => career.career,
+        achievements: () => career.list(),
+        saveAndQuit: saveAndQuit,
     });
     window.addEventListener('keydown', (e) => {
       if (screens && screens.active) screens.handleKey(e);
       else if (actionStrip && actionStrip.isOpen()) actionStrip.handleKey(e); // M15a.8
     });
+    // §5.2 / M15a.13: losing focus auto-pauses into the hub (the sim keeps the
+    // world frozen so a tab-switch can't drop a delivery).
+    window.addEventListener('blur', () => { if (!simPaused && !(screens && screens.active)) openPauseHub(); });
     if (params.showCard && !params.screen) showShiftCard();
     if (params.autostart && params.autostart !== 'freeroam' && SHIFTS.some((s) => s.id === params.autostart)) startShift(params.autostart);
     // §10: route `?screen=` to the matching screen (screenshots + the DoD flow).
@@ -628,7 +660,7 @@ function setupMischief() {
     onBusted: (level) => onBusted(level),
     heatDecayMul: () => diff().heatDecayMul, // M15a.12: Holiday decays heat at half rate
   });
-  ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike(), battery: qualityName === 'battery' });
+  ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike(), onBowled: () => { if (events) events.emit('bowled'); }, battery: qualityName === 'battery' });
   watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, onBusted: (i) => onBusted(i), watchSpeedMul: () => diff().watchSpeedMul });
   unitOps.spawn = watch.spawn; unitOps.remove = watch.remove;
   mischief = createMischief({
@@ -723,8 +755,8 @@ function setHazards(counts) {
     dogRechase: () => diff().dogRechase, // M15a.12: a gave-up dog turns back after N s
     effects: sharedEffects, floatText: sharedFloatText, player,
     onKnockdown, parcels: delivery ? delivery.parcels : null,
-    onDogSteal: () => { if (delivery) delivery.dropParcel(true); },
-    onDogRecover: () => { if (delivery) delivery.recoverParcel(); },
+    onDogSteal: () => { if (delivery) delivery.dropParcel(true); if (events) events.emit('stolen'); },
+    onDogRecover: () => { if (delivery) delivery.recoverParcel(); if (events) events.emit('recovered'); },
       onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } if (events) events.emit('hop'); },
       onHonk: () => { if (events) events.emit('honk'); }, // §2.17 M16: the lakeside geese
    });
@@ -752,7 +784,7 @@ function onKnockdown(kind) {
   // M15a.12: on Easy a knockdown never costs a parcel (`knockdownCostsParcel` false).
   if (delivery && diff().knockdownCostsParcel) delivery.dropParcel(false);
   sharedEffects.dust(player.pos.x, 0.6, player.pos.z);
-  if (events) events.emit(kind === 'grump' ? 'grumble' : 'knockdown');
+  if (events) { if (kind === 'grump') events.emit('grumble'); events.emit('knockdown', { cause: kind }); } // M15a.13: career tracks the cause
 }
 
 // §2.10: start a shift by id. Builds the mission (targets + timer) and a
@@ -886,7 +918,13 @@ function buildHUD() {
   const watchPopup = el('div', 'watch-popup');
   watchPopup.append(el('div', 'watch-popup-title', 'Neighborhood Watch'), el('div', 'watch-popup-sub', 'is on to you!'));
   watchPopup.style.display = 'none';
-  ui.append(chip, coins, golden, diffBadge, clockEl, panel, ab, banner, heatRow, watchPopup);
+  // M15a.13: the achievement toast — one reused top-center element (~3 s, like the golden banner).
+  const achToast = el('div', 'pb-toast');
+  achToast.append(el('div', 'pb-toast-icon', ''), el('div', 'pb-toast-body'));
+  achToast.querySelector('.pb-toast-body').append(el('div', 'pb-toast-name'), el('div', 'pb-toast-desc'));
+  achToast.style.display = 'none';
+  ui.append(chip, coins, golden, diffBadge, clockEl, panel, ab, banner, heatRow, watchPopup, achToast);
+  achToastEl = achToast;
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
   heatRowEl = heatRow; heatWhistles = heatWh; watchPopupEl = watchPopup;
@@ -1036,6 +1074,24 @@ function camPreset(name) { applyCamPreset(camera, name, { world, camLook, scene 
 // §10: while a non-pause menu is up, the player is locked (no movement) but the
 // rest of the world stays live behind it. The pause screen freezes the whole sim.
 function menuGate() { return !!(screens && screens.active && screens.active !== 'pause'); }
+
+// M15a.13: the pause hub. Opening it freezes the sim (the paused world shows
+// behind the panel); the hub's own handleKey (Esc/P or the Resume row) resumes.
+function openPauseHub() {
+  if (!screens || screens.active === 'pause') return;
+  screens.buildPause();
+  screens.show('pause');
+  simPaused = true;
+}
+// M15a.13: "Save & quit to title" — the game autosaves, so this just persists
+// the ledger + save and lands on the Title (a browser page can't close itself).
+function saveAndQuit() {
+  if (career) career.flush();
+  progress.save();
+  if (mission) endShift(false);
+  simPaused = false;
+  if (screens) screens.show('title');
+}
 
 function simStep(dt) {
   // §2.12 hit-stop: on a knockdown the world freezes ~70 ms (dramatic beat).
@@ -1222,7 +1278,16 @@ function update(dt) {
   if (input.consume('mute')) audio.setMuted(!audio.muted);
   // M12a.8: Tab opens / closes the full map (in free roam + missions, not menus).
   if (!menuGate() && input.consume('map')) { if (fullMap) { if (fullMap.isOpen()) fullMap.close(); else fullMap.open(); } }
+  // M15a.13: Esc/P — close a transient overlay; in play, open the pause hub.
+  // When a screen (the hub or a sub-screen) is active, that screen's handleKey
+  // owns Esc/P (resume / back), so we don't touch the edge here.
+  if (input.consume('pause')) {
+    if (actionStrip && actionStrip.isOpen()) actionStrip.close();
+    else if (fullMap && fullMap.isOpen()) fullMap.close();
+    else if (!screens || !screens.active) openPauseHub();
+  }
   if (audioDebugEl) audioDebugEl.textContent = 'SFX ' + audio.lastSounds().join(' ');
+  if (career) career.tick(dt, activeVeh ? activeVeh.id : null, player ? player.speed : 0); // M15a.13: distance + save cadence
   if (simPaused) return;
   if (cube) cube.rotation.y += dt * 0.8;
   if (sky) sky.update(dt, simTime);
@@ -1305,6 +1370,7 @@ const debugCtx = {
   get vehRegistry() { return vehRegistry; },
   get markers() { return markers; },
   get actionStrip() { return actionStrip; }, // M15a.8
+  get career() { return career; }, // M15a.13: the career ledger
   get mcMarker() { return getMarkerState(); },
   get dayCycle() { return dayCycle; },
   get dayClock() { return dayClock; },
@@ -1317,6 +1383,7 @@ const debugCtx = {
   events, gameState, M5_TARGETS, input, camTgt, camLook, camera, scene, renderer, progress, params,
   stats, camPreset, startShift, gotoFreeRoam, endShift, routeScreen, openMarkerCard,
   refreshCoins, refreshGolden, onStrike, onBusted, autoplayRun,
+  toastAchievement: (id) => { const a = getAchievement(id); if (a) showAchievementToast([a]); }, // M15a.13
   gotoNeighborhood: (nbId, exitId) => { gotoNeighborhood(nbId, exitId); },
   stepSim(frames) { const st = 1 / 60; for (let i = 0; i < (frames | 0); i++) { simTime += st; simStep(st); } },
   setPrevM(v) { prevM = v; },

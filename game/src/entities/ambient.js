@@ -156,6 +156,7 @@ export function createAmbient(env) {
     w.state = 'air'; w.t = 0; w.y = 0.2; w.vy = 4.5;
     w.vx = vx; w.vz = vz; w.spin = (rng() - 0.5) * 22; w.sdir = 0;
     bowledTotal++;
+    env.onBowled && env.onBowled(); // M15a.13: the career ledger counts people bowled
     bowlTimes.push(now());
     while (bowlTimes.length && bowlTimes[0] < now() - MISCHIEF.strikeWindowSec) bowlTimes.shift();
     if (bowlTimes.length >= 2) { strike++; env.onStrike && env.onStrike(); bowlTimes.length = 0; }

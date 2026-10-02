@@ -130,6 +130,9 @@ export function createDelivery(env) {
     if (parcel.trick && target && (zoneOutcome === 'perfect' || zoneOutcome === 'nice' || zoneOutcome === 'sloppy')) zoneOutcome = 'perfect';
     const res = scoring.judge(pkg, zoneOutcome, { dist: parcel.dist, impact: parcel.impact, airMail: parcel.airMail, timeFrac: 0 });
     s.lastResult = res;
+    // M15a.13: the career ledger reads these off the delivery event.
+    res.airMail = !!parcel.airMail;
+    res.cakeClean = !res.splat && !!(pkg.rules && pkg.rules.splat); // a clean cake (no SPLAT)
     // §9: audio listens to the delivery result + the landing (never imported by gameplay).
     if (events) {
       events.emit('land');

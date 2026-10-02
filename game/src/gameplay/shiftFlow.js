@@ -130,7 +130,7 @@ export function createShiftFlow(ctx) {
     // §10: the shift pays out coins + its best star count (unlocks later shifts).
     progress.earn(res.coins || 0);
     progress.recordShift(res.shift, res.score, res.stars || 0); // §2.11: save the best
-    if (events) events.emit('results');
+    if (events) events.emit('results', res); // M15a.13: the career ledger tracks shifts/stars/coins from this
     // §2.12: a results-screen confetti / celebration on a finished shift.
     const p = getPlayer();
     const se = getSharedEffects();
