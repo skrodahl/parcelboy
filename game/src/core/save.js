@@ -15,6 +15,7 @@ export function defaultSave() {
     settings: { quality: 'balanced', musicVol: 0.35, sfxVol: 0.8, showFps: false },
     clock: 360, // §2.20: the world day clock (game minutes since 00:00), persisted
     neighborhood: 'maple-hollow', // §2.18: the suburb the player is in
+    difficulty: 'brutal', // M15a.12: the current skill level (additive; old saves default here)
   };
 }
 
@@ -46,6 +47,7 @@ export function loadSave() {
   }
   if (typeof data.clock === 'number' && isFinite(data.clock)) d.clock = ((data.clock % 1440) + 1440) % 1440; // §2.20
   if (typeof data.neighborhood === 'string' && data.neighborhood) d.neighborhood = data.neighborhood; // §2.18
+  if (typeof data.difficulty === 'string' && data.difficulty) d.difficulty = data.difficulty; // M15a.12 (validated at read)
   if (data.last && typeof data.last === 'object') {
     if (typeof data.last.character === 'string') d.last.character = data.last.character;
     if (typeof data.last.vehicle === 'string') d.last.vehicle = data.last.vehicle;

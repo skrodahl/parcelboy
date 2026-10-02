@@ -11,15 +11,22 @@ import { PARCEL, SCORING } from '../data/config.js';
 const G = PARCEL.gravity;
 
 // Parcel model geometry per package (small stacked boxes, vertex-colored).
-function buildParcelGeometry(model, colors) {
+// M15a.12: `gift` wraps it in a red box + green ribbon + a bow (Holiday flavor).
+function buildParcelGeometry(model, colors, gift) {
   const b = new VoxelBuilder(9000 + model.length);
-  const box = colors.box || PALETTE.parcel;
-  const tape = colors.tape || PALETTE.parcelTape;
+  const box = gift ? '#c1292e' : (colors.box || PALETTE.parcel);
+  const tape = gift ? '#0f8a4f' : (colors.tape || PALETTE.parcelTape);
   let w = 0.62, h = 0.5, d = 0.52;
   if (model === 'parcelHeavy') { w = 0.82; h = 0.66; d = 0.72; }
   b.box(0, 0, 0, w, h, d, box, { skipFaces: ['bottom'] });
-  b.box(0, h * 0.42, -d / 2 - 0.01, w * 0.8, h * 0.16, 0.02, tape); // front tape band
+  b.box(0, h * 0.42, -d / 2 - 0.01, w * 0.8, h * 0.16, 0.02, tape); // front ribbon band
   b.box(0, h * 0.42, d / 2 + 0.01, w * 0.8, h * 0.16, 0.02, tape);
+  if (gift) { // a green cross band + a two-loop bow on top
+    b.box(-d / 2 - 0.01, h * 0.42, 0, 0.02, h * 0.16, d * 0.8, tape);
+    b.box(d / 2 + 0.01, h * 0.42, 0, 0.02, h * 0.16, d * 0.8, tape);
+    b.box(-0.1, h + 0.04, 0, 0.16, 0.08, 0.16, tape);
+    b.box(0.1, h + 0.04, 0, 0.16, 0.08, 0.16, tape);
+  }
   if (model === 'parcelFragile') b.box(0, h * 0.62, d / 2 + 0.02, 0.24, 0.14, 0.02, colors.label); // red ▲ label
   if (model === 'parcelExpress') b.box(0, h * 0.3, -d / 2 - 0.02, w, 0.1, 0.02, colors.label); // ⚡ stripe
   if (model === 'parcelCake') { // white ribbon bow
@@ -63,9 +70,9 @@ function judgeZone(x, z, target, houseRects, world, targetHouseIds) {
   return 'missed';
 }
 
-export function createParcels({ scene, material, world, packages, targets, houseRects, rng, effects, onRest, onThrow, onMailbox, onGag, mailboxes, targetHouseIds }) {
+export function createParcels({ scene, material, world, packages, targets, houseRects, rng, effects, onRest, onThrow, onMailbox, onGag, mailboxes, targetHouseIds, giftWrap }) {
   const geos = {};
-  for (const p of packages) geos[p.id] = buildParcelGeometry(p.model, p.colors);
+  for (const p of packages) geos[p.id] = buildParcelGeometry(p.model, p.colors, giftWrap);
   const defaultGeo = geos.standard;
 
   // Preallocated pool (no growth at runtime).

@@ -892,6 +892,46 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-difficulty-select",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&screen=difficulty",
+    "eval": [
+      ""
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-difficulty-warning",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&screen=difficulty",
+    "eval": [
+      "__pb.pressKey('ArrowDown'); __pb.pressKey('ArrowDown'); __pb.pressKey('Enter'); __pb.step(3);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-easy-locker",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&difficulty=easy&screen=selectCourier",
+    "eval": [
+      "__pb.step(4);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-holiday-parcels",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1&difficulty=holiday&autostart=morning",
+    "eval": [
+      "__pb.step(6); var p = __pb.playerPos(); __pb.aimAt(p[0], p[1], p[0] - 2.5, p[1] + 5.5, 3.2);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-holiday-hazards",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&difficulty=holiday&autostart=morning",
+    "eval": [
+      "var h = __pb.debugHazards(); var cars = h.cars; if (!(cars >= 4)) throw new Error('holiday cars=' + cars + ', expected >= 4 (base 3)');"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-skater",
     "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
     "eval": [

@@ -47,7 +47,9 @@ export function createHeat(env) {
 
   function tick(dt) {
     t += dt;
-    heat = Math.max(0, heat - MISCHIEF.heatDecayPerSec * dt);
+    // M15a.12: heat decays at the difficulty's fraction of its normal rate (Holiday = 0.5).
+    const mul = env.heatDecayMul ? env.heatDecayMul() : 1;
+    heat = Math.max(0, heat - MISCHIEF.heatDecayPerSec * mul * dt);
     reconcile();
   }
 

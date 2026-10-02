@@ -1,6 +1,7 @@
 import { CHARACTERS } from '../data/characters.js';
 import { VEHICLES } from '../data/vehicles.js';
 import { buildSettingsRows } from './settingsScreen.js';
+import { createDifficultyList } from './difficulty.js';
 
 // §10: the menu / select / pause / settings / results screens. Each is a DOM
 // overlay on top of the 3D scene; the select screens show the chosen courier or
@@ -13,7 +14,8 @@ function el(tag, cls, txt) { const n = document.createElement(tag); if (cls) n.c
 
 export function createScreens(ctx) {
   const { ui, scene, camera, charRegistry, vehRegistry, buildCourier, buildModel, mat,
-    progress, pickChar, pickVeh, getBowled, startShift, gotoFreeRoam, setCam, qualityName } = ctx;
+    progress, pickChar, pickVeh, getBowled, startShift, gotoFreeRoam, setCam, qualityName,
+    currentDifficulty, onPickDifficulty } = ctx;
   const root = el('div', 'screens');
   ui.append(root);
 
@@ -146,10 +148,12 @@ export function createScreens(ctx) {
   const title = el('div', 'screen screen-title');
   const titleHow = el('button', 'title-btn', 'How to play');
   const titleSettings = el('button', 'title-btn', 'Settings');
+  const titleNewGame = el('button', 'title-btn title-newgame', 'New Game');
   titleHow.addEventListener('click', () => show('howTo'));
   titleSettings.addEventListener('click', () => { buildSettings(qualityName); show('settings'); });
+  titleNewGame.addEventListener('click', () => show('difficulty')); // M15a.12: pick a difficulty
   const titleMenu = el('div', 'title-menu');
-  titleMenu.append(titleHow, titleSettings);
+  titleMenu.append(titleNewGame, titleHow, titleSettings);
   title.append(
     el('div', 'title-logo', 'Parcelboy'),
     el('div', 'title-co', 'QUICKBOX · suburban delivery, with attitude'),
@@ -204,6 +208,22 @@ export function createScreens(ctx) {
   settings.append(el('h3', null, 'Settings'), setList, setNote, el('div', 'select-hint', 'ESC back'));
   root.append(settings);
 
+  // -- difficulty select screen (M15a.12, Doom-style) ------------------------
+  const difficulty = el('div', 'screen screen-difficulty');
+  const diffContainer = el('div', 'diff-body');
+  difficulty.append(el('h3', null, 'Pick a Difficulty'), diffContainer); // the list carries its own hint
+  root.append(difficulty);
+  let diffList = null;
+  function buildDifficultyList() {
+    diffContainer.textContent = ''; // drop the previous list (a new current highlight)
+    diffList = createDifficultyList(diffContainer, {
+      el,
+      currentId: currentDifficulty ? currentDifficulty() : 'brutal',
+      onPick: (id) => { onPickDifficulty && onPickDifficulty(id); show('title'); },
+      onCancel: () => show('title'),
+    });
+  }
+
   // -- pause menu -----------------------------------------------------------
   const pause = el('div', 'screen screen-pause');
   const pauseList = el('div', 'pause-list');
@@ -234,6 +254,7 @@ export function createScreens(ctx) {
     }
     else if (name === 'settings') { settings.classList.remove('hidden'); setCam('overview'); }
     else if (name === 'howTo') { howTo.classList.remove('hidden'); }
+    else if (name === 'difficulty') { difficulty.classList.remove('hidden'); buildDifficultyList(); setCam('overview'); }
     else if (name === 'pause') { pause.classList.remove('hidden'); }
   }
 
@@ -259,6 +280,8 @@ export function createScreens(ctx) {
     } else if (activeName === 'title') {
       if (code === 'Enter') gotoFreeRoam();
       else if (code === 'Escape') show('selectCourier');
+    } else if (activeName === 'difficulty') {
+      if (diffList) diffList.handleKey(e); // M15a.12: the Doom-style list drives its own keys
     } else if (activeName === 'howTo' || activeName === 'settings') {
       if (code === 'Escape') show('title');
     } else if (activeName === 'pause') {

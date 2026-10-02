@@ -12,6 +12,13 @@ export function buildSettingsRows(setList, el, ctx, active) {
     row.addEventListener('click', () => ctx.setQuality && ctx.setQuality(p));
     setList.append(row);
   }
+  // M15a.12: the current difficulty (opens the Doom-style select to change it).
+  if (ctx.difficultyName) {
+    const diffRow = el('div', 'setting-row');
+    diffRow.append(el('div', 'setting-lbl', 'Difficulty'), el('div', 'setting-desc', ctx.difficultyName()));
+    diffRow.addEventListener('click', () => ctx.openDifficulty && ctx.openDifficulty());
+    setList.append(diffRow);
+  }
   // M9: audio controls (mute toggle + music/SFX volume sliders).
   if (ctx.audio) {
     const muteVal = el('div', 'setting-desc', ctx.audio.muted ? 'ON' : 'OFF');

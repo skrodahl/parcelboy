@@ -150,6 +150,8 @@ export function createShiftFlow(ctx) {
       el('div', 'results-score', 'Score ' + res.score + bonus),
       el('div', 'results-detail', res.delivered + '/' + res.total + ' delivered · +' + res.coins + ' coins' + backNote),
     );
+    // M15a.12: a small difficulty badge on the report (which level the stars were earned on).
+    resultsEl.append(el('div', 'results-diff', 'Difficulty · ' + progress.difficulty().name));
     // M15a.16: the three star conditions as a ✓/✗ checklist, so the player sees
     // exactly what the next star needs.
     const chk = el('div', 'results-check');

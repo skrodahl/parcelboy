@@ -7,7 +7,9 @@ import * as THREE from 'three';
 // `onExitTile(pos)` (allocation-free, called each sim tick) reports which exit
 // (if any) the courier is standing on so main.js can raise the travel prompt.
 
-export function createExits(world, save) {
+// `grants` (M15a.12): a live predicate — when the current difficulty grants
+// neighborhoods, every exit is open regardless of stars.
+export function createExits(world, save, grants) {
   const def = world.def;
   const tm = world.tilemap;
   const T = tm.tileSize;
@@ -46,6 +48,8 @@ export function createExits(world, save) {
   }
 
   function isUnlocked(e) {
+    // M15a.12: the current difficulty may grant all neighborhoods (open exits).
+    if (grants && grants()) return true;
     // A locked exit: needs its stars AND the target must be a known suburb.
     const need = e.unlockStars || 0;
     if (need > 0 && totalStars() < need) return false;

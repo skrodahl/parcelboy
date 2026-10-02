@@ -46,9 +46,11 @@ export function createWatch(env) {
       const dx = p.x - s.x, dz = p.z - s.z;
       const d = Math.hypot(dx, dz);
       // Chase the courier (no pathing — a straight-line cartoon pursuit).
+      // M15a.12: the difficulty's watchSpeedMul scales the pursuit speed.
+      const mul = env.watchSpeedMul ? env.watchSpeedMul() : 1;
       if (d > 0.4) {
-        s.x += (dx / d) * u.speed * dt;
-        s.z += (dz / d) * u.speed * dt;
+        s.x += (dx / d) * u.speed * mul * dt;
+        s.z += (dz / d) * u.speed * mul * dt;
       }
       s.group.position.set(s.x, 0, s.z);
       s.group.rotation.y = Math.atan2(dx, -dz);

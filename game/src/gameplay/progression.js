@@ -4,6 +4,7 @@
 // scores, found Golden Parcels, the golden-bike unlock, last courier/vehicle
 // and persisted settings. Every mutation writes the save (cheap + rare).
 import { writeSave } from '../core/save.js';
+import { DIFFICULTY_BY_ID, DEFAULT_DIFFICULTY } from '../data/difficulties.js';
 
 // The kind of a def (a character or a vehicle) — the data is schema-stable:
 // vehicles carry a `model`, characters an `ability`.
@@ -23,20 +24,32 @@ export function createProgression(saveData, { refresh = () => {}, onGolden = () 
   // has at least its number. The bike is `{ 'maple-hollow': 12 }` (§2.13).
   function goldenReqMet(req) { for (const nb of Object.keys(req)) if (goldenCount(nb) < req[nb]) return false; return true; }
   function isUnlocked(id, kind) { return d.unlocked[kind].indexOf(id) >= 0; }
+  // M15a.12: the current difficulty def (its `grants` drive "earned OR granted"
+  // unlocks; its multipliers drive the hazard/setup tuning). An unknown/absent
+  // id falls back to the default (existing saves played as brutal all along).
+  function difficulty() { return DIFFICULTY_BY_ID[d.difficulty] || DIFFICULTY_BY_ID[DEFAULT_DIFFICULTY]; }
+  function setDifficulty(id) { d.difficulty = DIFFICULTY_BY_ID[id] ? id : DEFAULT_DIFFICULTY; save(); }
   function save() { writeSave(d); }
 
   const progression = {
     get coins() { return d.coins; },
     get stars() { return totalStars(); },
     get data() { return d; },
+    // M15a.12: the live difficulty def + its id (HUD badge / report / settings).
+    get difficultyId() { return d.difficulty || DEFAULT_DIFFICULTY; },
+    difficulty,
+    setDifficulty,
     totalStars,
     totalGolden,
     goldenCount,
     goldenBikeUnlocked() { return goldenReqMet({ 'maple-hollow': 12 }); },
     // §2.11: a locked mission's marker still shows; its card says the star need.
-    canStart(shift) { return totalStars() >= (shift.unlockStars || 0); },
+    // M15a.12: "earned OR granted" — the current level may grant all missions.
+    canStart(shift) { return difficulty().grants.missions || totalStars() >= (shift.unlockStars || 0); },
+    // M15a.12: "earned OR granted" — the current level may grant characters/vehicles.
     canBuy(def) {
       if (def.unlockCost === 0) return true;
+      if (difficulty().grants[kindOf(def)]) return true;
       // M15a.1: a golden unlock is a per-suburb requirement, not a flat count.
       if (def.unlock && def.unlock.goldenParcels) return goldenReqMet(def.unlock.goldenParcels);
       return isUnlocked(def.id, kindOf(def));

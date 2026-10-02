@@ -22,5 +22,6 @@ export function parseParams() {
     showCard: q.get('showCard'),
     coins: int('coins'), // §2.11: seed a coin balance for screenshots
     stars: int('stars'), // §2.18: seed the total-star count (exit-gate screenshots)
+    difficulty: q.get('difficulty'), // M15a.12: seed a difficulty level for screenshots
   };
 }

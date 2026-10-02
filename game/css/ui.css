@@ -47,6 +47,12 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 }
 .hud-golden.pulse { animation: goldPulse 0.5s ease-out; }
 @keyframes goldPulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+/* M15a.12: the current difficulty badge (below the golden counter). */
+.hud-diff {
+  position: fixed; top: 102px; left: 12px;
+  font: 700 12px ui-rounded, system-ui, sans-serif; color: #90e0ef;
+  background: rgba(0, 0, 0, 0.5); padding: 4px 10px; border-radius: 8px; letter-spacing: 0.03em;
+}
 /* §2.20: the world clock readout (top-right; orange when the shift ends soon). */
 .hud-clock {
   position: fixed; top: 12px; right: 12px; z-index: 5;
@@ -154,7 +160,24 @@ html, body { margin: 0; padding: 0; overflow: hidden; background: #8ecae6; }
 .results-stars { font: 800 34px/1 inherit; color: #ffbe0b; letter-spacing: 6px; }
 .results-score { font: 800 26px/1 inherit; }
 .results-detail { font: 600 15px/1.4 inherit; color: #ff7b9c; }
+.results-diff { font: 700 12px/1 inherit; color: #90e0ef; letter-spacing: 0.5px; margin-top: 4px; }
 /* M15a.16: the three star conditions as a ✓/✗ checklist on the report. */
+/* M15a.12: the Doom-style difficulty select (faces built in code). */
+.diff-list { display: flex; flex-direction: column; gap: 10px; width: 460px; }
+.diff-row {
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+  background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.12); border-radius: 12px;
+}
+.diff-row.active { background: rgba(0,180,166,0.18); border-color: #00b4a6; box-shadow: 0 6px 20px rgba(0,180,166,0.25); }
+.diff-face { width: 48px; height: 48px; flex: 0 0 auto; }
+.diff-name { font: 800 17px/1.1 inherit; color: #fff; }
+.diff-desc { font: 600 12px/1.3 inherit; color: rgba(255,255,255,0.6); margin-top: 2px; }
+.diff-confirm {
+  margin-top: 14px; padding: 10px 14px; border-radius: 10px; font: 700 14px/1.3 inherit;
+  color: #ffd166; background: rgba(255,174,0,0.12); border: 2px solid rgba(255,174,0,0.4);
+  display: none; max-width: 460px;
+}
+.diff-hint { font: 600 12px/1 inherit; color: rgba(255,255,255,0.55); margin-top: 14px; letter-spacing: 0.3px; }
 .results-check { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
 .results-check-line { font: 700 16px/1.2 inherit; color: #fff; display: flex; align-items: baseline; gap: 4px; }
 .rc-label { color: #fff; }

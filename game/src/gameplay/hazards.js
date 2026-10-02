@@ -152,11 +152,19 @@ export function createHazards(env) {
         d.t += dt;
         const sp = 7.2; d.x += (dpx / (dpd || 1)) * sp * dt; d.z += (dpz / (dpd || 1)) * sp * dt;
         const sdx = d.x - wx(d.spot), sdz = d.z - wz(d.spot);
-        if (d.t > 5 || Math.hypot(sdx, sdz) > 16) d.state = 'home';
+        if (d.t > 5 || Math.hypot(sdx, sdz) > 16) {
+          // M15a.12: on Holiday a gave-up dog turns around and chases again after
+          // `dogRechase` s instead of trotting home.
+          const re = env.dogRechase ? env.dogRechase() : null;
+          d.state = re != null ? 'rechase' : 'home'; d.t = 0;
+        }
         if (dpd < 0.9 && !player.dogFriendly) {
           const r = player.startKnockdown('dog');
           if (r === 'knockdown' && env.onDogSteal) { env.onDogSteal(); d.stealT = 0; }
         }
+      } else if (d.state === 'rechase') { // M15a.12: face the courier, wait, then chase again
+        d.t += dt;
+        if (d.t >= (env.dogRechase ? env.dogRechase() : 3)) { d.state = 'chase'; d.t = 0; }
       } else { // home / give up
         const hx = wx(d.spot), hz = wz(d.spot);
         const hdx = hx - d.x, hdz = hz - d.z; const hd = Math.hypot(hdx, hdz);

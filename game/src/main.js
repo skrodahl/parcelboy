@@ -63,6 +63,8 @@ if (params.stars) {
   saveData.best = saveData.best || {};
   saveData.best._seed = { score: 0, stars: parseInt(params.stars, 10) };
 }
+// M15a.12 test hook: `?difficulty=<id>` seeds the difficulty level for shots.
+if (params.difficulty) saveData.difficulty = params.difficulty;
 
 const todRegistry = new Registry('timeOfDay', ['id', 'sunDir', 'sunColor', 'sunIntensity', 'hemiSky', 'hemiGround', 'hemiIntensity', 'skyZenith', 'skyHorizon']);
 for (const p of TIMES_OF_DAY) todRegistry.add(p);
@@ -184,6 +186,9 @@ function updateHeatRow() {
 }
 
 const progress = createProgression(saveData, { refresh: refreshCoins, onGolden: refreshGolden });
+// M15a.12: the live difficulty def. Everything reads its fields (grants,
+// hazardMul, …), never its id; the player can change it in Settings any time.
+function diff() { return progress.difficulty(); }
 // M10: the free-roam Golden Parcels + the day cycle (created in the world branch).
 let collectibles = null, dayCycle = null;
 // §2.20 / M15a.11: the world day clock (drives the time-of-day look; it now runs
@@ -428,6 +433,11 @@ if (params.scene === 'test') {
         abandonShift: () => { endShift(false); simPaused = false; if (screens) screens.close(); },
         audio,
         persistSetting: (k, v) => progress.setSetting(k, v), // §2.11: persist the settings screen changes
+        // M15a.12: the Doom-style difficulty select (Title "New Game" + Settings row).
+        currentDifficulty: () => progress.difficultyId,
+        difficultyName: () => progress.difficulty().name,
+        onPickDifficulty: (id) => reapplyDifficulty(id),
+        openDifficulty: () => { if (screens) screens.show('difficulty'); },
     });
     window.addEventListener('keydown', (e) => {
       if (screens && screens.active) screens.handleKey(e);
@@ -490,7 +500,7 @@ function gotoNeighborhood(nbId, viaExit) {
 // §2.18: (re)build the per-suburb exit set + refresh the region-map inset after a
 // suburb is loaded. The transition overlay is session-level (created once).
 function bindNeighborhood() {
-  exits = createExits(world, saveData);
+  exits = createExits(world, saveData, () => diff().grants.neighborhoods); // M15a.12
   if (!transition) transition = createTransition(document.getElementById('ui'));
   if (!regionMap) regionMap = createRegionMap(document.getElementById('ui'), () => world);
   if (regionMap) regionMap.refresh();
@@ -616,9 +626,10 @@ function setupMischief() {
     stack: () => (player ? player.stack : null), // M8: Marlo's Charm reads the live stack
     spawnWatch: (i) => unitOps.spawn(i), removeWatch: (i) => unitOps.remove(i),
     onBusted: (level) => onBusted(level),
+    heatDecayMul: () => diff().heatDecayMul, // M15a.12: Holiday decays heat at half rate
   });
   ambient = createAmbient({ scene, world, mat, rng: mulberry32(mischiefRng()), onStrike: () => onStrike(), battery: qualityName === 'battery' });
-  watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, onBusted: (i) => onBusted(i) });
+  watch = createWatch({ scene, mat, colors: activeChar.colors, heat, player, onBusted: (i) => onBusted(i), watchSpeedMul: () => diff().watchSpeedMul });
   unitOps.spawn = watch.spawn; unitOps.remove = watch.remove;
   mischief = createMischief({
     world, scene, mat, rng: mulberry32(mischiefRng()),
@@ -690,22 +701,47 @@ function todApply(counts) {
   return out;
 }
 
+// M15a.12: scale a hazard-count set by the current difficulty's `hazardMul`
+// (rounded, ≥0; the pools' MAX still cap). Called only when hazards (re)build.
+function diffApply(counts) {
+  const mul = diff().hazardMul;
+  if (mul === 1) return counts;
+  const out = {};
+  for (const k of Object.keys(counts)) out[k] = Math.max(0, Math.round((counts[k] || 0) * mul));
+  return out;
+}
 // M7: (re)create the hazard manager for a set of counts. Free roam uses the
 // FREE_ROAM levels; a shift uses its own (`hazards: null` → free-roam levels).
 // M15a.11: the counts are scaled by the current time of day (TOD_HAZARDS).
+// M15a.12: …and by the difficulty's `hazardMul`.
 function setHazards(counts) {
   if (!player || !sharedEffects) return;
   if (hazards) { hazards.dispose(); hazards = null; }
   hazards = createHazards({
-    scene, world, def: world.def, charDef: activeChar, counts: todApply(counts || FREE_ROAM.hazards),
+    scene, world, def: world.def, charDef: activeChar, counts: diffApply(todApply(counts || FREE_ROAM.hazards)),
+    watchSpeedMul: () => diff().watchSpeedMul, // M15a.12: Watch pursuit speed ×
+    dogRechase: () => diff().dogRechase, // M15a.12: a gave-up dog turns back after N s
     effects: sharedEffects, floatText: sharedFloatText, player,
     onKnockdown, parcels: delivery ? delivery.parcels : null,
     onDogSteal: () => { if (delivery) delivery.dropParcel(true); },
     onDogRecover: () => { if (delivery) delivery.recoverParcel(); },
       onHop: () => { if (delivery) { delivery.addScore(25); sharedFloatText.pop('Hop! +25', player.pos.x, 2, player.pos.z, { color: '#a7c957' }); } if (events) events.emit('hop'); },
       onHonk: () => { if (events) events.emit('honk'); }, // §2.17 M16: the lakeside geese
-  });
+   });
   radarState.hazards = hazards;
+}
+
+// M15a.12: the player changed the difficulty (Title New Game / Settings). Persist
+// it and re-apply the hazard counts now (the pools' MAX still cap). The other
+// multipliers (deliveriesMul, heatDecay, watchSpeed, dogRechase, giftWrap) are
+// read live, so they take effect on the next mission/shift.
+function reapplyDifficulty(id) {
+  progress.setDifficulty(id);
+  if (player) {
+    const sh = activeShiftId ? SHIFTS.find((s) => s.id === activeShiftId) : null;
+    setHazards((sh && sh.hazards) || FREE_ROAM.hazards);
+  }
+  if (hud && hud.diffBadge) hud.diffBadge.textContent = diff().name;
 }
 
 // §2.6 knockdown: camera shake + hit-stop + drop a parcel (in a mission) + dust.
@@ -713,7 +749,8 @@ function onKnockdown(kind) {
   if (!player) return;
   if (followCam) followCam.shake(HAZARD.knockdownShake);
   hitStopUntil = simTime + (CARTOON.enabled ? CARTOON.hitStopMs : 0) / 1000;
-  if (delivery) delivery.dropParcel(false);
+  // M15a.12: on Easy a knockdown never costs a parcel (`knockdownCostsParcel` false).
+  if (delivery && diff().knockdownCostsParcel) delivery.dropParcel(false);
   sharedEffects.dust(player.pos.x, 0.6, player.pos.z);
   if (events) events.emit(kind === 'grump' ? 'grumble' : 'knockdown');
 }
@@ -726,8 +763,12 @@ function startShift(shiftId) {
   if (!shift) return;
   activeShiftId = shiftId;
   const seed = params.seed || 1;
+  // M15a.12: deliveries × the difficulty's `deliveriesMul` (rounded up; capacity
+  // unchanged). An effShift (a copy) carries the count so the star total scales.
+  const dMul = diff().deliveriesMul;
+  const effShift = dMul === 1 ? shift : { ...shift, deliveries: Math.ceil(shift.deliveries * dMul) };
   setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
-  mission = createMission({ def: world.def, shift, seed, clock: dayClock, onResults: (r) => showResults(r) });
+  mission = createMission({ def: world.def, shift: effShift, seed, clock: dayClock, onResults: (r) => showResults(r) });
   // §2.15: a shift picks its own Grumps (seeded, excluding delivery targets);
   // heat + Watch start clean for the shift.
   if (heat) heat.reset();
@@ -808,6 +849,7 @@ function buildHUD() {
   const chip = el('div', 'hud-chip', 'FREE ROAM');
   const coins = el('div', 'hud-coins', '0');
   const golden = el('div', 'hud-golden', ''); // M15a.1: set per-suburb by refreshGolden()
+  const diffBadge = el('div', 'hud-diff', diff().name); // M15a.12: the current difficulty
   const panel = el('div', 'hud-mission');
   const pName = el('div', 'hud-mission-name');
   const pTimer = el('div', 'hud-mission-timer');
@@ -844,12 +886,12 @@ function buildHUD() {
   const watchPopup = el('div', 'watch-popup');
   watchPopup.append(el('div', 'watch-popup-title', 'Neighborhood Watch'), el('div', 'watch-popup-sub', 'is on to you!'));
   watchPopup.style.display = 'none';
-  ui.append(chip, coins, golden, clockEl, panel, ab, banner, heatRow, watchPopup);
+  ui.append(chip, coins, golden, diffBadge, clockEl, panel, ab, banner, heatRow, watchPopup);
   abilityBtn = ab; abilityRing = abRing; abilityName = abName;
   goldenBanner = banner; goldenBannerTitle = bannerTitle; goldenBannerSub = bannerSub;
   heatRowEl = heatRow; heatWhistles = heatWh; watchPopupEl = watchPopup;
     hud = {
-      chip, coins, golden, clockEl, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
+      chip, coins, golden, diffBadge, clockEl, panel, pName, pTimer, pTargets, pParcels, pNext, pScore, pRestock, pRestockFill,
     missionStart(session, shift) {
       this.panel.style.display = ''; this.chip.style.display = 'none';
       this.pName.textContent = shift.name; this.pNext.textContent = addrLabel(session.topParcel());
@@ -941,6 +983,7 @@ function routeScreen(name, params) {
   else if (name === 'selectVehicle') { openStripFor('locker', { row: 1 }); }
   else if (name === 'results') { showResults({ shift: 'morning', success: true, score: 3420, stars: 3, coins: 340, timeBonus: 120, delivered: 10, total: 10, needOne: 7, styleThreshold: 1900 }); }
   else if (name === 'settings') { screens.show('settings'); screens.buildSettings(qualityName); }
+  else if (name === 'difficulty') { screens.show('difficulty'); } // M15a.12
   else if (name === 'howTo') { screens.show('howTo'); }
   else if (name === 'pause') { if (screens) { screens.buildPause(); screens.show('pause'); } simPaused = true; }
   else if (name.startsWith('missionCard:')) { openStripFor('dispatch', { focus: name.slice(12) }); }
@@ -970,7 +1013,7 @@ function restockLabelFor(shift) {
 }
 
 function setupDelivery(charDef, vehDef, targetDefs, packageMix, seed, effects, floatText, shift) {
-  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, restockZone: shift ? restockZoneFor(shift) : null, restockLabel: shift ? restockLabelFor(shift) : 'depot', lockerBodies: world.lockerBodies || [], lockers: world.lockers || null, onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
+  return createDelivery({ world, camera, renderer, scene, player, input, charDef, vehDef, targets: targetDefs || M5_TARGETS, seed, ui: document.getElementById('ui'), packageMix, effects, floatText, hazards, events, restockZone: shift ? restockZoneFor(shift) : null, restockLabel: shift ? restockLabelFor(shift) : 'depot', lockerBodies: world.lockerBodies || [], lockers: world.lockers || null, giftWrap: diff().giftWrap, onParcelRest: (x, y, z) => { const b = mischief ? mischief.grumpHit(x, z, y) : null; if (b && events) events.emit(b.kind === 'window' ? 'crash' : 'splat'); } });
 }
 resizeRenderer(renderer, camera);
 
