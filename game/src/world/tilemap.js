@@ -63,12 +63,22 @@ export function loadTilemap(def) {
     throw new Error(`tilemap ${def.id}: footprint tile count mismatch (H ${seenH.size}/${expectH.size}, X ${seenX.size}/${expectX.size})`);
   }
 
-  // §2.17: parcel lockers must sit on walkable sidewalk tiles.
+  // §2.17 / M15a.2: parcel lockers sit on a sidewalk tile with a road on one side
+  // and the yard on the other (the cabinet's back goes against the yard edge and its
+  // doors face the street; the model needs that to pick its orientation).
   if (def.parcelLockers) {
     for (const [lx, lz] of def.parcelLockers) {
       const c = rows[lz] ? rows[lz][lx] : '#';
       if (!TILES[c] || !TILES[c].walkable) throw new Error(`tilemap ${def.id}: parcel locker at (${lx},${lz}) is not walkable`);
       if (TILES[c].key !== 'sidewalk') throw new Error(`tilemap ${def.id}: parcel locker at (${lx},${lz}) must be on a sidewalk tile`);
+      let roadSide = false;
+      for (const [dx, dz] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+        const nx = lx + dx, nz = lz + dz;
+        const nc = (nz >= 0 && nz < height && nx >= 0 && nx < width) ? rows[nz][nx] : '#';
+        const nk = TILES[nc] ? TILES[nc].key : 'forest';
+        if (nk === 'road' || nk === 'lot') { roadSide = true; break; }
+      }
+      if (!roadSide) throw new Error(`tilemap ${def.id}: parcel locker at (${lx},${lz}) needs a road on one side (its doors face the street)`);
     }
   }
 

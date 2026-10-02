@@ -280,12 +280,12 @@ export default {
   ],
   "parcelLockers": [
     [
-      9,
-      26
+      11,
+      14
     ],
     [
-      12,
-      14
+      10,
+      26
     ]
   ],
   "exits": [

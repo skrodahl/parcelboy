@@ -769,5 +769,21 @@
       "(function(){ __pb.collectGolden(0); var t=document.querySelector(\".pb-banner-title\"), q=document.querySelector(\".pb-banner-sub\"); if(!t||!q) throw new Error(\"banner missing\"); if(t.textContent!==\"GOLDEN PARCEL!\") throw new Error(\"title: \"+t.textContent); if(q.textContent.indexOf(\"1 / 8 found in Cedar Heights\")<0) throw new Error(\"sub: \"+q.textContent); })()"
     ],
     "waitMs": 500
+  },
+  {
+    "name": "m15a-locker-street",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.camAt(166, 23.4, 13, 5);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-locker-top",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.camAt(166, 22, 4, 26);"
+    ],
+    "waitMs": 400
   }
 ]

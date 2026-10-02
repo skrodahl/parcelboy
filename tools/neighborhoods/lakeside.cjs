@@ -114,9 +114,10 @@ fillRect(map, 22, 33, 22, 35, 's');
 //     are foot+car decks but cars loop the bluff so the loop stays simple).
 const TRAFFIC = { bluff: [[8, 10], [8, 30], [20, 30], [20, 10]] };
 
-// 10b. Two sidewalk pads on the bluff for the parcel lockers (lockers must sit
-//      on a sidewalk tile, §2.17).
-setRow(map, 11, 34, 's'); setRow(map, 13, 8, 's');
+// 10b. Two sidewalk pads on the bluff for the parcel lockers (M15a.2: each pad is a
+//      sidewalk tile with a road on one side, so the cabinet's doors face the street).
+setRow(map, 13, 9, 's');   // just north of the row-10 spur road (doors face south)
+setRow(map, 11, 31, 's');  // just south of the row-30 spur road (doors face north)
 
 // 11. Hazards, golden parcels, lockers, markers.
 const HAZARD_SPOTS = {
@@ -124,7 +125,7 @@ const HAZARD_SPOTS = {
   sprinkler: [[6, 33], [20, 33], [8, 20]],
 };
 const GOLDEN = [[23, 12], [24, 20], [30, 15], [24, 28], [6, 33], [18, 33], [10, 8], [29, 21]];
-const LOCKERS = [[11, 34], [13, 8]]; // on the two bluff sidewalk pads (validated)
+const LOCKERS = [[13, 9], [11, 31]]; // on the two bluff sidewalk pads (M15a.2: road on one side)
 const MARKERS = [
   { id: 'dispatch', x: KIOSK.x, z: KIOSK.z, color: '#00b4a6', icon: 'parcel' },
 ];

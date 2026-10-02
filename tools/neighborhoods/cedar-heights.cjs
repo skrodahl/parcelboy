@@ -122,7 +122,7 @@ const HAZARD_SPOTS = {
   sprinkler: [[6, 33], [23, 15]],
 };
 const GOLDEN = [[12, 35], [22, 32], [9, 26], [23, 21], [12, 18], [21, 12], [10, 8], [18, 4]];
-const LOCKERS = [[9, 26], [12, 14]]; // on the terrace sidewalk bands (validated as walkable)
+const LOCKERS = [[11, 14], [10, 26]]; // M15a.2: sidewalk tiles with a road on one side (doors face the street)
 const MARKERS = [
   { id: 'dispatch', x: KIOSK.x, z: KIOSK.z, color: '#00b4a6', icon: 'parcel' },
 ];
