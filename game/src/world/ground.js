@@ -187,7 +187,9 @@ function addRoadLines(grid, tm) {
         if (skip(tx, r.z) || skip(tx, r.z + 1)) continue;
         const baseY = terrainBaseY(tm, tx, r.z);
         const b = grid.chunkAt(tx, r.z).opaque;
-        b.box(cx + 0.75, baseY + 0.012, wz, 1.5, 0.02, 0.25, line, { skipFaces: ['bottom', 'top'] });
+        // M15a.3: keep the TOP face (skipFaces ['bottom'] only) so the dash reads
+        // as a flat line from above; sit ~0.015 off the road so it can't z-fight.
+        b.box(cx + 0.75, baseY + 0.015, wz, 1.5, 0.02, 0.25, line, { skipFaces: ['bottom'] });
       }
     } else {
       const wx = (r.x + 1) * T;
@@ -198,7 +200,8 @@ function addRoadLines(grid, tm) {
         if (skip(r.x, tz) || skip(r.x + 1, tz)) continue;
         const baseY = terrainBaseY(tm, r.x, tz);
         const b = grid.chunkAt(r.x, tz).opaque;
-        b.box(wx, baseY + 0.012, cz + 0.75, 0.25, 0.02, 1.5, line, { skipFaces: ['bottom', 'top'] });
+        // M15a.3: keep the top face + 0.015 lift (see the x-axis branch above).
+        b.box(wx, baseY + 0.015, cz + 0.75, 0.25, 0.02, 1.5, line, { skipFaces: ['bottom'] });
       }
     }
   }
@@ -217,8 +220,9 @@ function addCrosswalks(grid, tm) {
     const stripe = (b, wx, wz, horizontal, baseY) => {
       for (let i = 0; i < n; i++) {
         const off = (i - n / 2) * lane;
-        if (horizontal) b.box(wx + off, baseY + 0.012, wz, lane * 0.5, 0.02, 1.2, white, { skipFaces: ['bottom', 'top'] });
-        else b.box(wx, baseY + 0.012, wz + off, 1.2, 0.02, lane * 0.5, white, { skipFaces: ['bottom', 'top'] });
+        // M15a.3: keep the top face + 0.015 lift so the zebra reads from above.
+        if (horizontal) b.box(wx + off, baseY + 0.015, wz, lane * 0.5, 0.02, 1.2, white, { skipFaces: ['bottom'] });
+        else b.box(wx, baseY + 0.015, wz + off, 1.2, 0.02, lane * 0.5, white, { skipFaces: ['bottom'] });
       }
     };
     const vcx = (ix + 1) * T; // vertical road center X (spans cols ix,ix+1)
@@ -226,8 +230,10 @@ function addCrosswalks(grid, tm) {
     // North + south: cross the vertical road (stripes span X), at rows iz-1 / iz+2.
     stripe(grid.chunkAt(ix, iz - 1).opaque, vcx, tm.cz(iz - 1), true, terrainBaseY(tm, ix, iz - 1));
     stripe(grid.chunkAt(ix, iz + 2).opaque, vcx, tm.cz(iz + 2), true, terrainBaseY(tm, ix, iz + 2));
-    // West + east: cross the horizontal road (stripes span Z), at cols ix-2 / ix+2.
-    stripe(grid.chunkAt(ix - 2, iz).opaque, tm.cx(ix - 2), hcz, false, terrainBaseY(tm, ix - 2, iz));
+    // West + east: cross the horizontal road (stripes span Z), at cols ix-1 / ix+2.
+    // M15a.3: the west arm was at ix-2 (one tile too far — the tile just outside
+    // the 2×2 intersection is ix-1); the east arm at ix+2 was already right.
+    stripe(grid.chunkAt(ix - 1, iz).opaque, tm.cx(ix - 1), hcz, false, terrainBaseY(tm, ix - 1, iz));
     stripe(grid.chunkAt(ix + 2, iz).opaque, tm.cx(ix + 2), hcz, false, terrainBaseY(tm, ix + 2, iz));
   }
 }
@@ -249,7 +255,7 @@ function addParkingLines(grid, tm) {
   for (let i = 0; i <= count; i++) {
     const tx = x0 + Math.floor((i / count) * (x1 - x0 + 1));
     const b = grid.chunkAt(Math.max(x0, Math.min(tx, x1)), z).opaque;
-    b.box(wx0 + (i / count) * w, terrainBaseY(tm, tx, z) + 0.012, tm.minZ(z) + 0.6, 0.14, 0.02, 2.6, white, { skipFaces: ['bottom', 'top'] });
+    b.box(wx0 + (i / count) * w, terrainBaseY(tm, tx, z) + 0.015, tm.minZ(z) + 0.6, 0.14, 0.02, 2.6, white, { skipFaces: ['bottom'] }); // M15a.3: top face + 0.015
   }
 }
 

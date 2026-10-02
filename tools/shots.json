@@ -785,5 +785,21 @@
       "__pb.camAt(166, 22, 4, 26);"
     ],
     "waitMs": 400
+  },
+  {
+    "name": "m15a-lines-top",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.camAt(96, 72, 4, 48);"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-lines-follow",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1",
+    "eval": [
+      "__pb.setCam(\"follow\"); __pb.teleport(14, 17, 90); __pb.step(10); __pb.setCamDist(16, 7);"
+    ],
+    "waitMs": 600
   }
 ]
