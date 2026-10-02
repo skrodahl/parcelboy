@@ -1,5 +1,4 @@
 import { mulberry32 } from '../core/rng.js';
-import { PACKAGES } from '../data/packages.js';
 
 // §2.10 / §2.6 / §2.20 / M15a.11: a shift runner. It picks the delivery targets
 // and owns the shift's end conditions. M15a.11 (any-time): a main shift has
@@ -32,32 +31,49 @@ function selectTargets(def, count, seed) {
   return picked;
 }
 
-// §2.14: a building's front delivery point (front face pushed out 1u).
-function buildingDeliveryPoint(def, T, buildingId) {
-  const b = def.buildings.find((x) => x.id === buildingId) || def.houses.find((x) => x.id === buildingId);
-  const cx = (b.x + b.w / 2) * T, cz = (b.z + b.d / 2) * T;
-  const f = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] }[b.facing] || [0, 1];
-  const off = (b.facing === 'N' || b.facing === 'S') ? (b.d / 2) * T : (b.w / 2) * T;
-  const dx = cx + f[0] * (off + 1.0), dz = cz + f[1] * (off + 1.0);
-  return {
-    house: b, doormat: { x: dx, z: dz },
-    porch: { minX: dx - 1.6, maxX: dx + 1.6, minZ: dz - 1.6, maxZ: dz + 1.6 },
-    lot: { minX: dx - 3, maxX: dx + 3, minZ: dz - 3, maxZ: dz + 3 },
-  };
+// M15a.17: a side mission delivers to houses across the suburb (never back to
+// the shop). Pick `shift.deliveries` seeded house targets, each at least
+// `shift.minDistance` from the giver shop and at least `shift.minSpacing` from
+// every other target, never a Grump house, never a target of the concurrently
+// running main shift. Each gets a customer (seeded from `shift.customers`).
+// Returns `{ house, customer }` defs; `delivery.setupDelivery` resolves the
+// doormat/porch/lot from the house id and the pkg from the package mix.
+function selectSideHouses(def, shift, seed, env) {
+  const T = def.tileSize;
+  const giver = def.buildings.find((x) => x.id === shift.giver) || def.houses.find((x) => x.id === shift.giver);
+  if (!giver) return [];
+  const gx = (giver.x + giver.w / 2) * T, gz = (giver.z + giver.d / 2) * T;
+  const minD = shift.minDistance || 0, minSp = shift.minSpacing || 0;
+  const grumps = new Set(env.grumpHouseIds || []);
+  const mainTgts = new Set(env.activeMainTargetIds || []);
+  const center = (h) => [ (h.x + 0.5) * T, (h.z + 0.5) * T ];
+  const cands = def.houses.filter((h) => {
+    if (grumps.has(h.id) || mainTgts.has(h.id)) return false;
+    const c = center(h);
+    return Math.hypot(c[0] - gx, c[1] - gz) >= minD;
+  });
+  const rng = mulberry32(seed);
+  for (let i = cands.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; const t = cands[i]; cands[i] = cands[j]; cands[j] = t; }
+  const picked = [];
+  for (const h of cands) {
+    if (picked.length >= shift.deliveries) break;
+    const c = center(h);
+    let ok = true;
+    for (const p of picked) { const pc = center(p); if (Math.hypot(c[0] - pc[0], c[1] - pc[1]) < minSp) { ok = false; break; } }
+    if (ok) picked.push(h);
+  }
+  if (picked.length < shift.deliveries) for (const h of cands) { if (picked.length >= shift.deliveries) break; if (picked.indexOf(h) < 0) picked.push(h); } // fill, spacing relaxed
+  const cust = (shift.customers || []).slice();
+  const crng = mulberry32((seed * 131 + 17) | 0);
+  for (let i = cust.length - 1; i > 0; i--) { const j = (crng() * (i + 1)) | 0; const t = cust[i]; cust[i] = cust[j]; cust[j] = t; }
+  return picked.map((h, i) => ({ house: h, customer: cust.length ? cust[i % cust.length] : null }));
 }
 
-// Build the target defs for a shift: house ids for main shifts, building defs
-// for side missions (each of the `deliveries` parcels goes to the giver).
+// Build the target defs for a shift: house ids for main shifts, `{ house,
+// customer }` defs for side missions (each parcel goes to a customer's house).
 function buildTargetDefs(env) {
   const { def, shift, seed } = env;
-  const T = def.tileSize;
-  const mixKeys = Object.keys(shift.packageMix);
-  const pkg = PACKAGES.find((p) => p.id === mixKeys[0]);
-  if (shift.kind === 'side') {
-    const defs = [];
-    for (let i = 0; i < shift.deliveries; i++) defs.push({ ...buildingDeliveryPoint(def, T, shift.giver), pkg });
-    return defs;
-  }
+  if (shift.kind === 'side') return selectSideHouses(def, shift, seed, env);
   return selectTargets(def, shift.deliveries, seed);
 }
 
@@ -137,10 +153,18 @@ export function createMission(env) {
     else if (delivered >= needOne) stars = 1;
     if (stars === 2 && score >= st.style) stars = 3;
     const coins = Math.max(0, Math.floor(score / 10)); // §2.6 (never negative)
+    // M15a.17: side missions carry a customer line per parcel (the card + the
+    // report show who each parcel is for and which house it went to).
+    const customers = (session && !isMain) ? session.targets.map((t) => ({
+      name: t.customer ? t.customer.name : null,
+      line: t.customer ? t.customer.line : null,
+      addr: '#' + t.house.num + ' ' + t.house.street,
+      delivered: !!t.delivered,
+    })) : [];
     const res = {
       shift: shift.id, score, timeBonus, stars, coins, delivered, total, success,
       tip, hoursOut: !success && hoursRanOut(), base,
-      needOne, styleThreshold: st.style,
+      needOne, styleThreshold: st.style, customers,
     };
     lastRes = res;
     if (env.onResults) env.onResults(res);

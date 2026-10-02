@@ -809,7 +809,12 @@ function startShift(shiftId) {
   const dMul = diff().deliveriesMul;
   const effShift = dMul === 1 ? shift : { ...shift, deliveries: Math.ceil(shift.deliveries * dMul) };
   setHazards(shift.hazards || FREE_ROAM.hazards); // before the delivery so it can read the live set
-  mission = createMission({ def: world.def, shift: effShift, seed, clock: dayClock, onResults: (r) => showResults(r) });
+  // M15a.17: a side mission's house targets avoid the current Grump houses and
+  // any concurrently running main shift's targets (defensive — only one mission
+  // is active at a time today, so `activeMainTargetIds` is normally empty).
+  const grumpHouseIds = mischief ? mischief.grumps.slice() : [];
+  const activeMainTargetIds = (mission && mission.active && mission.session) ? mission.session.targets.map((t) => t.house.id) : [];
+  mission = createMission({ def: world.def, shift: effShift, seed, clock: dayClock, onResults: (r) => showResults(r), grumpHouseIds, activeMainTargetIds });
   // §2.15: a shift picks its own Grumps (seeded, excluding delivery targets);
   // heat + Watch start clean for the shift.
   if (heat) heat.reset();

@@ -104,11 +104,31 @@ export const SHIFTS = [
     id: 'cake', name: 'Cake Rush', kind: 'side', giver: 'bakery', pickup: 'bakery',
     neighborhood: 'maple-hollow', deliverBy: 60, deliveries: 1, // soft: full pay + tip in time
     packageMix: { cake: 1 }, hazards: null, stars: { deliveredFrac: 0.7, style: 340 }, unlockStars: 0, grumps: 0, // M15a.11: open at 0★ (a new player's third option)
+    // M15a.17: deliver to a house across the suburb (never back to the shop).
+    // `minDistance` = the target house's center must be ≥ this far from the shop.
+    minDistance: 40,
+    customers: [
+      { name: 'Mrs. Henderson', line: 'birthday cake' },
+      { name: 'Mr. Okafor', line: 'wedding cake' },
+      { name: 'The Doyle Family', line: 'anniversary cake' },
+      { name: 'Miss Sorensen', line: 'graduation cake' },
+      { name: 'Mr. Patel', line: 'a surprise cake' },
+    ],
   },
   {
     id: 'haul', name: 'Heavy Haul', kind: 'side', giver: 'hardware', pickup: 'hardware',
     neighborhood: 'maple-hollow', deliverBy: 120, deliveries: 3,
     packageMix: { heavy: 1 }, hazards: null, stars: { deliveredFrac: 0.7, style: 215 }, unlockStars: 3, grumps: 0, // M15a.11: 3★
+    // M15a.17: three houses, each ≥ `minDistance` from the shop and ≥ `minSpacing`
+    // from every other target, so it's a real run across the suburb.
+    minDistance: 20, minSpacing: 15,
+    customers: [
+      { name: 'Mr. Patel', line: 'a box of bricks' },
+      { name: 'Mr. Okafor', line: 'a crate of paint' },
+      { name: 'The Doyles', line: 'a pallet of tiles' },
+      { name: 'Mr. Sorensen', line: 'a drum of planks' },
+      { name: 'Mrs. Kim', line: 'a bag of cement' },
+    ],
   },
 ];
 

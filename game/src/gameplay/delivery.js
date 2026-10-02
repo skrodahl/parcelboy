@@ -60,14 +60,24 @@ export function createDelivery(env) {
   // §2.5: each target's package is picked from the shift's packageMix (seeded,
   // a separate stream from the scoring rng). No mix → all standard (M5).
   const pkgRng = mulberry32(((seed || 1) * 101 + 7) | 0);
-  // `targetIds` is either house ids (main shifts / M5) or pre-built target
-  // defs for a side mission's building target (doormat/porch/lot/pkg given).
+  // `targetIds` is either house ids (main shifts / M5) or, for a side mission
+  // (M15a.17), `{ house, customer }` defs — the doormat/porch/lot are resolved
+  // from the house id and the pkg from the package mix, and the customer line
+  // is carried through to the card + report.
   const targetDefs = targetIds.map((t) => {
     if (typeof t === 'string') {
       const h = world.def.houses.find((x) => x.id === t);
       return { house: h, doormat: world.doormatPoints[t], porch: tileRect(world, world.porches[t].tiles), lot: tileRect(world, world.lots[t]), pkg: pickPackage(packageMix, pkgRng, std) };
     }
-    return { house: t.house, doormat: t.doormat, porch: t.porch, lot: t.lot, pkg: t.pkg };
+    const h = t.house, hid = h.id;
+    return {
+      house: h,
+      doormat: t.doormat || world.doormatPoints[hid],
+      porch: t.porch || tileRect(world, world.porches[hid].tiles),
+      lot: t.lot || tileRect(world, world.lots[hid]),
+      pkg: t.pkg || pickPackage(packageMix, pkgRng, std),
+      customer: t.customer || null,
+    };
   });
   const targets = targetDefs.map((t) => ({ ...t, delivered: false }));
 

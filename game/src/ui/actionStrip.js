@@ -179,7 +179,11 @@ export function createActionStrip(ctx) {
   }
   function shiftDetail(s) {
     const best = progress.bestFor(s.id).stars;
-    return s.deliveries + ' drops · ' + (s.kind === 'side' ? 'side mission' : s.hours + 'h') + (best ? ' · best ' + best + '★' : '');
+    let d = s.deliveries + ' drops · ' + (s.kind === 'side' ? 'side mission' : s.hours + 'h') + (best ? ' · best ' + best + '★' : '');
+    // M15a.17: a side mission's customer story (a representative line — the
+    // specific customer is seeded when the shift actually starts).
+    if (s.kind === 'side' && s.customers && s.customers.length) d += ' · ' + s.customers[0].name + "'s " + s.customers[0].line;
+    return d;
   }
 
   // -- public API --------------------------------------------------------------

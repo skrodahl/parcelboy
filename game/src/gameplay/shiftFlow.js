@@ -162,6 +162,19 @@ export function createShiftFlow(ctx) {
       chk.append(row);
     }
     resultsEl.append(chk);
+    // M15a.17: a side mission lists who each parcel was for + the house it went to.
+    if (res.customers && res.customers.length) {
+      const cl = el('div', 'results-customers');
+      for (const c of res.customers) {
+        const row = el('div', 'results-check-line' + (c.delivered ? '' : ' miss'));
+        row.append(
+          el('span', 'rc-label', c.name + "'s " + c.line + ' → ' + c.addr),
+          el('span', c.delivered ? 'rc-mark ok' : 'rc-mark no', c.delivered ? '✓' : '✗'),
+        );
+        cl.append(row);
+      }
+      resultsEl.append(cl);
+    }
     const btnC = el('button', 'results-btn', 'Continue');
     const btnR = el('button', 'results-btn', 'Retry');
     btnC.onclick = () => { resultsEl.remove(); resultsEl = null; };

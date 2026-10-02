@@ -900,6 +900,22 @@
     "waitMs": 400
   },
   {
+    "name": "m15a-cake-card",
+    "url": "/?nb=maple-hollow&char=pip&veh=feet&mute=1&paused=1&stars=0",
+    "eval": [
+      "__pb.openStrip('bakery', { focus: 'cake' }); __pb.step(4); __pb.setCam('follow');"
+    ],
+    "waitMs": 400
+  },
+  {
+    "name": "m15a-cake-route",
+    "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1&stars=0",
+    "eval": [
+      "__pb.startShift('cake'); __pb.step(6); __pb.setCam('follow');"
+    ],
+    "waitMs": 400
+  },
+  {
     "name": "m15a-report-stars",
     "url": "/?nb=maple-hollow&char=pip&veh=bike&mute=1&paused=1&stars=0",
     "eval": [
